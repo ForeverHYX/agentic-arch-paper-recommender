@@ -47,6 +47,12 @@
 | 反馈学习局部测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline` | 测试通过 | 8 个测试通过 | pass |
 | 反馈学习推荐生成 | `python3 -m paper_recommender.pipeline --input examples/sample_papers.jsonl --profile config/interests.json --feedback examples/sample_feedback.json --output /tmp/recommender-sample.json --run-date 2026-06-12 --limit 25` | 生成推荐 JSON 并包含关键词权重 | 写入 2 条推荐，`keyword_weights` 包含 `gem5/cache/search` 等干净 token | pass |
 | 反馈学习全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 29 个测试通过 | pass |
+| 推荐历史 RED 测试 | `python3 -m unittest tests.test_history tests.test_feedback_pipeline` | 缺少 history 模块时失败 | `ModuleNotFoundError: No module named 'paper_recommender.history'` | expected-fail |
+| 推荐历史局部测试 | `python3 -m unittest tests.test_history tests.test_feedback_pipeline` | 测试通过 | 8 个测试通过 | pass |
+| 推荐历史 workflow RED 测试 | `python3 -m unittest tests.test_workflow_contract` | workflow 未接历史时失败 | 断言缺少 `output/history.json` 初始化和 history fetch/publish | expected-fail |
+| 推荐历史 workflow 契约测试 | `python3 -m unittest tests.test_workflow_contract` | 测试通过 | 2 个测试通过 | pass |
+| 带历史生成推荐 JSON | `python3 -m paper_recommender.pipeline --input examples/sample_papers.jsonl --profile config/interests.json --feedback examples/sample_feedback.json --history examples/sample_history.json --output /tmp/recommender-history-sample.json --run-date 2026-06-12 --limit 25` | 生成推荐 JSON 并包含历史摘要 | 写入 2 条推荐，`history_summary.shown_counts.agentic-sample = 1` | pass |
+| 推荐历史全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 36 个测试通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -153,6 +159,28 @@
   - `findings.md`
   - `progress.md`
 
+## 会话补充：推荐历史与重复惩罚
+- **状态：** complete
+- 执行的操作：
+  - 增加 `paper_recommender.history`，支持读取/写入本地历史 JSON、从 Supabase 读取 `recommendation_runs`、把本次推荐 upsert 回 Supabase。
+  - pipeline 增加 `--history` 参数，并在推荐排序时对历史出现过的论文按出现次数施加重复惩罚。
+  - 推荐 payload 增加 `history_summary.shown_counts`，便于观察去重行为。
+  - GitHub Actions 增加 `output/history.json` 初始化、Supabase 历史读取、pipeline 历史输入和生成后历史发布步骤。
+  - 增加历史模块、重复惩罚和 workflow 契约测试。
+  - 更新 README、示例历史文件、计划和发现记录。
+- 创建/修改的文件：
+  - `paper_recommender/history.py`
+  - `paper_recommender/pipeline.py`
+  - `.github/workflows/daily.yml`
+  - `tests/test_history.py`
+  - `tests/test_feedback_pipeline.py`
+  - `tests/test_workflow_contract.py`
+  - `examples/sample_history.json`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
 ### 当前仓库命名状态
 - 当前本地路径：`/Users/foreverhyx/agentic-arch-paper-recommender`
 - 当前远程仓库名：`ForeverHYX/agentic-arch-paper-recommender`
@@ -167,7 +195,7 @@
 | 我要去哪里？ | 继续完善真实每日 pipeline、反馈学习质量、邮件推送可靠性和上线验证 |
 | 目标是什么？ | 构建一个无自有服务器、保留 GitHub Pages、带邮件和反馈学习的个性化论文推荐系统 |
 | 我学到了什么？ | 见 `findings.md` |
-| 我做了什么？ | 已接入真实 arXiv Atom 数据源，并增加基于反馈论文文本的关键词学习排序 |
+| 我做了什么？ | 已接入真实 arXiv Atom 数据源、反馈关键词学习和基于推荐历史的重复惩罚 |
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*

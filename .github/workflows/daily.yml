@@ -36,6 +36,7 @@ jobs:
         run: |
           mkdir -p output
           echo '[]' > output/feedback.json
+          echo '[]' > output/history.json
 
       - name: Fetch arXiv papers
         run: |
@@ -51,12 +52,20 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python -m paper_recommender.feedback --output output/feedback.json --limit 500
 
+      - name: Fetch Supabase recommendation history
+        if: env.HAS_SUPABASE == 'true'
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python -m paper_recommender.history fetch --output output/history.json --limit 1000
+
       - name: Build recommendation payload
         run: |
           python -m paper_recommender.pipeline \
             --input output/papers.jsonl \
             --profile config/interests.json \
             --feedback output/feedback.json \
+            --history output/history.json \
             --output site/recommendations.json \
             --run-date "$(date -u +%F)" \
             --limit 25
@@ -82,6 +91,13 @@ jobs:
           EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
           EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
         run: python -m paper_recommender.email_delivery --recommendations site/recommendations.json
+
+      - name: Publish Supabase recommendation history
+        if: env.HAS_SUPABASE == 'true'
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python -m paper_recommender.history publish --recommendations site/recommendations.json
 
       - uses: actions/configure-pages@v5
 

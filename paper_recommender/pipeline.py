@@ -16,6 +16,7 @@ from paper_recommender.feedback import (
     text_feedback_adjustment,
     text_feedback_weights,
 )
+from paper_recommender.history import RecommendationRun, history_counts, load_history_json
 
 
 def paper_from_record(record: dict[str, Any]) -> Paper:
@@ -51,14 +52,17 @@ def recommendation_payload(
     limit: int | None = None,
     profile: InterestProfile | None = None,
     feedback_events: list[FeedbackEvent] | None = None,
+    history_runs: list[RecommendationRun] | None = None,
 ) -> dict[str, Any]:
     resolved_profile = profile or load_interest_profile()
     feedback_weights = section_feedback_weights(feedback_events or [])
     keyword_weights = text_feedback_weights(feedback_events or [])
+    shown_counts = history_counts(history_runs or [])
     ranked = _apply_feedback_weights(
         rank_papers(papers, profile=resolved_profile),
         feedback_weights,
         keyword_weights,
+        shown_counts,
     )
     if limit is not None:
         ranked = ranked[:limit]
@@ -90,6 +94,9 @@ def recommendation_payload(
             "section_weights": feedback_weights,
             "keyword_weights": keyword_weights,
         },
+        "history_summary": {
+            "shown_counts": shown_counts,
+        },
         "count": len(recommendations),
         "recommendations": recommendations,
     }
@@ -102,6 +109,7 @@ def write_recommendations_json(
     limit: int | None = None,
     profile: InterestProfile | None = None,
     feedback_events: list[FeedbackEvent] | None = None,
+    history_runs: list[RecommendationRun] | None = None,
 ) -> dict[str, Any]:
     payload = recommendation_payload(
         papers,
@@ -109,6 +117,7 @@ def write_recommendations_json(
         limit=limit,
         profile=profile,
         feedback_events=feedback_events,
+        history_runs=history_runs,
     )
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -124,11 +133,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=None, help="Maximum recommendations to emit.")
     parser.add_argument("--profile", default=None, help="Interest profile JSON path.")
     parser.add_argument("--feedback", default=None, help="Feedback events JSON path.")
+    parser.add_argument("--history", default=None, help="Recommendation history JSON path.")
     args = parser.parse_args(argv)
 
     papers = load_papers_jsonl(args.input)
     profile = load_interest_profile(args.profile) if args.profile else None
     feedback_events = load_feedback_json(args.feedback) if args.feedback else None
+    history_runs = load_history_json(args.history) if args.history else None
     payload = write_recommendations_json(
         papers,
         output_path=args.output,
@@ -136,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         limit=args.limit,
         profile=profile,
         feedback_events=feedback_events,
+        history_runs=history_runs,
     )
     print(f"Wrote {payload['count']} recommendations to {args.output}")
     return 0
@@ -183,6 +195,7 @@ def _apply_feedback_weights(
     results,
     section_weights: dict[str, float],
     keyword_weights: dict[str, float],
+    shown_counts: dict[str, int],
 ):
     adjusted = []
     for result in results:
@@ -190,6 +203,7 @@ def _apply_feedback_weights(
         paper_text = " ".join([paper.title, paper.abstract, " ".join(paper.authors), " ".join(paper.categories)])
         adjustment = sum(section_weights.get(section, 0.0) for section in result.sections)
         adjustment += text_feedback_adjustment(paper_text, keyword_weights)
+        adjustment -= min(shown_counts.get(paper.paper_id, 0), 3) * 2.0
         if adjustment == 0:
             adjusted.append(result)
             continue

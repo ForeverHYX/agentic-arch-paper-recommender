@@ -11,6 +11,16 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--input output/papers.jsonl", workflow)
         self.assertNotIn("--input examples/sample_papers.jsonl", workflow)
 
+    def test_daily_workflow_reads_and_publishes_recommendation_history(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("echo '[]' > output/history.json", workflow)
+        self.assertIn("python -m paper_recommender.history fetch", workflow)
+        self.assertIn("--output output/history.json", workflow)
+        self.assertIn("--history output/history.json", workflow)
+        self.assertIn("python -m paper_recommender.history publish", workflow)
+        self.assertIn("--recommendations site/recommendations.json", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

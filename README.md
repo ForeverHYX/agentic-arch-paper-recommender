@@ -52,6 +52,7 @@ python3 -m paper_recommender.pipeline \
   --input output/papers.jsonl \
   --profile config/interests.json \
   --feedback examples/sample_feedback.json \
+  --history examples/sample_history.json \
   --output site/recommendations.json
 ```
 
@@ -75,3 +76,15 @@ The daily pipeline converts likes and dislikes into two lightweight learning sig
 
 - section weights, so preferred recommendation sections rank higher
 - keyword weights from liked/disliked paper text, so similar future papers move up or down without requiring an embedding service
+
+## Recommendation History
+
+When Supabase is configured, GitHub Actions also stores rows in `recommendation_runs`.
+The next daily run reads those rows and applies a repeat penalty to papers that have already been shown, reducing duplicate recommendations over time.
+
+Local commands:
+
+```bash
+python3 -m paper_recommender.history fetch --output output/history.json --limit 1000
+python3 -m paper_recommender.history publish --recommendations site/recommendations.json
+```
