@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SITE_BASE_URL: https://foreverhyx.github.io/daily-arxiv-recommender
+  SITE_BASE_URL: https://foreverhyx.github.io/agentic-arch-paper-recommender
   HAS_SMTP: ${{ secrets.SMTP_HOST != '' && secrets.SMTP_PASSWORD != '' && secrets.EMAIL_SENDER != '' && secrets.EMAIL_RECEIVER != '' }}
   HAS_SUPABASE: ${{ vars.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}
 

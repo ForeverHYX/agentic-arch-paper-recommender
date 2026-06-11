@@ -87,7 +87,7 @@
 - [x] 创建 `task_plan.md`、`findings.md`、`progress.md`。
 - [x] 记录当前需求、约束、领域画像和初步技术路线。
 - [x] 用户确认初版计划并要求开始开发。
-- [x] 创建 GitHub 远程仓库 `ForeverHYX/daily-arxiv-recommender` 并推送。
+- [x] 使用原 GitHub 远程仓库 `ForeverHYX/agentic-arch-paper-recommender` 并推送最新提交。
 - **状态：** complete
 
 ### 阶段 2：上游项目审计与改造范围确认

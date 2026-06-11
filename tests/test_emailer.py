@@ -23,8 +23,8 @@ class EmailerTests(unittest.TestCase):
 
         html = render_email_html(
             payload,
-            site_base_url="https://foreverhyx.github.io/daily-arxiv-recommender",
-            feedback_base_url="https://foreverhyx.github.io/daily-arxiv-recommender/feedback.html",
+            site_base_url="https://foreverhyx.github.io/agentic-arch-paper-recommender",
+            feedback_base_url="https://foreverhyx.github.io/agentic-arch-paper-recommender/feedback.html",
         )
 
         self.assertIn("2026-06-12", html)
@@ -53,8 +53,8 @@ class EmailerTests(unittest.TestCase):
 
         html = render_email_html(
             payload,
-            site_base_url="https://foreverhyx.github.io/daily-arxiv-recommender",
-            feedback_base_url="https://foreverhyx.github.io/daily-arxiv-recommender/feedback.html",
+            site_base_url="https://foreverhyx.github.io/agentic-arch-paper-recommender",
+            feedback_base_url="https://foreverhyx.github.io/agentic-arch-paper-recommender/feedback.html",
         )
 
         self.assertIn("<h2>Quantum Control</h2>", html)

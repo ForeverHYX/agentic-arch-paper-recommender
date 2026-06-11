@@ -6,7 +6,7 @@
 - **状态：** in_progress
 - **开始时间：** 2026-06-12 Asia/Shanghai
 - 执行的操作：
-  - 根据用户确认的方向创建项目规划目录，后续将更名为 `daily-arxiv-recommender`。
+  - 根据用户确认的方向创建项目规划目录；后续用户决定继续使用原仓库名。
   - 生成 `task_plan.md`、`findings.md`、`progress.md` 三个规划文件。
   - 将无服务器约束、GitHub Pages、邮件推送、Supabase 反馈和领域画像写入初版计划。
   - 核对目录和文件存在性，确认初版计划已落盘。
@@ -28,7 +28,7 @@
 ## 测试结果
 | 测试 | 输入 | 预期结果 | 实际结果 | 状态 |
 |------|------|---------|---------|------|
-| 规划目录创建 | `daily-arxiv-recommender` | 目录存在 | 初始目录存在，准备更名为通用项目名 | pass |
+| 规划目录创建 | `agentic-arch-paper-recommender` | 目录存在 | 当前使用原远程仓库名；本地目录待改回原名 | pass |
 | 规划文件创建 | 三个 Markdown 文件 | 文件存在且包含初版计划 | `task_plan.md`、`findings.md`、`progress.md` 均已创建 | pass |
 | 上游代码获取 | `git clone` / GitHub zip archive | 成功下载上游代码 | 连接 `github.com:443` 超时 | blocked-for-now |
 | 推荐内核测试 | `python3 -m unittest discover -s tests` | 测试通过 | 15 个测试通过 | pass |
@@ -50,10 +50,10 @@
   - 增加 `config/interests.json`，把分类、栏目、关键词、降权规则和恢复词从代码中抽离。
   - 更新 pipeline，让推荐 JSON 包含 `profile_name` 和 `section_labels`。
   - 更新邮件渲染和 GitHub Pages 前端，栏目名从推荐 JSON 读取。
-  - 更新 GitHub Actions 默认 Pages URL 为 `daily-arxiv-recommender`。
+  - 曾更新 GitHub Actions 默认 Pages URL 为 `daily-arxiv-recommender`，后按用户要求改回原仓库 Pages URL。
   - 使用 TDD 增加配置化兴趣画像测试。
-  - 本地文件夹已从 `agentic-arch-paper-recommender` 更名为 `daily-arxiv-recommender`。
-  - GitHub 远程仓库重命名普通请求连接失败；随后创建目标名新仓库并将本地 `origin` 切换过去。
+  - 本地文件夹曾从 `agentic-arch-paper-recommender` 更名为 `daily-arxiv-recommender`，后续将改回原名。
+  - GitHub 远程仓库曾创建目标名新仓库；用户要求去掉新仓库并继续使用原仓库。
 - 创建/修改的文件：
   - `config/interests.json`
   - `paper_recommender/domain.py`
@@ -101,12 +101,11 @@
   - `site/feedback.js`
 
 ### 当前仓库命名状态
-- 本地路径：`/Users/foreverhyx/daily-arxiv-recommender`
-- 期望远程仓库名：`ForeverHYX/daily-arxiv-recommender`
-- 当前远程仓库名：`ForeverHYX/daily-arxiv-recommender`
-- 当前远程 URL：`git@github.com:ForeverHYX/daily-arxiv-recommender.git`
-- 验证：`gh repo view ForeverHYX/daily-arxiv-recommender` 返回 public 仓库，默认分支为 `main`。
-- 备注：旧仓库 `ForeverHYX/agentic-arch-paper-recommender` 仍存在，因为 GitHub API rename/PATCH 调用失败；当前代码已同步到新仓库。
+- 当前本地路径：`/Users/foreverhyx/daily-arxiv-recommender`，待改回 `/Users/foreverhyx/agentic-arch-paper-recommender`
+- 当前远程仓库名：`ForeverHYX/agentic-arch-paper-recommender`
+- 当前远程 URL：`git@github.com:ForeverHYX/agentic-arch-paper-recommender.git`
+- 验证：最新提交已推送回原仓库。
+- 备注：新仓库 `ForeverHYX/daily-arxiv-recommender` 仍存在；`gh repo delete` 和 REST DELETE 均因 API 连接问题失败，提权删除请求被审批系统拒绝。需要用户在 GitHub 页面手动删除，或稍后网络/API 可用时再执行删除。
 
 ## 五问重启检查
 | 问题 | 答案 |
