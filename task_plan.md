@@ -107,6 +107,7 @@
 - [x] 实现栏目分配和初版排序。
 - [x] 添加排除词和降权逻辑。
 - [x] 将关键词画像抽离到 `config/interests.json`。
+- [x] 增加 exploratory 补足策略，避免每日推荐数量过少。
 - **状态：** in_progress
 
 ### 阶段 4：反馈存储
@@ -130,6 +131,7 @@
 - [x] 生成按栏目分组的 HTML 邮件。
 - [x] 每篇论文包含 GitHub Pages 详情、喜欢、不喜欢链接。
 - [x] 添加失败重试和空推荐处理。
+- [x] 增加 TLDR、Paper/PDF/Code 直达链接。
 - **状态：** in_progress
 
 ### 阶段 7：推荐学习闭环
@@ -167,6 +169,7 @@
 | 邮件和页面共用同一反馈入口 | 避免维护两套反馈逻辑。 |
 | arXiv 抓取输出 JSONL 后交给现有 pipeline | 保持数据源、推荐排序和反馈学习解耦，便于后续替换或增加 Semantic Scholar/RSS。 |
 | 使用 `recommendation_runs` 做重复惩罚 | 不依赖浏览器本地状态，GitHub Actions 可跨天读取历史并减少重复推荐。 |
+| TLDR 使用 OpenAI-compatible enrichment 且有本地 fallback | 让邮件和页面更易扫读，同时避免 LLM 服务失败导致每日 workflow 失败。 |
 
 ## 遇到的错误
 | 错误 | 尝试次数 | 解决方案 |

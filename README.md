@@ -42,7 +42,7 @@ Fetch recent arXiv records from the categories in `config/interests.json`:
 python3 -m paper_recommender.arxiv_source \
   --profile config/interests.json \
   --output output/papers.jsonl \
-  --max-results 200
+  --max-results 500
 ```
 
 Build recommendations from JSONL:
@@ -53,8 +53,20 @@ python3 -m paper_recommender.pipeline \
   --profile config/interests.json \
   --feedback examples/sample_feedback.json \
   --history examples/sample_history.json \
+  --output site/recommendations.json \
+  --limit 80 \
+  --min-count 60
+```
+
+Add TLDR summaries:
+
+```bash
+OPENAI_API_KEY=... python3 -m paper_recommender.summarizer \
+  --input site/recommendations.json \
   --output site/recommendations.json
 ```
+
+The default OpenAI-compatible endpoint is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. If the API key is missing or a request fails, the summarizer falls back to a local title/abstract TLDR so the daily workflow still completes.
 
 ## Feedback Storage
 

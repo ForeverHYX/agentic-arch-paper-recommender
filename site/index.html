@@ -8,12 +8,18 @@
   </head>
   <body>
     <header class="topbar">
-      <div>
+      <div class="hero-copy">
+        <p class="eyebrow">Personal arXiv radar</p>
         <h1>Daily arXiv Recommender</h1>
         <p id="runDate">Loading...</p>
       </div>
+      <div id="summaryStats" class="summary-stats" aria-live="polite"></div>
     </header>
     <main class="layout">
+      <aside class="sidebar" aria-label="Recommendation sections">
+        <div class="sidebar-title">Sections</div>
+        <nav id="sectionNav" class="section-nav"></nav>
+      </aside>
       <section id="recommendations" class="paper-list" aria-live="polite"></section>
     </main>
     <script src="app.js"></script>

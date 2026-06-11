@@ -58,20 +58,31 @@ def _render_recommendation_item(
     title = escape(str(item.get("title", "Untitled")))
     authors = escape(", ".join(str(author) for author in item.get("authors", [])))
     abstract = escape(str(item.get("abstract", "")))
+    tldr = escape(str(item.get("tldr", "")))
     score = escape(str(item.get("score", "")))
 
     page_url = f"{site_base_url.rstrip('/')}/?paper_id={urlencode({'': paper_id})[1:]}"
+    paper_url = str(item.get("url", "")) or f"https://arxiv.org/abs/{paper_id}"
+    pdf_url = str(item.get("pdf_url", "")) or f"https://arxiv.org/pdf/{paper_id}"
+    code_urls = [str(url) for url in item.get("code_urls", []) if str(url)]
     primary_section = str((item.get("sections") or [""])[0])
     like_url = _feedback_url(feedback_base_url, paper_id, "like", primary_section)
     dislike_url = _feedback_url(feedback_base_url, paper_id, "dislike", primary_section)
+    code_links = " ".join(f'<a href="{escape(url)}">Code</a>' for url in code_urls)
 
     return f"""
       <li style="margin-bottom: 20px;">
         <h3 style="margin-bottom: 4px;"><a href="{escape(page_url)}">{title}</a></h3>
         <div style="color: #555;">{authors}</div>
         <div style="color: #777;">score: {score}</div>
+        {f'<p><strong>TLDR:</strong> {tldr}</p>' if tldr else ''}
         <p>{abstract}</p>
         <p>
+          <a href="{escape(paper_url)}">Paper</a>
+          &nbsp;|&nbsp;
+          <a href="{escape(pdf_url)}">PDF</a>
+          {f'&nbsp;|&nbsp;{code_links}' if code_links else ''}
+          &nbsp;|&nbsp;
           <a href="{escape(like_url)}">Like</a>
           &nbsp;|&nbsp;
           <a href="{escape(dislike_url)}">Dislike</a>

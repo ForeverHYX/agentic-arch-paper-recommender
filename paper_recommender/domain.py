@@ -18,6 +18,9 @@ class Paper:
     abstract: str
     authors: list[str]
     categories: list[str]
+    url: str = ""
+    pdf_url: str = ""
+    code_urls: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

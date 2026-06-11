@@ -27,6 +27,22 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(paper.authors, ["A. Architect", "B. Researcher"])
         self.assertEqual(paper.categories, ["cs.AR", "cs.LG"])
 
+    def test_paper_from_record_preserves_paper_and_code_links(self):
+        record = {
+            "paper_id": "2604.03312",
+            "title": "Agentic Architecture Exploration",
+            "abstract": "Code is available at https://github.com/example/arch-agent.",
+            "authors": ["A. Architect"],
+            "categories": ["cs.AR"],
+            "url": "https://arxiv.org/abs/2604.03312",
+        }
+
+        paper = paper_from_record(record)
+
+        self.assertEqual(paper.url, "https://arxiv.org/abs/2604.03312")
+        self.assertEqual(paper.pdf_url, "https://arxiv.org/pdf/2604.03312")
+        self.assertEqual(paper.code_urls, ["https://github.com/example/arch-agent"])
+
     def test_load_papers_jsonl_skips_empty_lines(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "papers.jsonl"
@@ -111,6 +127,46 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(payload["profile_name"], "Quantum Systems")
         self.assertEqual(payload["section_labels"]["quantum_control"], "Quantum Control")
+
+    def test_recommendation_payload_can_fill_minimum_count_with_exploratory_core_papers(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.TEST"}),
+            expansion_categories=frozenset(),
+            sections=(
+                SectionRule("arch", "Architecture", 3.0, ("cache replacement",)),
+            ),
+        )
+        matched = paper_from_record(
+            {
+                "paper_id": "matched",
+                "title": "Cache Replacement for Architecture",
+                "abstract": "cache replacement",
+                "authors": [],
+                "categories": ["cs.TEST"],
+            }
+        )
+        exploratory = paper_from_record(
+            {
+                "paper_id": "explore",
+                "title": "Performance Study for Processors",
+                "abstract": "A core category paper without current keyword matches.",
+                "authors": [],
+                "categories": ["cs.TEST"],
+            }
+        )
+
+        payload = recommendation_payload(
+            [matched, exploratory],
+            "2026-06-12",
+            limit=10,
+            min_count=2,
+            profile=profile,
+        )
+
+        self.assertEqual(payload["count"], 2)
+        self.assertEqual(payload["recommendations"][1]["paper_id"], "explore")
+        self.assertEqual(payload["recommendations"][1]["sections"], ["exploratory"])
 
 
 if __name__ == "__main__":

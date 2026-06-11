@@ -43,7 +43,7 @@ jobs:
           python -m paper_recommender.arxiv_source \
             --profile config/interests.json \
             --output output/papers.jsonl \
-            --max-results 200
+            --max-results 500
 
       - name: Fetch Supabase feedback
         if: env.HAS_SUPABASE == 'true'
@@ -68,7 +68,16 @@ jobs:
             --history output/history.json \
             --output site/recommendations.json \
             --run-date "$(date -u +%F)" \
-            --limit 25
+            --limit 80 \
+            --min-count 60
+
+      - name: Enrich TLDR summaries
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -m paper_recommender.summarizer \
+            --input site/recommendations.json \
+            --output site/recommendations.json
 
       - name: Inject public feedback config
         run: |

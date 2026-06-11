@@ -17,6 +17,10 @@ class EmailerTests(unittest.TestCase):
                     "score": 14.0,
                     "sections": ["agentic_architecture", "microarchitecture_simulators"],
                     "abstract": "An LLM-driven architecture DSE system.",
+                    "tldr": "用 agent 自动探索微架构设计空间。",
+                    "url": "https://arxiv.org/abs/2604.03312",
+                    "pdf_url": "https://arxiv.org/pdf/2604.03312",
+                    "code_urls": ["https://github.com/example/arch-agent"],
                 }
             ],
         }
@@ -33,6 +37,10 @@ class EmailerTests(unittest.TestCase):
         self.assertIn("rating=like", html)
         self.assertIn("rating=dislike", html)
         self.assertIn("paper_id=arch", html)
+        self.assertIn("用 agent 自动探索微架构设计空间。", html)
+        self.assertIn("https://arxiv.org/abs/2604.03312", html)
+        self.assertIn("https://arxiv.org/pdf/2604.03312", html)
+        self.assertIn("https://github.com/example/arch-agent", html)
 
     def test_render_email_uses_payload_section_labels(self):
         payload = {

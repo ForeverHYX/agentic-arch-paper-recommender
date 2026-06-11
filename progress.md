@@ -58,6 +58,9 @@
 | 邮件 workflow RED 测试 | `python3 -m unittest tests.test_workflow_contract` | workflow 未传重试参数时失败 | 断言缺少 `--max-attempts 3` | expected-fail |
 | 邮件 workflow 契约测试 | `python3 -m unittest tests.test_workflow_contract` | 测试通过 | 3 个测试通过 | pass |
 | 邮件可靠性全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 40 个测试通过 | pass |
+| TLDR/link/UI RED 测试 | `python3 -m unittest tests.test_pipeline tests.test_emailer tests.test_site_contract tests.test_summarizer` | 缺少链接字段、summarizer 和 UI hook 时失败 | `Paper` 缺少 `url`，缺少 `paper_recommender.summarizer`，页面未渲染 TLDR/链接 | expected-fail |
+| TLDR/link/UI 局部测试 | `python3 -m unittest tests.test_workflow_contract tests.test_pipeline tests.test_emailer tests.test_site_contract tests.test_summarizer` | 测试通过 | 18 个测试通过 | pass |
+| TLDR/link/UI 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 49 个测试通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -204,6 +207,35 @@
   - `findings.md`
   - `progress.md`
 
+## 会话补充：更多推荐、TLDR 和前端重设计
+- **状态：** complete
+- 执行的操作：
+  - `Paper` 增加 `url`、`pdf_url`、`code_urls`，pipeline 从 arXiv URL 和摘要中提取 Paper/PDF/Code 链接。
+  - pipeline 增加 `--min-count`，可用 exploratory core-category papers 补足推荐数量。
+  - workflow 改为抓取 500 条 arXiv 候选，输出最多 80 条，最低补足 60 条。
+  - 新增 `paper_recommender.summarizer`，通过 OpenAI-compatible API 生成 TLDR，默认接 OpenCode Go；无 key 或调用失败时用本地 fallback。
+  - 页面和邮件都展示 TLDR、Paper/PDF/Code 链接。
+  - 重设计 GitHub Pages 前端为 workbench 风格：顶部统计、侧边栏目导航、清晰论文卡片和操作按钮。
+  - GitHub secret `OPENAI_API_KEY` 已写入用户提供的 OpenCode Go key。
+- 创建/修改的文件：
+  - `paper_recommender/domain.py`
+  - `paper_recommender/pipeline.py`
+  - `paper_recommender/summarizer.py`
+  - `paper_recommender/emailer.py`
+  - `site/index.html`
+  - `site/app.js`
+  - `site/styles.css`
+  - `.github/workflows/daily.yml`
+  - `tests/test_pipeline.py`
+  - `tests/test_emailer.py`
+  - `tests/test_site_contract.py`
+  - `tests/test_summarizer.py`
+  - `tests/test_workflow_contract.py`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
 ### 当前仓库命名状态
 - 当前本地路径：`/Users/foreverhyx/agentic-arch-paper-recommender`
 - 当前远程仓库名：`ForeverHYX/agentic-arch-paper-recommender`
@@ -218,7 +250,7 @@
 | 我要去哪里？ | 继续完善真实每日 pipeline、反馈学习质量、邮件推送可靠性和上线验证 |
 | 目标是什么？ | 构建一个无自有服务器、保留 GitHub Pages、带邮件和反馈学习的个性化论文推荐系统 |
 | 我学到了什么？ | 见 `findings.md` |
-| 我做了什么？ | 已接入真实 arXiv Atom 数据源、反馈关键词学习、推荐历史去重和更稳的邮件发送 |
+| 我做了什么？ | 已接入真实 arXiv Atom 数据源、反馈关键词学习、推荐历史去重、邮件发送、TLDR 总结和更清爽的前端 |
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*

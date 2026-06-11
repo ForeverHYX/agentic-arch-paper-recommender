@@ -6,9 +6,10 @@ import argparse
 from datetime import date
 import json
 from pathlib import Path
+import re
 from typing import Any
 
-from paper_recommender.domain import InterestProfile, Paper, load_interest_profile, rank_papers
+from paper_recommender.domain import Classification, InterestProfile, Paper, classify_paper, load_interest_profile, rank_papers
 from paper_recommender.feedback import (
     FeedbackEvent,
     load_feedback_json,
@@ -25,6 +26,11 @@ def paper_from_record(record: dict[str, Any]) -> Paper:
     abstract = _first_text(record, ("abstract", "summary", "description"))
     authors = _authors_from_record(record.get("authors", []))
     categories = _categories_from_record(record.get("categories", record.get("category", [])))
+    url = _first_text(record, ("url", "abs_url", "paper_url"))
+    pdf_url = _first_text(record, ("pdf_url",))
+    if not pdf_url and url:
+        pdf_url = _pdf_url_from_abs_url(url)
+    code_urls = _code_urls_from_record(record)
 
     return Paper(
         paper_id=paper_id,
@@ -32,6 +38,9 @@ def paper_from_record(record: dict[str, Any]) -> Paper:
         abstract=abstract,
         authors=authors,
         categories=categories,
+        url=url,
+        pdf_url=pdf_url,
+        code_urls=code_urls,
     )
 
 
@@ -53,6 +62,7 @@ def recommendation_payload(
     profile: InterestProfile | None = None,
     feedback_events: list[FeedbackEvent] | None = None,
     history_runs: list[RecommendationRun] | None = None,
+    min_count: int = 0,
 ) -> dict[str, Any]:
     resolved_profile = profile or load_interest_profile()
     feedback_weights = section_feedback_weights(feedback_events or [])
@@ -64,6 +74,8 @@ def recommendation_payload(
         keyword_weights,
         shown_counts,
     )
+    if min_count:
+        ranked = _with_exploratory_fill(ranked, papers, resolved_profile, min_count, feedback_weights, keyword_weights, shown_counts)
     if limit is not None:
         ranked = ranked[:limit]
 
@@ -78,6 +90,9 @@ def recommendation_payload(
                 "abstract": paper.abstract,
                 "authors": paper.authors,
                 "categories": paper.categories,
+                "url": paper.url,
+                "pdf_url": paper.pdf_url,
+                "code_urls": paper.code_urls,
                 "score": result.score,
                 "sections": list(result.sections),
                 "positive_matches": list(result.positive_matches),
@@ -110,6 +125,7 @@ def write_recommendations_json(
     profile: InterestProfile | None = None,
     feedback_events: list[FeedbackEvent] | None = None,
     history_runs: list[RecommendationRun] | None = None,
+    min_count: int = 0,
 ) -> dict[str, Any]:
     payload = recommendation_payload(
         papers,
@@ -118,6 +134,7 @@ def write_recommendations_json(
         profile=profile,
         feedback_events=feedback_events,
         history_runs=history_runs,
+        min_count=min_count,
     )
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -134,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile", default=None, help="Interest profile JSON path.")
     parser.add_argument("--feedback", default=None, help="Feedback events JSON path.")
     parser.add_argument("--history", default=None, help="Recommendation history JSON path.")
+    parser.add_argument("--min-count", type=int, default=0, help="Fill with exploratory core-category papers until this count.")
     args = parser.parse_args(argv)
 
     papers = load_papers_jsonl(args.input)
@@ -148,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
         profile=profile,
         feedback_events=feedback_events,
         history_runs=history_runs,
+        min_count=args.min_count,
     )
     print(f"Wrote {payload['count']} recommendations to {args.output}")
     return 0
@@ -189,6 +208,75 @@ def _categories_from_record(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
+
+
+def _code_urls_from_record(record: dict[str, Any]) -> list[str]:
+    explicit = record.get("code_urls", record.get("code_url", []))
+    urls = _url_list(explicit)
+    text = " ".join([str(record.get("abstract", "")), str(record.get("summary", "")), str(record.get("description", ""))])
+    urls.extend(_extract_code_urls(text))
+    seen = set()
+    result = []
+    for url in urls:
+        if url not in seen:
+            seen.add(url)
+            result.append(url)
+    return result
+
+
+def _url_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
+
+
+def _extract_code_urls(text: str) -> list[str]:
+    urls = re.findall(r"https?://(?:github\.com|gitlab\.com|bitbucket\.org|huggingface\.co)/[^\s),.;]+", text)
+    return [url.rstrip(".,;)") for url in urls]
+
+
+def _pdf_url_from_abs_url(url: str) -> str:
+    match = re.search(r"arxiv\.org/abs/([^?#]+)", url)
+    if not match:
+        return ""
+    return f"https://arxiv.org/pdf/{match.group(1)}"
+
+
+def _with_exploratory_fill(
+    ranked: list[Classification],
+    papers: list[Paper],
+    profile: InterestProfile,
+    min_count: int,
+    section_weights: dict[str, float],
+    keyword_weights: dict[str, float],
+    shown_counts: dict[str, int],
+) -> list[Classification]:
+    if len(ranked) >= min_count:
+        return ranked
+    ranked_ids = {result.paper.paper_id for result in ranked}
+    exploratory = []
+    for paper in papers:
+        if paper.paper_id in ranked_ids:
+            continue
+        if not set(paper.categories) & profile.core_categories:
+            continue
+        result = classify_paper(paper, profile=profile)
+        if result.accepted:
+            continue
+        exploratory.append(
+            Classification(
+                paper=paper,
+                accepted=True,
+                score=0.1,
+                sections=("exploratory",),
+                positive_matches=(),
+                negative_matches=result.negative_matches,
+            )
+        )
+    filled = ranked + _apply_feedback_weights(exploratory, section_weights, keyword_weights, shown_counts)
+    return filled[:max(min_count, len(ranked))]
 
 
 def _apply_feedback_weights(
