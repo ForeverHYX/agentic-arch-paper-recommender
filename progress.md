@@ -28,7 +28,7 @@
 ## 测试结果
 | 测试 | 输入 | 预期结果 | 实际结果 | 状态 |
 |------|------|---------|---------|------|
-| 规划目录创建 | `agentic-arch-paper-recommender` | 目录存在 | 当前使用原远程仓库名；本地目录待改回原名 | pass |
+| 规划目录创建 | `agentic-arch-paper-recommender` | 目录存在 | 当前使用原远程仓库名；本地目录已恢复原名 | pass |
 | 规划文件创建 | 三个 Markdown 文件 | 文件存在且包含初版计划 | `task_plan.md`、`findings.md`、`progress.md` 均已创建 | pass |
 | 上游代码获取 | `git clone` / GitHub zip archive | 成功下载上游代码 | 连接 `github.com:443` 超时 | blocked-for-now |
 | 推荐内核测试 | `python3 -m unittest discover -s tests` | 测试通过 | 15 个测试通过 | pass |
@@ -42,6 +42,7 @@
 |--------|------|---------|---------|
 | 2026-06-12 | 暂无 | 0 | 暂无 |
 | 2026-06-12 | 拉取上游项目失败：连接 `github.com:443` 超时 | 3 | 停止重复同类尝试，先开发自有 MVP；后续网络可用时再接入上游 |
+| 2026-06-12 | 删除误创建的新 GitHub 仓库 `ForeverHYX/daily-arxiv-recommender` 被执行审批层拒绝 | 1 | 不绕过删除限制；保留当前原仓库开发状态，请用户在 GitHub Settings > Danger Zone 手动删除，或显式重新授权后再试 |
 
 ## 会话补充：通用化命名与兴趣配置抽离
 - **状态：** in_progress
@@ -52,7 +53,7 @@
   - 更新邮件渲染和 GitHub Pages 前端，栏目名从推荐 JSON 读取。
   - 曾更新 GitHub Actions 默认 Pages URL 为 `daily-arxiv-recommender`，后按用户要求改回原仓库 Pages URL。
   - 使用 TDD 增加配置化兴趣画像测试。
-  - 本地文件夹曾从 `agentic-arch-paper-recommender` 更名为 `daily-arxiv-recommender`，后续将改回原名。
+  - 本地文件夹曾从 `agentic-arch-paper-recommender` 更名为 `daily-arxiv-recommender`，现已恢复为原名。
   - GitHub 远程仓库曾创建目标名新仓库；用户要求去掉新仓库并继续使用原仓库。
 - 创建/修改的文件：
   - `config/interests.json`
@@ -105,7 +106,7 @@
 - 当前远程仓库名：`ForeverHYX/agentic-arch-paper-recommender`
 - 当前远程 URL：`git@github.com:ForeverHYX/agentic-arch-paper-recommender.git`
 - 验证：最新提交已推送回原仓库。
-- 备注：新仓库 `ForeverHYX/daily-arxiv-recommender` 仍存在；`gh repo delete` 和 REST DELETE 均因 API 连接问题失败，提权删除请求被审批系统拒绝。需要用户在 GitHub 页面手动删除，或稍后网络/API 可用时再执行删除。
+- 备注：新仓库 `ForeverHYX/daily-arxiv-recommender` 仍存在；删除命令在本会话被执行审批层拒绝，不能改用绕过方式删除。需要用户在 GitHub 页面手动删除，或在明确接受不可逆删除风险后重新授权再试。
 
 ## 五问重启检查
 | 问题 | 答案 |
