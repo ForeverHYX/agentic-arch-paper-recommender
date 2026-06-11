@@ -68,6 +68,8 @@ OPENAI_API_KEY=... python3 -m paper_recommender.summarizer \
 
 The default OpenAI-compatible endpoint is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. If the API key is missing or a request fails, the summarizer falls back to a local title/abstract TLDR so the daily workflow still completes.
 
+`--min-count` fills with exploratory papers. Core arXiv categories are preferred first; if there still are not enough candidates, clean expansion-category papers without negative/noise matches are added as exploratory items.
+
 ## Feedback Storage
 
 Run [supabase/schema.sql](supabase/schema.sql) in your Supabase SQL editor, then configure:

@@ -61,6 +61,10 @@
 | TLDR/link/UI RED 测试 | `python3 -m unittest tests.test_pipeline tests.test_emailer tests.test_site_contract tests.test_summarizer` | 缺少链接字段、summarizer 和 UI hook 时失败 | `Paper` 缺少 `url`，缺少 `paper_recommender.summarizer`，页面未渲染 TLDR/链接 | expected-fail |
 | TLDR/link/UI 局部测试 | `python3 -m unittest tests.test_workflow_contract tests.test_pipeline tests.test_emailer tests.test_site_contract tests.test_summarizer` | 测试通过 | 18 个测试通过 | pass |
 | TLDR/link/UI 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 49 个测试通过 | pass |
+| TLDR/link/UI workflow 实测 | `gh workflow run "Daily Paper Recommender"` | 完整 workflow 成功，邮件和 Pages 正常 | 抓取 500 条 arXiv，生成 39 条推荐，39 条均 enrich TLDR，邮件发送成功 | pass |
+| exploratory 扩展补足 RED 测试 | `python3 -m unittest tests.test_pipeline` | 核心不足时可用干净扩展分类补足 | 初始只返回核心推荐，缺少 clean expansion exploratory | expected-fail |
+| exploratory 扩展补足测试 | `python3 -m unittest tests.test_pipeline` | 测试通过 | 7 个测试通过 | pass |
+| exploratory 扩展补足全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 50 个测试通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -213,6 +217,7 @@
   - `Paper` 增加 `url`、`pdf_url`、`code_urls`，pipeline 从 arXiv URL 和摘要中提取 Paper/PDF/Code 链接。
   - pipeline 增加 `--min-count`，可用 exploratory core-category papers 补足推荐数量。
   - workflow 改为抓取 500 条 arXiv 候选，输出最多 80 条，最低补足 60 条。
+  - 首次真实 workflow 生成 39 条；随后放宽补足策略：核心分类优先，不足时使用无 negative/noise matches 的扩展分类作为 exploratory。
   - 新增 `paper_recommender.summarizer`，通过 OpenAI-compatible API 生成 TLDR，默认接 OpenCode Go；无 key 或调用失败时用本地 fallback。
   - 页面和邮件都展示 TLDR、Paper/PDF/Code 链接。
   - 重设计 GitHub Pages 前端为 workbench 风格：顶部统计、侧边栏目导航、清晰论文卡片和操作按钮。

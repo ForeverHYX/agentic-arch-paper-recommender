@@ -144,6 +144,7 @@
 | 空推荐默认不发邮件 | 避免用户每天收到低价值空摘要；需要时可用 `--send-empty` 显式发送。 |
 | 默认抓取 500 条并输出最多 80 条推荐 | 解决初次真实运行推荐数量过少的问题；低分核心分类论文会作为 exploratory 补足。 |
 | TLDR enrichment 接 OpenCode Go | 使用 OpenAI-compatible `/chat/completions`，默认 base URL 为 `https://opencode.ai/zen/go/v1`，默认模型为 `deepseek-v4-flash`。 |
+| exploratory 补足先核心、后干净扩展分类 | 真实 workflow 从 500 条候选只产出 39 条时，说明核心分类不足；扩展分类若无 negative/noise matches，可作为低优先级 exploratory 补足。 |
 
 ## 初始数据表设想
 ### `feedback_events`

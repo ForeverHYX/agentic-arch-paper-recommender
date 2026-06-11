@@ -168,6 +168,52 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(payload["recommendations"][1]["paper_id"], "explore")
         self.assertEqual(payload["recommendations"][1]["sections"], ["exploratory"])
 
+    def test_recommendation_payload_uses_clean_expansion_papers_when_core_fill_is_insufficient(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI"}),
+            sections=(SectionRule("arch", "Architecture", 3.0, ("cache replacement",)),),
+        )
+        core = paper_from_record(
+            {
+                "paper_id": "core",
+                "title": "Cache Replacement for Architecture",
+                "abstract": "cache replacement",
+                "authors": [],
+                "categories": ["cs.AR"],
+            }
+        )
+        expansion = paper_from_record(
+            {
+                "paper_id": "clean-ai",
+                "title": "Learning Systems for Design Search",
+                "abstract": "A clean expansion-category candidate without generic web agent noise.",
+                "authors": [],
+                "categories": ["cs.AI"],
+            }
+        )
+        noisy = paper_from_record(
+            {
+                "paper_id": "noise",
+                "title": "A Web Agent Benchmark",
+                "abstract": "A RAG agent for browser task automation.",
+                "authors": [],
+                "categories": ["cs.AI"],
+            }
+        )
+
+        payload = recommendation_payload(
+            [core, expansion, noisy],
+            "2026-06-12",
+            limit=10,
+            min_count=2,
+            profile=profile,
+        )
+
+        self.assertEqual([item["paper_id"] for item in payload["recommendations"]], ["core", "clean-ai"])
+        self.assertEqual(payload["recommendations"][1]["sections"], ["exploratory"])
+
 
 if __name__ == "__main__":
     unittest.main()

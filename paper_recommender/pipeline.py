@@ -256,25 +256,33 @@ def _with_exploratory_fill(
     if len(ranked) >= min_count:
         return ranked
     ranked_ids = {result.paper.paper_id for result in ranked}
-    exploratory = []
+    core_exploratory = []
+    expansion_exploratory = []
     for paper in papers:
         if paper.paper_id in ranked_ids:
             continue
-        if not set(paper.categories) & profile.core_categories:
+        categories = set(paper.categories)
+        in_core = bool(categories & profile.core_categories)
+        in_expansion = bool(categories & profile.expansion_categories)
+        if not in_core and not in_expansion:
             continue
         result = classify_paper(paper, profile=profile)
         if result.accepted:
             continue
-        exploratory.append(
+        if result.negative_matches:
+            continue
+        target = core_exploratory if in_core else expansion_exploratory
+        target.append(
             Classification(
                 paper=paper,
                 accepted=True,
-                score=0.1,
+                score=0.1 if in_core else -0.25,
                 sections=("exploratory",),
                 positive_matches=(),
-                negative_matches=result.negative_matches,
+                negative_matches=(),
             )
         )
+    exploratory = core_exploratory + expansion_exploratory
     filled = ranked + _apply_feedback_weights(exploratory, section_weights, keyword_weights, shown_counts)
     return filled[:max(min_count, len(ranked))]
 
