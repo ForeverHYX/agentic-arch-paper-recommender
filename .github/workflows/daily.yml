@@ -68,8 +68,17 @@ jobs:
             --history output/history.json \
             --output site/recommendations.json \
             --run-date "$(date -u +%F)" \
-            --limit 15 \
-            --min-count 15
+            --limit 45 \
+            --min-count 45
+
+      - name: Judge recommendations with LLM
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -m paper_recommender.judge \
+            --input site/recommendations.json \
+            --output site/recommendations.json \
+            --limit 15
 
       - name: Enrich TLDR summaries
         env:

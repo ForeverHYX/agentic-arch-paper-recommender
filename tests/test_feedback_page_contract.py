@@ -11,6 +11,7 @@ class FeedbackPageContractTests(unittest.TestCase):
         self.assertIn("title: paperMetadata.title", script)
         self.assertIn("abstract: paperMetadata.abstract", script)
         self.assertIn("authors: paperMetadata.authors", script)
+        self.assertIn("affiliations: paperMetadata.affiliations", script)
         self.assertIn("categories: paperMetadata.categories", script)
 
 

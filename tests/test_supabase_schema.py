@@ -11,6 +11,7 @@ class SupabaseSchemaTests(unittest.TestCase):
         self.assertIn("create table if not exists public.profile_state", schema)
         self.assertIn("paper_id text not null", schema)
         self.assertIn("rating text not null", schema)
+        self.assertIn("affiliations jsonb not null default '[]'::jsonb", schema)
         self.assertIn("check (rating in ('like', 'dislike'))", schema)
         self.assertIn("alter table public.feedback_events enable row level security", schema)
         self.assertIn("create policy feedback_events_public_insert", schema)
@@ -19,4 +20,3 @@ class SupabaseSchemaTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

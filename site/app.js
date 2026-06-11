@@ -38,11 +38,11 @@ function renderSummaryStats(payload) {
   const target = document.getElementById("summaryStats");
   const recommendations = payload.recommendations || [];
   const sectionCount = new Set(recommendations.map((paper) => paper.sections?.[0] || "exploratory")).size;
-  const codeCount = recommendations.filter((paper) => Array.isArray(paper.code_urls) && paper.code_urls.length > 0).length;
+  const codeCount = recommendations.filter((paper) => (Array.isArray(paper.code_urls) && paper.code_urls.length > 0) || paper.code_search_url).length;
   target.innerHTML = `
     <div><strong>${recommendations.length}</strong><span>papers</span></div>
     <div><strong>${sectionCount}</strong><span>sections</span></div>
-    <div><strong>${codeCount}</strong><span>code links</span></div>
+    <div><strong>${codeCount}</strong><span>code refs</span></div>
   `;
 }
 
@@ -64,26 +64,38 @@ function renderPaper(paper) {
   const likeUrl = `${feedbackBase}?paper_id=${encodeURIComponent(paper.paper_id)}&rating=like&source=page&section=${encodeURIComponent(section)}`;
   const dislikeUrl = `${feedbackBase}?paper_id=${encodeURIComponent(paper.paper_id)}&rating=dislike&source=page&section=${encodeURIComponent(section)}`;
   const authors = Array.isArray(paper.authors) ? paper.authors.join(", ") : "";
+  const affiliations = Array.isArray(paper.affiliations) ? paper.affiliations.join(" · ") : "";
   const categories = Array.isArray(paper.categories) ? paper.categories.join(", ") : "";
   const paperUrl = paper.url || `https://arxiv.org/abs/${encodeURIComponent(paper.paper_id)}`;
   const pdfUrl = paper.pdf_url || `https://arxiv.org/pdf/${encodeURIComponent(paper.paper_id)}`;
   const codeLinks = Array.isArray(paper.code_urls) ? paper.code_urls : [];
+  const codeSearchUrl = paper.code_search_url || githubSearchUrl(paper);
+  const aiJudgement = paper.ai_judgement || null;
+  const aiScore = aiJudgement?.score ?? paper.ai_score;
   return `
     <article class="paper" id="paper-${escapeAttr(paper.paper_id)}">
-      <div class="paper-meta"><span>#${paper.rank}</span><span>score ${paper.score}</span><span>${escapeHtml(categories)}</span></div>
+      <div class="paper-meta"><span>#${paper.rank}</span><span>rule ${paper.score}</span>${aiScore !== undefined ? `<span>AI ${escapeHtml(aiScore)}</span>` : ""}<span>${escapeHtml(categories)}</span></div>
       <h3>${escapeHtml(paper.title)}</h3>
       <p class="authors">${escapeHtml(authors)}</p>
-      ${paper.tldr ? `<p class="paper-tldr">${escapeHtml(paper.tldr)}</p>` : ""}
+      ${affiliations ? `<p class="affiliations"><strong>单位</strong> ${escapeHtml(affiliations)}</p>` : ""}
+      ${paper.tldr ? `<div class="paper-tldr"><span>AI 总结</span><p>${escapeHtml(paper.tldr)}</p></div>` : ""}
+      ${aiJudgement ? `<div class="ai-judgement"><span>AI 判断</span><p>${escapeHtml(aiJudgement.reason || "")}</p></div>` : ""}
       <p class="abstract">${escapeHtml(paper.abstract || "")}</p>
       <div class="actions">
         <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">Paper</a>
         <a class="link-button" href="${escapeAttr(pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>
         ${codeLinks.map((url) => `<a class="link-button" href="${escapeAttr(url)}" target="_blank" rel="noreferrer">Code</a>`).join("")}
+        ${codeSearchUrl ? `<a class="link-button" href="${escapeAttr(codeSearchUrl)}" target="_blank" rel="noreferrer">Code Search</a>` : ""}
         <a class="feedback-button like" href="${likeUrl}">Like</a>
         <a class="feedback-button dislike" href="${dislikeUrl}">Dislike</a>
       </div>
     </article>
   `;
+}
+
+function githubSearchUrl(paper) {
+  const query = paper.title || paper.paper_id || "";
+  return query ? `https://github.com/search?q=${encodeURIComponent(query).replaceAll("%20", "+")}&type=repositories` : "";
 }
 
 function escapeHtml(value) {

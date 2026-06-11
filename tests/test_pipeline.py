@@ -17,7 +17,10 @@ class PipelineTests(unittest.TestCase):
             "id": "2604.03312",
             "title": "Computer Architecture's AlphaZero Moment",
             "summary": "Automated architecture discovery for computer architecture design.",
-            "authors": [{"name": "A. Architect"}, {"name": "B. Researcher"}],
+            "authors": [
+                {"name": "A. Architect", "affiliation": "University of Architecture"},
+                {"name": "B. Researcher", "affiliations": ["National HPC Lab"]},
+            ],
             "categories": "cs.AR cs.LG",
         }
 
@@ -25,6 +28,7 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(paper.paper_id, "2604.03312")
         self.assertEqual(paper.authors, ["A. Architect", "B. Researcher"])
+        self.assertEqual(paper.affiliations, ["University of Architecture", "National HPC Lab"])
         self.assertEqual(paper.categories, ["cs.AR", "cs.LG"])
 
     def test_paper_from_record_preserves_paper_and_code_links(self):
@@ -42,6 +46,9 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(paper.url, "https://arxiv.org/abs/2604.03312")
         self.assertEqual(paper.pdf_url, "https://arxiv.org/pdf/2604.03312")
         self.assertEqual(paper.code_urls, ["https://github.com/example/arch-agent"])
+        self.assertIn("https://github.com/search?", paper.code_search_url)
+        self.assertIn("Agentic+Architecture+Exploration", paper.code_search_url)
+        self.assertIn("type=repositories", paper.code_search_url)
 
     def test_load_papers_jsonl_skips_empty_lines(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -87,6 +94,7 @@ class PipelineTests(unittest.TestCase):
                     "uses gem5 and cache replacement policy search."
                 ),
                 "authors": ["E. Arch"],
+                "affiliations": ["University of Architecture"],
                 "categories": ["cs.AI", "cs.AR"],
             },
         ]
@@ -98,6 +106,9 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(payload["recommendations"][0]["rank"], 1)
         self.assertEqual(payload["recommendations"][0]["paper_id"], "arch")
         self.assertIn("agentic_architecture", payload["recommendations"][0]["sections"])
+        self.assertEqual(payload["recommendations"][0]["affiliations"], ["University of Architecture"])
+        self.assertIn("code_search_url", payload["recommendations"][0])
+        self.assertIn("github.com/search", payload["recommendations"][0]["code_search_url"])
 
     def test_recommendation_payload_includes_profile_metadata(self):
         profile = InterestProfile(

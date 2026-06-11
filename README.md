@@ -54,8 +54,17 @@ python3 -m paper_recommender.pipeline \
   --feedback examples/sample_feedback.json \
   --history examples/sample_history.json \
   --output site/recommendations.json \
-  --limit 15 \
-  --min-count 15
+  --limit 45 \
+  --min-count 45
+```
+
+Rerank candidates with an OpenAI-compatible model and keep at most 15 final recommendations:
+
+```bash
+OPENAI_API_KEY=... python3 -m paper_recommender.judge \
+  --input site/recommendations.json \
+  --output site/recommendations.json \
+  --limit 15
 ```
 
 Add TLDR summaries:
@@ -66,9 +75,11 @@ OPENAI_API_KEY=... python3 -m paper_recommender.summarizer \
   --output site/recommendations.json
 ```
 
-The default OpenAI-compatible endpoint is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. If the API key is missing or a request fails, the summarizer falls back to a local title/abstract TLDR so the daily workflow still completes.
+The default OpenAI-compatible endpoint is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. The judge uses the model to add `ai_judgement` and `ai_score`, rerank candidates by AI relevance, and truncate the final digest to 15 papers. If the API key is missing or a request fails, the judge falls back to the rule score and the summarizer falls back to a local title/abstract TLDR so the daily workflow still completes.
 
 `--min-count` fills with exploratory papers. Core arXiv categories are preferred first; if there still are not enough candidates, clean expansion-category papers without negative/noise matches are added as exploratory items.
+
+Each recommendation includes author affiliations when the source provides them, direct `Paper`, `PDF`, explicit `Code` links when found, and a `Code Search` GitHub repository search URL based on the paper title. arXiv often omits affiliations, so missing affiliations are stored as an empty list rather than guessed.
 
 ## Feedback Storage
 
@@ -84,6 +95,7 @@ Feedback records include paper metadata when available:
 - `title`
 - `abstract`
 - `authors`
+- `affiliations`
 - `categories`
 
 The daily pipeline converts likes and dislikes into two lightweight learning signals:

@@ -18,9 +18,11 @@ class Paper:
     abstract: str
     authors: list[str]
     categories: list[str]
+    affiliations: list[str] = field(default_factory=list)
     url: str = ""
     pdf_url: str = ""
     code_urls: list[str] = field(default_factory=list)
+    code_search_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -146,7 +148,17 @@ def rank_papers(papers: list[Paper], profile: InterestProfile | None = None) -> 
 
 
 def _paper_text(paper: Paper) -> str:
-    return _normalize(" ".join([paper.title, paper.abstract, " ".join(paper.authors), " ".join(paper.categories)]))
+    return _normalize(
+        " ".join(
+            [
+                paper.title,
+                paper.abstract,
+                " ".join(paper.authors),
+                " ".join(paper.affiliations),
+                " ".join(paper.categories),
+            ]
+        )
+    )
 
 
 def _normalize(value: str) -> str:

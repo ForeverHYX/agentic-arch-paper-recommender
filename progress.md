@@ -28,6 +28,37 @@
   - `findings.md`
   - `progress.md`
 
+## 会话补充：AI 判断打分与 Code Search
+- **状态：** in_progress
+- 执行的操作：
+  - 用户要求 GitHub Pages 也展示 AI 总结、Paper/Code 链接，并让推荐打分本身引入大模型判断。
+  - 增加 `paper_recommender.judge`，使用 OpenAI-compatible `/chat/completions` 为候选论文生成 `ai_judgement.score/reason/decision`，再按 AI 分数重排并截断。
+  - 每日 workflow 改为规则 pipeline 先产出 45 条候选，LLM judge 再保留最多 15 条，之后生成 TLDR、发送邮件并部署 Pages。
+  - `Paper` 和推荐 JSON 增加 `code_search_url`，没有显式代码仓库时也能给出 GitHub repository search 入口。
+  - Pages 和邮件展示 `AI 总结`、`AI 判断`、作者单位、Paper/PDF/Code/Code Search。
+  - 解析 arXiv `arxiv:affiliation` 和外部记录中的 `affiliations`，并把单位写入反馈元数据和 Supabase schema。
+- 创建/修改的文件：
+  - `paper_recommender/judge.py`
+  - `paper_recommender/domain.py`
+  - `paper_recommender/pipeline.py`
+  - `paper_recommender/emailer.py`
+  - `paper_recommender/feedback.py`
+  - `paper_recommender/arxiv_source.py`
+  - `site/app.js`
+  - `site/styles.css`
+  - `site/feedback.js`
+  - `supabase/schema.sql`
+  - `.github/workflows/daily.yml`
+  - `tests/test_judge.py`
+  - `tests/test_pipeline.py`
+  - `tests/test_emailer.py`
+  - `tests/test_site_contract.py`
+  - `tests/test_workflow_contract.py`
+  - `tests/test_arxiv_source.py`
+  - `tests/test_feedback.py`
+  - `tests/test_feedback_page_contract.py`
+  - `tests/test_supabase_schema.py`
+
 ### 阶段 2：上游项目审计与改造范围确认
 - **状态：** in_progress
 - **开始时间：** 2026-06-12 Asia/Shanghai
@@ -78,6 +109,10 @@
 | exploratory 扩展补足 RED 测试 | `python3 -m unittest tests.test_pipeline` | 核心不足时可用干净扩展分类补足 | 初始只返回核心推荐，缺少 clean expansion exploratory | expected-fail |
 | exploratory 扩展补足测试 | `python3 -m unittest tests.test_pipeline` | 测试通过 | 7 个测试通过 | pass |
 | exploratory 扩展补足全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 50 个测试通过 | pass |
+| AI judge/code search RED 测试 | `python3 -m unittest tests.test_judge tests.test_pipeline tests.test_site_contract tests.test_emailer tests.test_workflow_contract` | 缺少 judge 模块、AI 判断展示和 Code Search 时失败 | `paper_recommender.judge` 不存在，`Paper` 缺少 `code_search_url`，Pages/邮件/workflow 契约失败 | expected-fail |
+| AI judge/code search 局部测试 | `python3 -m unittest tests.test_judge tests.test_pipeline tests.test_site_contract tests.test_emailer tests.test_workflow_contract` | 测试通过 | 21 个测试通过 | pass |
+| 本地 fallback 链路 smoke test | pipeline 45候选 → judge 15 → summarizer | 输出包含 `ai_judgement`、`ai_score`、`tldr`、`code_search_url` | 示例数据写入 2 条，字段完整；无 API key 时使用规则分兜底 | pass |
+| 作者单位局部测试 | `python3 -m unittest tests.test_arxiv_source tests.test_pipeline tests.test_judge tests.test_site_contract tests.test_emailer tests.test_feedback tests.test_feedback_page_contract tests.test_supabase_schema` | 单位被解析、展示、存储并传入 judge | 27 个测试通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |

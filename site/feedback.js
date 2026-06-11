@@ -39,6 +39,7 @@ async function recordFeedback() {
       title: paperMetadata.title,
       abstract: paperMetadata.abstract,
       authors: paperMetadata.authors,
+      affiliations: paperMetadata.affiliations,
       categories: paperMetadata.categories,
     }),
   });
@@ -62,6 +63,7 @@ async function findPaperMetadata(targetPaperId) {
       title: paper.title || "",
       abstract: paper.abstract || "",
       authors: Array.isArray(paper.authors) ? paper.authors : [],
+      affiliations: Array.isArray(paper.affiliations) ? paper.affiliations : [],
       categories: Array.isArray(paper.categories) ? paper.categories : [],
     };
   } catch {
@@ -74,6 +76,7 @@ function emptyPaperMetadata() {
     title: "",
     abstract: "",
     authors: [],
+    affiliations: [],
     categories: [],
   };
 }

@@ -57,31 +57,40 @@ def _render_recommendation_item(
     paper_id = str(item.get("paper_id", ""))
     title = escape(str(item.get("title", "Untitled")))
     authors = escape(", ".join(str(author) for author in item.get("authors", [])))
+    affiliations = escape(", ".join(str(value) for value in item.get("affiliations", []) if str(value)))
     abstract = escape(str(item.get("abstract", "")))
     tldr = escape(str(item.get("tldr", "")))
     score = escape(str(item.get("score", "")))
+    ai_judgement = item.get("ai_judgement") or {}
+    ai_score = escape(str(ai_judgement.get("score", item.get("ai_score", ""))))
+    ai_reason = escape(str(ai_judgement.get("reason", "")))
 
     page_url = f"{site_base_url.rstrip('/')}/?paper_id={urlencode({'': paper_id})[1:]}"
     paper_url = str(item.get("url", "")) or f"https://arxiv.org/abs/{paper_id}"
     pdf_url = str(item.get("pdf_url", "")) or f"https://arxiv.org/pdf/{paper_id}"
     code_urls = [str(url) for url in item.get("code_urls", []) if str(url)]
+    code_search_url = str(item.get("code_search_url", ""))
     primary_section = str((item.get("sections") or [""])[0])
     like_url = _feedback_url(feedback_base_url, paper_id, "like", primary_section)
     dislike_url = _feedback_url(feedback_base_url, paper_id, "dislike", primary_section)
     code_links = " ".join(f'<a href="{escape(url)}">Code</a>' for url in code_urls)
+    code_search_link = f'<a href="{escape(code_search_url)}">Code Search</a>' if code_search_url else ""
+    code_section = " ".join(part for part in [code_links, code_search_link] if part)
 
     return f"""
       <li style="margin-bottom: 20px;">
         <h3 style="margin-bottom: 4px;"><a href="{escape(page_url)}">{title}</a></h3>
         <div style="color: #555;">{authors}</div>
+        {f'<div style="color: #555;"><strong>单位:</strong> {affiliations}</div>' if affiliations else ''}
         <div style="color: #777;">score: {score}</div>
-        {f'<p><strong>TLDR:</strong> {tldr}</p>' if tldr else ''}
+        {f'<p><strong>AI 总结:</strong> {tldr}</p>' if tldr else ''}
+        {f'<p><strong>AI 判断:</strong> {ai_score} - {ai_reason}</p>' if ai_reason else ''}
         <p>{abstract}</p>
         <p>
           <a href="{escape(paper_url)}">Paper</a>
           &nbsp;|&nbsp;
           <a href="{escape(pdf_url)}">PDF</a>
-          {f'&nbsp;|&nbsp;{code_links}' if code_links else ''}
+          {f'&nbsp;|&nbsp;{code_section}' if code_section else ''}
           &nbsp;|&nbsp;
           <a href="{escape(like_url)}">Like</a>
           &nbsp;|&nbsp;

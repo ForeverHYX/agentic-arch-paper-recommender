@@ -75,6 +75,7 @@ class FeedbackTests(unittest.TestCase):
                     "title": "Agentic AI-Driven Microarchitecture Exploration",
                     "abstract": "A hardware design agent uses gem5 for cache replacement policy search.",
                     "authors": ["A. Architect"],
+                    "affiliations": ["University of Architecture"],
                     "categories": ["cs.AR", "cs.AI"],
                 }
             ]
@@ -83,6 +84,7 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(events[0].title, "Agentic AI-Driven Microarchitecture Exploration")
         self.assertIn("hardware design agent", events[0].abstract)
         self.assertEqual(events[0].authors, ("A. Architect",))
+        self.assertEqual(events[0].affiliations, ("University of Architecture",))
         self.assertEqual(events[0].categories, ("cs.AR", "cs.AI"))
 
     def test_write_feedback_json_preserves_learning_metadata(self):
@@ -98,6 +100,7 @@ class FeedbackTests(unittest.TestCase):
                         title="Agentic AI-Driven Microarchitecture Exploration",
                         abstract="gem5 based microarchitecture design space exploration.",
                         authors=["A. Architect"],
+                        affiliations=["University of Architecture"],
                         categories=["cs.AR"],
                     )
                 ],
@@ -108,6 +111,7 @@ class FeedbackTests(unittest.TestCase):
 
         self.assertEqual(rows[0]["title"], "Agentic AI-Driven Microarchitecture Exploration")
         self.assertEqual(rows[0]["authors"], ["A. Architect"])
+        self.assertEqual(rows[0]["affiliations"], ["University of Architecture"])
 
     def test_text_feedback_weights_learn_from_likes_and_dislikes(self):
         weights = text_feedback_weights(

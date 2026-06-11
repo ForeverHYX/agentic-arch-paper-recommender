@@ -108,6 +108,7 @@
 - [x] 添加排除词和降权逻辑。
 - [x] 将关键词画像抽离到 `config/interests.json`。
 - [x] 增加 exploratory 补足策略，避免每日推荐数量过少。
+- [x] 增加 LLM 判断与重排：规则召回 45 条候选，AI 判断后输出最多 15 条。
 - **状态：** in_progress
 
 ### 阶段 4：反馈存储
@@ -126,12 +127,13 @@
 - **状态：** in_progress
 
 ### 阶段 6：邮件推送
-- [ ] 选择 SMTP 服务和邮件模板。
-- [ ] 在 GitHub Secrets 中配置邮箱凭据。
+- [x] 选择 SMTP 服务和邮件模板。
+- [x] 在 GitHub Secrets 中配置邮箱凭据。
 - [x] 生成按栏目分组的 HTML 邮件。
 - [x] 每篇论文包含 GitHub Pages 详情、喜欢、不喜欢链接。
 - [x] 添加失败重试和空推荐处理。
-- [x] 增加 TLDR、Paper/PDF/Code 直达链接。
+- [x] 增加 TLDR、AI 判断、Paper/PDF/Code/Code Search 直达链接。
+- [x] 在邮件和页面中展示作者单位，供质量判断和后续反馈学习使用。
 - **状态：** in_progress
 
 ### 阶段 7：推荐学习闭环
@@ -141,6 +143,7 @@
 - [ ] 调整作者和工具链权重。
 - [x] 调整反馈关键词权重。
 - [x] 记录推荐历史，避免重复推荐。
+- [x] 推荐本身引入大模型相关性判断，用于最终重排与过滤。
 - [ ] 加入简单评估指标：打开率、反馈率、喜欢率、负反馈主题。
 - **状态：** in_progress
 
@@ -170,6 +173,8 @@
 | arXiv 抓取输出 JSONL 后交给现有 pipeline | 保持数据源、推荐排序和反馈学习解耦，便于后续替换或增加 Semantic Scholar/RSS。 |
 | 使用 `recommendation_runs` 做重复惩罚 | 不依赖浏览器本地状态，GitHub Actions 可跨天读取历史并减少重复推荐。 |
 | TLDR 使用 OpenAI-compatible enrichment 且有本地 fallback | 让邮件和页面更易扫读，同时避免 LLM 服务失败导致每日 workflow 失败。 |
+| 推荐排序采用“规则召回 + LLM 判断重排” | 关键词规则保证召回和稳定兜底，LLM 判断负责理解论文是否真正贴合 agentic architecture、co-design、microarchitecture、simulator 和 HPC 交叉兴趣。 |
+| 作者单位只做展示和弱质量信号 | arXiv 经常不提供单位，因此不伪造单位；若数据源提供 `affiliations`，页面、邮件、反馈和 LLM judge 都会使用。 |
 
 ## 遇到的错误
 | 错误 | 尝试次数 | 解决方案 |

@@ -15,7 +15,10 @@ from paper_recommender.domain import InterestProfile, load_interest_profile
 
 
 ARXIV_API_BASE_URL = "http://export.arxiv.org/api/query"
-ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
+ATOM_NS = {
+    "atom": "http://www.w3.org/2005/Atom",
+    "arxiv": "http://arxiv.org/schemas/atom",
+}
 
 
 def build_query_url(
@@ -51,11 +54,17 @@ def parse_atom_feed(feed_text: str) -> list[dict[str, Any]]:
         entry_id = _entry_text(entry, "id")
         title = _entry_text(entry, "title")
         summary = _entry_text(entry, "summary")
-        authors = [
-            _normalize_text(name.text or "")
-            for name in entry.findall("atom:author/atom:name", ATOM_NS)
-            if _normalize_text(name.text or "")
-        ]
+        authors = []
+        affiliations = []
+        for author in entry.findall("atom:author", ATOM_NS):
+            name = author.find("atom:name", ATOM_NS)
+            normalized_name = _normalize_text(name.text or "") if name is not None else ""
+            if normalized_name:
+                authors.append(normalized_name)
+            for affiliation in author.findall("arxiv:affiliation", ATOM_NS):
+                normalized_affiliation = _normalize_text(affiliation.text or "")
+                if normalized_affiliation:
+                    affiliations.append(normalized_affiliation)
         categories = [
             str(category.attrib.get("term", "")).strip()
             for category in entry.findall("atom:category", ATOM_NS)
@@ -68,6 +77,7 @@ def parse_atom_feed(feed_text: str) -> list[dict[str, Any]]:
                 "abstract": summary,
                 "summary": summary,
                 "authors": authors,
+                "affiliations": _dedupe(affiliations),
                 "categories": categories,
                 "url": _entry_url(entry, entry_id),
                 "published": _entry_text(entry, "published"),
@@ -130,6 +140,18 @@ def _paper_id_from_entry_id(entry_id: str) -> str:
 
 def _normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    seen = set()
+    result = []
+    for value in values:
+        normalized = value.casefold()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(value)
+    return result
 
 
 if __name__ == "__main__":

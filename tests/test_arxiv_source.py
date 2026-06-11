@@ -20,8 +20,14 @@ ATOM_FEED = """<?xml version="1.0" encoding="UTF-8"?>
       An LLM-driven hardware design agent explores cache replacement policy
       candidates with gem5.
     </summary>
-    <author><name>A. Architect</name></author>
-    <author><name>B. Researcher</name></author>
+    <author>
+      <name>A. Architect</name>
+      <arxiv:affiliation>University of Architecture</arxiv:affiliation>
+    </author>
+    <author>
+      <name>B. Researcher</name>
+      <arxiv:affiliation>National HPC Lab</arxiv:affiliation>
+    </author>
     <category term="cs.AR" />
     <category term="cs.AI" />
     <link href="http://arxiv.org/abs/2604.03312v2" rel="alternate" type="text/html" />
@@ -60,6 +66,7 @@ class ArxivSourceTests(unittest.TestCase):
         self.assertEqual(records[0]["title"], "Agentic AI-Driven Microarchitecture Exploration")
         self.assertIn("hardware design agent explores", records[0]["abstract"])
         self.assertEqual(records[0]["authors"], ["A. Architect", "B. Researcher"])
+        self.assertEqual(records[0]["affiliations"], ["University of Architecture", "National HPC Lab"])
         self.assertEqual(records[0]["categories"], ["cs.AR", "cs.AI"])
         self.assertEqual(records[0]["url"], "http://arxiv.org/abs/2604.03312v2")
         self.assertEqual(records[0]["published"], "2026-04-01T00:00:00Z")

@@ -10,6 +10,7 @@ create table if not exists public.feedback_events (
   title text,
   abstract text,
   authors jsonb not null default '[]'::jsonb,
+  affiliations jsonb not null default '[]'::jsonb,
   categories jsonb not null default '[]'::jsonb,
   user_agent text,
   created_at timestamptz not null default now()
@@ -83,4 +84,3 @@ create policy profile_state_no_public_read
   for select
   to anon
   using (false);
-

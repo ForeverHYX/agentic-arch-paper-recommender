@@ -5,6 +5,8 @@
 - 用户希望搭建每日论文推荐系统，支持 GitHub Pages 展示。
 - 用户希望增加邮件推送。
 - 用户希望通过喜欢/不喜欢反馈调整后续推荐，形成“越用越懂我”的闭环。
+- 用户希望推荐打分本身也引入 AI 判断，而不是只靠关键词规则。
+- 用户希望显示作者单位，并把单位作为排除低质量工作的辅助信号。
 - 用户兴趣不是泛体系结构或泛 EDA，而是更窄的交叉方向：
   - agentic computer architecture design。
   - 自动架构发现和设计空间探索。
@@ -145,6 +147,9 @@
 | 默认抓取 500 条候选并输出最多 15 条推荐 | 候选池保持较大以保证召回，但邮件和页面保持可读，不超过用户希望的 15 条。 |
 | TLDR enrichment 接 OpenCode Go | 使用 OpenAI-compatible `/chat/completions`，默认 base URL 为 `https://opencode.ai/zen/go/v1`，默认模型为 `deepseek-v4-flash`。 |
 | exploratory 补足先核心、后干净扩展分类 | 真实 workflow 从 500 条候选只产出 39 条时，说明核心分类不足；扩展分类若无 negative/noise matches，可作为低优先级 exploratory 补足。 |
+| LLM 判断用于最终推荐重排 | 规则排序先产出 45 条候选，OpenCode Go 对每篇论文返回 0-10 相关性分数、保留/丢弃决策和原因，再截断到最多 15 条。无 key 或请求失败时回退到规则分。 |
+| Code 链接采用显式抽取 + GitHub 搜索兜底 | 摘要中出现 GitHub/GitLab/Bitbucket/Hugging Face 链接时展示直达 Code；否则用标题生成 GitHub repository search 链接。 |
+| 作者单位作为弱质量信号 | arXiv Atom 通常不稳定提供单位；系统解析 `arxiv:affiliation` 和外部记录里的 `affiliations`，展示给用户，并传入 LLM judge，但不会因单位缺失直接丢弃论文。 |
 
 ## 初始数据表设想
 ### `feedback_events`

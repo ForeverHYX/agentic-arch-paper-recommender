@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import re
 from typing import Any
+from urllib.parse import quote_plus
 
 from paper_recommender.domain import Classification, InterestProfile, Paper, classify_paper, load_interest_profile, rank_papers
 from paper_recommender.feedback import (
@@ -25,12 +26,14 @@ def paper_from_record(record: dict[str, Any]) -> Paper:
     title = _first_text(record, ("title",))
     abstract = _first_text(record, ("abstract", "summary", "description"))
     authors = _authors_from_record(record.get("authors", []))
+    affiliations = _affiliations_from_record(record)
     categories = _categories_from_record(record.get("categories", record.get("category", [])))
     url = _first_text(record, ("url", "abs_url", "paper_url"))
     pdf_url = _first_text(record, ("pdf_url",))
     if not pdf_url and url:
         pdf_url = _pdf_url_from_abs_url(url)
     code_urls = _code_urls_from_record(record)
+    code_search_url = _code_search_url(title=title, paper_id=paper_id)
 
     return Paper(
         paper_id=paper_id,
@@ -38,9 +41,11 @@ def paper_from_record(record: dict[str, Any]) -> Paper:
         abstract=abstract,
         authors=authors,
         categories=categories,
+        affiliations=affiliations,
         url=url,
         pdf_url=pdf_url,
         code_urls=code_urls,
+        code_search_url=code_search_url,
     )
 
 
@@ -89,10 +94,12 @@ def recommendation_payload(
                 "title": paper.title,
                 "abstract": paper.abstract,
                 "authors": paper.authors,
+                "affiliations": paper.affiliations,
                 "categories": paper.categories,
                 "url": paper.url,
                 "pdf_url": paper.pdf_url,
                 "code_urls": paper.code_urls,
+                "code_search_url": paper.code_search_url,
                 "score": result.score,
                 "sections": list(result.sections),
                 "positive_matches": list(result.positive_matches),
@@ -202,6 +209,30 @@ def _authors_from_record(value: Any) -> list[str]:
     return authors
 
 
+def _affiliations_from_record(record: dict[str, Any]) -> list[str]:
+    affiliations: list[str] = []
+    for key in ("affiliations", "author_affiliations", "institutions"):
+        affiliations.extend(_string_list(record.get(key, [])))
+
+    authors = record.get("authors", [])
+    if isinstance(authors, list):
+        for author in authors:
+            if not isinstance(author, dict):
+                continue
+            for key in ("affiliation", "affiliations", "institution", "institutions"):
+                affiliations.extend(_string_list(author.get(key, [])))
+
+    seen = set()
+    result = []
+    for affiliation in affiliations:
+        normalized = affiliation.casefold()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(affiliation)
+    return result
+
+
 def _categories_from_record(value: Any) -> list[str]:
     if isinstance(value, str):
         return [item.strip() for item in value.replace(",", " ").split() if item.strip()]
@@ -232,6 +263,22 @@ def _url_list(value: Any) -> list[str]:
     return []
 
 
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(";") if item.strip()]
+    if isinstance(value, list):
+        result: list[str] = []
+        for item in value:
+            if isinstance(item, dict):
+                text = str(item.get("name", item.get("display_name", ""))).strip()
+            else:
+                text = str(item).strip()
+            if text:
+                result.append(text)
+        return result
+    return []
+
+
 def _extract_code_urls(text: str) -> list[str]:
     urls = re.findall(r"https?://(?:github\.com|gitlab\.com|bitbucket\.org|huggingface\.co)/[^\s),.;]+", text)
     return [url.rstrip(".,;)") for url in urls]
@@ -242,6 +289,13 @@ def _pdf_url_from_abs_url(url: str) -> str:
     if not match:
         return ""
     return f"https://arxiv.org/pdf/{match.group(1)}"
+
+
+def _code_search_url(title: str, paper_id: str) -> str:
+    query = title.strip() or paper_id.strip()
+    if not query:
+        return ""
+    return f"https://github.com/search?q={quote_plus(query)}&type=repositories"
 
 
 def _with_exploratory_fill(
@@ -296,7 +350,15 @@ def _apply_feedback_weights(
     adjusted = []
     for result in results:
         paper = result.paper
-        paper_text = " ".join([paper.title, paper.abstract, " ".join(paper.authors), " ".join(paper.categories)])
+        paper_text = " ".join(
+            [
+                paper.title,
+                paper.abstract,
+                " ".join(paper.authors),
+                " ".join(paper.affiliations),
+                " ".join(paper.categories),
+            ]
+        )
         adjustment = sum(section_weights.get(section, 0.0) for section in result.sections)
         adjustment += text_feedback_adjustment(paper_text, keyword_weights)
         adjustment -= min(shown_counts.get(paper.paper_id, 0), 3) * 2.0

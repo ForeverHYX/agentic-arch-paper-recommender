@@ -14,13 +14,20 @@ class EmailerTests(unittest.TestCase):
                     "paper_id": "arch",
                     "title": "Agentic AI-Driven Microarchitecture Exploration",
                     "authors": ["A. Architect"],
+                    "affiliations": ["University of Architecture", "National HPC Lab"],
                     "score": 14.0,
                     "sections": ["agentic_architecture", "microarchitecture_simulators"],
                     "abstract": "An LLM-driven architecture DSE system.",
                     "tldr": "用 agent 自动探索微架构设计空间。",
+                    "ai_judgement": {
+                        "score": 9.0,
+                        "reason": "高度贴合自动架构探索。",
+                        "decision": "keep",
+                    },
                     "url": "https://arxiv.org/abs/2604.03312",
                     "pdf_url": "https://arxiv.org/pdf/2604.03312",
                     "code_urls": ["https://github.com/example/arch-agent"],
+                    "code_search_url": "https://github.com/search?q=Agentic+Architecture+Exploration&type=repositories",
                 }
             ],
         }
@@ -34,13 +41,19 @@ class EmailerTests(unittest.TestCase):
         self.assertIn("2026-06-12", html)
         self.assertIn("Agentic Architecture / Auto-DSE", html)
         self.assertIn("Agentic AI-Driven Microarchitecture Exploration", html)
+        self.assertIn("University of Architecture", html)
+        self.assertIn("National HPC Lab", html)
         self.assertIn("rating=like", html)
         self.assertIn("rating=dislike", html)
         self.assertIn("paper_id=arch", html)
         self.assertIn("用 agent 自动探索微架构设计空间。", html)
+        self.assertIn("AI 判断", html)
+        self.assertIn("高度贴合自动架构探索。", html)
         self.assertIn("https://arxiv.org/abs/2604.03312", html)
         self.assertIn("https://arxiv.org/pdf/2604.03312", html)
         self.assertIn("https://github.com/example/arch-agent", html)
+        self.assertIn("Code Search", html)
+        self.assertIn("https://github.com/search?q=Agentic+Architecture+Exploration", html)
 
     def test_render_email_uses_payload_section_labels(self):
         payload = {

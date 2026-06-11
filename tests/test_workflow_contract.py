@@ -10,9 +10,20 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--output output/papers.jsonl", workflow)
         self.assertIn("--max-results 500", workflow)
         self.assertIn("--input output/papers.jsonl", workflow)
-        self.assertIn("--limit 15", workflow)
-        self.assertIn("--min-count 15", workflow)
+        self.assertIn("--limit 45", workflow)
+        self.assertIn("--min-count 45", workflow)
         self.assertNotIn("--input examples/sample_papers.jsonl", workflow)
+
+    def test_daily_workflow_judges_candidates_with_llm_before_tldr_enrichment(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("python -m paper_recommender.judge", workflow)
+        self.assertIn("--limit 15", workflow)
+        self.assertIn("OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}", workflow)
+        self.assertLess(
+            workflow.index("python -m paper_recommender.judge"),
+            workflow.index("python -m paper_recommender.summarizer"),
+        )
 
     def test_daily_workflow_enriches_tldrs_before_email_and_pages(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")

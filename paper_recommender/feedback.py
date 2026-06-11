@@ -50,10 +50,12 @@ class FeedbackEvent:
     title: str = ""
     abstract: str = ""
     authors: tuple[str, ...] = ()
+    affiliations: tuple[str, ...] = ()
     categories: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "authors", tuple(self.authors))
+        object.__setattr__(self, "affiliations", tuple(self.affiliations))
         object.__setattr__(self, "categories", tuple(self.categories))
 
 
@@ -75,6 +77,7 @@ def feedback_events_from_records(records: list[dict[str, Any]]) -> list[Feedback
                 title=str(record.get("title", "")).strip(),
                 abstract=str(record.get("abstract", "")).strip(),
                 authors=tuple(_string_list(record.get("authors", []))),
+                affiliations=tuple(_string_list(record.get("affiliations", []))),
                 categories=tuple(_string_list(record.get("categories", []))),
             )
         )
@@ -122,7 +125,7 @@ def fetch_feedback_events(
     base_url = supabase_url.rstrip("/")
     query = urlencode(
         {
-            "select": "paper_id,rating,section,source,title,abstract,authors,categories",
+            "select": "paper_id,rating,section,source,title,abstract,authors,affiliations,categories",
             "order": "created_at.desc",
             "limit": str(limit),
         }
@@ -152,6 +155,7 @@ def write_feedback_json(events: list[FeedbackEvent], path: str | Path) -> None:
             "title": event.title,
             "abstract": event.abstract,
             "authors": list(event.authors),
+            "affiliations": list(event.affiliations),
             "categories": list(event.categories),
         }
         for event in events
