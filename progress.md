@@ -33,6 +33,7 @@
 | 上游代码获取 | `git clone` / GitHub zip archive | 成功下载上游代码 | 连接 `github.com:443` 超时 | blocked-for-now |
 | 推荐内核测试 | `python3 -m unittest discover -s tests` | 测试通过 | 15 个测试通过 | pass |
 | 推荐 JSON 生成 | `python3 -m paper_recommender.pipeline --input examples/sample_papers.jsonl --profile config/interests.json --output site/recommendations.json --run-date 2026-06-12 --limit 25` | 生成推荐 JSON | 写入 2 条推荐 | pass |
+| Supabase schema 测试 | `python3 -m unittest tests.test_supabase_schema` | 测试通过 | schema 契约测试通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -63,6 +64,18 @@
   - `README.md`
   - `site/*`
   - `.github/workflows/daily.yml`
+
+## 会话补充：反馈存储 schema
+- **状态：** complete
+- 执行的操作：
+  - 增加 Supabase SQL schema。
+  - 定义 `feedback_events`、`recommendation_runs`、`profile_state`。
+  - 为 `feedback_events` 启用 RLS，并允许匿名用户仅插入合法 like/dislike 反馈。
+  - 禁止匿名读取反馈、推荐运行记录和画像状态。
+  - 增加 schema 契约测试。
+- 创建/修改的文件：
+  - `supabase/schema.sql`
+  - `tests/test_supabase_schema.py`
 
 ### 当前仓库命名状态
 - 本地路径：`/Users/foreverhyx/daily-arxiv-recommender`

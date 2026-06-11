@@ -110,11 +110,11 @@
 
 ### 阶段 4：反馈存储
 - [ ] 创建 Supabase 项目。
-- [ ] 设计 `papers`、`recommendations`、`feedback_events`、`profile_state` 或等价表。
-- [ ] 配置 RLS：前端只允许插入反馈，不允许读取、更新、删除敏感数据。
+- [x] 设计 `recommendation_runs`、`feedback_events`、`profile_state` 表。
+- [x] 配置 RLS：前端只允许插入反馈，不允许读取、更新、删除敏感数据。
 - [ ] 在 GitHub Actions 中使用服务密钥读取反馈。
 - [ ] 记录滥用风险和后续加固方案。
-- **状态：** pending
+- **状态：** in_progress
 
 ### 阶段 5：GitHub Pages 反馈体验
 - [x] 在论文卡片中加入喜欢/不喜欢按钮。
