@@ -41,6 +41,12 @@
 | workflow 契约 RED 测试 | `python3 -m unittest tests.test_workflow_contract` | workflow 未接入 arXiv 时失败 | 断言缺少 `python -m paper_recommender.arxiv_source` | expected-fail |
 | arXiv + workflow 局部测试 | `python3 -m unittest tests.test_arxiv_source tests.test_workflow_contract` | 测试通过 | 4 个测试通过 | pass |
 | 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 24 个测试通过 | pass |
+| 反馈元数据 RED 测试 | `python3 -m unittest tests.test_feedback` | 缺少反馈元数据字段时失败 | `FeedbackEvent` 缺少 `title` 等字段 | expected-fail |
+| 反馈页面契约 RED 测试 | `python3 -m unittest tests.test_feedback_page_contract` | 页面未提交论文元数据时失败 | 断言缺少 `fetch("recommendations.json"` | expected-fail |
+| 反馈关键词学习 RED 测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline` | 缺少文本反馈权重时失败 | 缺少 `text_feedback_weights` / `keyword_weights` | expected-fail |
+| 反馈学习局部测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline` | 测试通过 | 8 个测试通过 | pass |
+| 反馈学习推荐生成 | `python3 -m paper_recommender.pipeline --input examples/sample_papers.jsonl --profile config/interests.json --feedback examples/sample_feedback.json --output /tmp/recommender-sample.json --run-date 2026-06-12 --limit 25` | 生成推荐 JSON 并包含关键词权重 | 写入 2 条推荐，`keyword_weights` 包含 `gem5/cache/search` 等干净 token | pass |
+| 反馈学习全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 29 个测试通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -48,6 +54,7 @@
 | 2026-06-12 | 暂无 | 0 | 暂无 |
 | 2026-06-12 | 拉取上游项目失败：连接 `github.com:443` 超时 | 3 | 停止重复同类尝试，先开发自有 MVP；后续网络可用时再接入上游 |
 | 2026-06-12 | 删除误创建的新 GitHub 仓库 `ForeverHYX/daily-arxiv-recommender` 被执行审批层拒绝 | 1 | 不绕过删除限制；保留当前原仓库开发状态，请用户在 GitHub Settings > Danger Zone 手动删除，或显式重新授权后再试 |
+| 2026-06-12 | 示例输出中的关键词权重混入 `search.`、作者名和分类 token | 1 | 让关键词学习只使用 title/abstract，并在 tokenizer 中剥离句尾标点 |
 
 ## 会话补充：通用化命名与兴趣配置抽离
 - **状态：** in_progress
@@ -125,6 +132,27 @@
   - `task_plan.md`
   - `progress.md`
 
+## 会话补充：反馈关键词学习
+- **状态：** complete
+- 执行的操作：
+  - 扩展 `FeedbackEvent`，保存 `title`、`abstract`、`authors`、`categories`，并让 Supabase 导出 JSON 保留这些字段。
+  - 更新 `site/feedback.js`，提交反馈前从 `recommendations.json` 按 `paper_id` 补全论文元数据，避免把长摘要塞进邮件链接。
+  - 增加轻量文本反馈权重：like 论文中的关键词给相似候选加分，dislike 论文中的关键词给相似候选降分。
+  - pipeline 的 `feedback_summary` 增加 `keyword_weights`，便于观察画像学习效果。
+  - 更新 README、示例反馈和计划文件，记录当前无 embedding 依赖的学习策略。
+- 创建/修改的文件：
+  - `paper_recommender/feedback.py`
+  - `paper_recommender/pipeline.py`
+  - `site/feedback.js`
+  - `tests/test_feedback.py`
+  - `tests/test_feedback_pipeline.py`
+  - `tests/test_feedback_page_contract.py`
+  - `examples/sample_feedback.json`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
 ### 当前仓库命名状态
 - 当前本地路径：`/Users/foreverhyx/agentic-arch-paper-recommender`
 - 当前远程仓库名：`ForeverHYX/agentic-arch-paper-recommender`
@@ -139,7 +167,7 @@
 | 我要去哪里？ | 继续完善真实每日 pipeline、反馈学习质量、邮件推送可靠性和上线验证 |
 | 目标是什么？ | 构建一个无自有服务器、保留 GitHub Pages、带邮件和反馈学习的个性化论文推荐系统 |
 | 我学到了什么？ | 见 `findings.md` |
-| 我做了什么？ | 已接入真实 arXiv Atom 数据源，并让 GitHub Actions 从示例数据切换到真实抓取输出 |
+| 我做了什么？ | 已接入真实 arXiv Atom 数据源，并增加基于反馈论文文本的关键词学习排序 |
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*

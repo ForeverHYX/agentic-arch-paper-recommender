@@ -22,6 +22,7 @@ async function recordFeedback() {
     return;
   }
 
+  const paperMetadata = await findPaperMetadata(paperId);
   const response = await fetch(`${config.supabaseUrl.replace(/\/$/, "")}/rest/v1/feedback_events`, {
     method: "POST",
     headers: {
@@ -35,6 +36,10 @@ async function recordFeedback() {
       rating,
       source,
       section: params.get("section") || null,
+      title: paperMetadata.title,
+      abstract: paperMetadata.abstract,
+      authors: paperMetadata.authors,
+      categories: paperMetadata.categories,
     }),
   });
 
@@ -44,4 +49,31 @@ async function recordFeedback() {
 
   titleEl.textContent = "Feedback recorded";
   detailEl.textContent = `Recorded ${rating} for ${paperId}.`;
+}
+
+async function findPaperMetadata(targetPaperId) {
+  try {
+    const response = await fetch("recommendations.json", { cache: "no-store" });
+    if (!response.ok) return emptyPaperMetadata();
+    const payload = await response.json();
+    const paper = (payload.recommendations || []).find((item) => item.paper_id === targetPaperId);
+    if (!paper) return emptyPaperMetadata();
+    return {
+      title: paper.title || "",
+      abstract: paper.abstract || "",
+      authors: Array.isArray(paper.authors) ? paper.authors : [],
+      categories: Array.isArray(paper.categories) ? paper.categories : [],
+    };
+  } catch {
+    return emptyPaperMetadata();
+  }
+}
+
+function emptyPaperMetadata() {
+  return {
+    title: "",
+    abstract: "",
+    authors: [],
+    categories: [],
+  };
 }

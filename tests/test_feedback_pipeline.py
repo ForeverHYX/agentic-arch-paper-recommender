@@ -32,7 +32,46 @@ class FeedbackPipelineTests(unittest.TestCase):
         self.assertEqual(payload["recommendations"][0]["paper_id"], "liked")
         self.assertEqual(payload["feedback_summary"]["section_weights"]["liked_section"], 1.0)
 
+    def test_feedback_text_similarity_adjusts_recommendation_order(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.TEST"}),
+            expansion_categories=frozenset(),
+            sections=(SectionRule("arch", "Architecture", 1.0, ("architecture",)),),
+        )
+        similar_to_like = Paper(
+            "gem5-cache",
+            "Architecture Study for gem5 Cache Replacement",
+            "Cycle accurate microarchitecture simulation of cache replacement policies.",
+            [],
+            ["cs.TEST"],
+        )
+        unrelated = Paper(
+            "runtime",
+            "Architecture Study for Parallel Runtime Scheduling",
+            "A runtime scheduling method for distributed services.",
+            [],
+            ["cs.TEST"],
+        )
+
+        payload = recommendation_payload(
+            [unrelated, similar_to_like],
+            run_date="2026-06-12",
+            profile=profile,
+            feedback_events=[
+                FeedbackEvent(
+                    "old-liked",
+                    "like",
+                    "arch",
+                    title="gem5 cache replacement exploration",
+                    abstract="cycle accurate microarchitecture simulation",
+                )
+            ],
+        )
+
+        self.assertEqual(payload["recommendations"][0]["paper_id"], "gem5-cache")
+        self.assertGreater(payload["feedback_summary"]["keyword_weights"]["gem5"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
-

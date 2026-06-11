@@ -9,7 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from paper_recommender.domain import InterestProfile, Paper, load_interest_profile, rank_papers
-from paper_recommender.feedback import FeedbackEvent, load_feedback_json, section_feedback_weights
+from paper_recommender.feedback import (
+    FeedbackEvent,
+    load_feedback_json,
+    section_feedback_weights,
+    text_feedback_adjustment,
+    text_feedback_weights,
+)
 
 
 def paper_from_record(record: dict[str, Any]) -> Paper:
@@ -48,7 +54,12 @@ def recommendation_payload(
 ) -> dict[str, Any]:
     resolved_profile = profile or load_interest_profile()
     feedback_weights = section_feedback_weights(feedback_events or [])
-    ranked = _apply_feedback_weights(rank_papers(papers, profile=resolved_profile), feedback_weights)
+    keyword_weights = text_feedback_weights(feedback_events or [])
+    ranked = _apply_feedback_weights(
+        rank_papers(papers, profile=resolved_profile),
+        feedback_weights,
+        keyword_weights,
+    )
     if limit is not None:
         ranked = ranked[:limit]
 
@@ -77,6 +88,7 @@ def recommendation_payload(
         "section_labels": resolved_profile.section_labels,
         "feedback_summary": {
             "section_weights": feedback_weights,
+            "keyword_weights": keyword_weights,
         },
         "count": len(recommendations),
         "recommendations": recommendations,
@@ -167,10 +179,17 @@ def _categories_from_record(value: Any) -> list[str]:
     return []
 
 
-def _apply_feedback_weights(results, feedback_weights: dict[str, float]):
+def _apply_feedback_weights(
+    results,
+    section_weights: dict[str, float],
+    keyword_weights: dict[str, float],
+):
     adjusted = []
     for result in results:
-        adjustment = sum(feedback_weights.get(section, 0.0) for section in result.sections)
+        paper = result.paper
+        paper_text = " ".join([paper.title, paper.abstract, " ".join(paper.authors), " ".join(paper.categories)])
+        adjustment = sum(section_weights.get(section, 0.0) for section in result.sections)
+        adjustment += text_feedback_adjustment(paper_text, keyword_weights)
         if adjustment == 0:
             adjusted.append(result)
             continue

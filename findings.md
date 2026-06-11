@@ -138,6 +138,8 @@
 | 推荐邮件按栏目分组 | 用户兴趣包含多个交叉子方向，分组可以避免早期排序偏科。 |
 | arXiv source 输出 JSONL | 保持抓取、解析、推荐排序和页面展示解耦；后续增加 Semantic Scholar 或 RSS 时只需输出同一记录格式。 |
 | workflow 契约测试覆盖真实数据源 | 防止每日 workflow 意外退回 `examples/sample_papers.jsonl`，保证自动化流程持续使用真实 arXiv 抓取结果。 |
+| 反馈页面从 `recommendations.json` 补全论文元数据 | 避免在邮件/页面反馈链接中塞长摘要，同时让 Supabase 反馈事件可用于后续关键词学习。 |
+| 先用轻量关键词 fallback 而非 embedding | 不需要额外 API key 或依赖，能在 GitHub Actions 中稳定运行；后续反馈量上来后再替换或叠加 embedding。 |
 
 ## 初始数据表设想
 ### `feedback_events`

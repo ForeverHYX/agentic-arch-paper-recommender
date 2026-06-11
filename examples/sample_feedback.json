@@ -3,7 +3,10 @@
     "paper_id": "previous-liked",
     "rating": "like",
     "section": "agentic_architecture",
-    "source": "page"
+    "source": "page",
+    "title": "Agentic AI-Driven Microarchitecture Exploration",
+    "abstract": "A hardware design agent uses gem5 for cache replacement policy search.",
+    "authors": ["Sample Architect"],
+    "categories": ["cs.AR", "cs.AI"]
   }
 ]
-
