@@ -36,11 +36,20 @@ Run tests:
 python3 -m unittest discover -s tests
 ```
 
+Fetch recent arXiv records from the categories in `config/interests.json`:
+
+```bash
+python3 -m paper_recommender.arxiv_source \
+  --profile config/interests.json \
+  --output output/papers.jsonl \
+  --max-results 200
+```
+
 Build recommendations from JSONL:
 
 ```bash
 python3 -m paper_recommender.pipeline \
-  --input examples/sample_papers.jsonl \
+  --input output/papers.jsonl \
   --profile config/interests.json \
   --feedback examples/sample_feedback.json \
   --output site/recommendations.json

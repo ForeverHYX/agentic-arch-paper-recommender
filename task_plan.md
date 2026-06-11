@@ -101,6 +101,7 @@
 
 ### 阶段 3：领域过滤和推荐画像 MVP
 - [x] 配置核心分类和扩展分类。
+- [x] 增加真实 arXiv Atom API 数据源，按独立兴趣配置生成抓取分类查询。
 - [x] 实现领域关键词 gate。
 - [ ] 建立 seed paper 列表和手动关键词权重。
 - [x] 实现栏目分配和初版排序。
@@ -141,7 +142,8 @@
 - **状态：** in_progress
 
 ### 阶段 8：验证与上线
-- [ ] 本地或 GitHub Actions 手动运行一次完整流程。
+- [ ] 本地或 GitHub Actions 手动运行一次真实 arXiv 完整流程。
+- [x] 增加 workflow 契约测试，防止每日流程退回示例 JSONL。
 - [ ] 验证 GitHub Pages 能加载当天数据。
 - [ ] 验证邮件能收到并正确跳转。
 - [ ] 验证反馈写入 Supabase。
@@ -162,6 +164,7 @@
 | 核心 arXiv 分类为 `cs.AR,cs.PF,cs.DC,cs.PL` | 更贴近体系结构、性能、分布式/HPC 和编译器协同。 |
 | `cs.AI,cs.LG` 只作为扩展分类并经过 gate | 用户关注 agentic architecture，但泛 AI/ML 论文噪声很大。 |
 | 邮件和页面共用同一反馈入口 | 避免维护两套反馈逻辑。 |
+| arXiv 抓取输出 JSONL 后交给现有 pipeline | 保持数据源、推荐排序和反馈学习解耦，便于后续替换或增加 Semantic Scholar/RSS。 |
 
 ## 遇到的错误
 | 错误 | 尝试次数 | 解决方案 |

@@ -36,6 +36,11 @@
 | Supabase schema 测试 | `python3 -m unittest tests.test_supabase_schema` | 测试通过 | schema 契约测试通过 | pass |
 | 反馈读取与排序测试 | `python3 -m unittest discover -s tests` | 测试通过 | 20 个测试通过 | pass |
 | 带反馈生成推荐 JSON | `python3 -m paper_recommender.pipeline --input examples/sample_papers.jsonl --profile config/interests.json --feedback examples/sample_feedback.json --output site/recommendations.json --run-date 2026-06-12 --limit 25` | 生成带 feedback summary 的推荐 JSON | 写入 2 条推荐，包含 `agentic_architecture: 1.0` 权重 | pass |
+| arXiv source RED 测试 | `python3 -m unittest tests.test_arxiv_source` | 新模块不存在时失败 | `ModuleNotFoundError: No module named 'paper_recommender.arxiv_source'` | expected-fail |
+| arXiv source 单元测试 | `python3 -m unittest tests.test_arxiv_source` | 测试通过 | 3 个测试通过，覆盖 URL、Atom 解析、CLI 写 JSONL | pass |
+| workflow 契约 RED 测试 | `python3 -m unittest tests.test_workflow_contract` | workflow 未接入 arXiv 时失败 | 断言缺少 `python -m paper_recommender.arxiv_source` | expected-fail |
+| arXiv + workflow 局部测试 | `python3 -m unittest tests.test_arxiv_source tests.test_workflow_contract` | 测试通过 | 4 个测试通过 | pass |
+| 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 24 个测试通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -101,6 +106,25 @@
   - `site/app.js`
   - `site/feedback.js`
 
+## 会话补充：真实 arXiv 数据源
+- **状态：** complete
+- 执行的操作：
+  - 使用 TDD 增加 `tests/test_arxiv_source.py`，先验证缺少 `paper_recommender.arxiv_source` 的 RED 状态。
+  - 增加 `paper_recommender.arxiv_source`，支持根据 `config/interests.json` 的 core/expansion 分类构造 arXiv Atom API 查询。
+  - Atom XML 解析为 pipeline 兼容 JSONL 记录，包含 `paper_id`、`title`、`abstract`、`authors`、`categories`、`url`、`published`、`updated`。
+  - CLI 支持真实抓取，也支持 `--source-file` 读取本地 Atom XML，便于无网络测试。
+  - 增加 workflow 契约测试，确认每日流程使用 `output/papers.jsonl` 而非示例 JSONL。
+  - 更新 GitHub Actions：先运行 arXiv 抓取，再运行推荐 pipeline。
+  - 更新 README，记录真实 arXiv 抓取命令和新的推荐生成输入。
+- 创建/修改的文件：
+  - `paper_recommender/arxiv_source.py`
+  - `tests/test_arxiv_source.py`
+  - `tests/test_workflow_contract.py`
+  - `.github/workflows/daily.yml`
+  - `README.md`
+  - `task_plan.md`
+  - `progress.md`
+
 ### 当前仓库命名状态
 - 当前本地路径：`/Users/foreverhyx/agentic-arch-paper-recommender`
 - 当前远程仓库名：`ForeverHYX/agentic-arch-paper-recommender`
@@ -112,10 +136,10 @@
 | 问题 | 答案 |
 |------|------|
 | 我在哪里？ | 阶段 1：方案确认与项目初始化 |
-| 我要去哪里？ | 审计上游项目，确定最小改造范围，然后实现领域过滤、反馈存储、邮件推送和推荐学习闭环 |
+| 我要去哪里？ | 继续完善真实每日 pipeline、反馈学习质量、邮件推送可靠性和上线验证 |
 | 目标是什么？ | 构建一个无自有服务器、保留 GitHub Pages、带邮件和反馈学习的个性化论文推荐系统 |
 | 我学到了什么？ | 见 `findings.md` |
-| 我做了什么？ | 创建规划目录和三份规划文件 |
+| 我做了什么？ | 已接入真实 arXiv Atom 数据源，并让 GitHub Actions 从示例数据切换到真实抓取输出 |
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*

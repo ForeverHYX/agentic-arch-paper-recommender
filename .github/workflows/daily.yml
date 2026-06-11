@@ -37,6 +37,13 @@ jobs:
           mkdir -p output
           echo '[]' > output/feedback.json
 
+      - name: Fetch arXiv papers
+        run: |
+          python -m paper_recommender.arxiv_source \
+            --profile config/interests.json \
+            --output output/papers.jsonl \
+            --max-results 200
+
       - name: Fetch Supabase feedback
         if: env.HAS_SUPABASE == 'true'
         env:
@@ -47,7 +54,7 @@ jobs:
       - name: Build recommendation payload
         run: |
           python -m paper_recommender.pipeline \
-            --input examples/sample_papers.jsonl \
+            --input output/papers.jsonl \
             --profile config/interests.json \
             --feedback output/feedback.json \
             --output site/recommendations.json \
