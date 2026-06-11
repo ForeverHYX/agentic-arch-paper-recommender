@@ -32,6 +32,19 @@ class AffiliationsTests(unittest.TestCase):
             ],
         )
 
+    def test_extract_affiliations_from_latex_removes_email_macros(self):
+        text = r"""
+        \institute{Institute of Parallel and Distributed Systems, University of Stuttgart,\\ 70569 Stuttgart, Germany\\
+        \email{\{alexander.strack, alexander.van-craen\}@ipvs.uni-stuttgart.de}}
+        """
+
+        affiliations = extract_affiliations_from_latex(text)
+
+        self.assertEqual(
+            affiliations,
+            ["Institute of Parallel and Distributed Systems, University of Stuttgart, 70569 Stuttgart, Germany"],
+        )
+
     def test_extract_affiliations_from_source_archive_reads_tex_files(self):
         data = io.BytesIO()
         with tarfile.open(fileobj=data, mode="w:gz") as archive:

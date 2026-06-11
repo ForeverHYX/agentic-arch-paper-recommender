@@ -177,7 +177,8 @@ def _strip_latex_comments(text: str) -> str:
 
 
 def _clean_affiliation(value: str) -> str:
-    cleaned = value
+    cleaned = _remove_macro_arguments(value, "email")
+    cleaned = _remove_macro_arguments(cleaned, "thanks")
     cleaned = re.sub(r"\\(?:and|quad|qquad|,|;)", " ", cleaned)
     cleaned = re.sub(r"\\(?:textsuperscript|thanks|email)\s*\{[^{}]*\}", " ", cleaned)
     cleaned = re.sub(r"\\[a-zA-Z]+\*?(?:\[[^\]]*\])?", " ", cleaned)
@@ -186,6 +187,38 @@ def _clean_affiliation(value: str) -> str:
     cleaned = cleaned.replace("{", " ").replace("}", " ")
     cleaned = re.sub(r"\s+", " ", cleaned)
     return cleaned.strip(" ,;.")
+
+
+def _remove_macro_arguments(text: str, macro: str) -> str:
+    pattern = re.compile(rf"\\{re.escape(macro)}\s*(?:\[[^\]]*\]\s*)?\{{", re.IGNORECASE)
+    result = []
+    last = 0
+    for match in pattern.finditer(text):
+        start = match.start()
+        brace_index = match.end() - 1
+        end = _balanced_brace_end(text, brace_index)
+        if end is None:
+            continue
+        result.append(text[last:start])
+        last = end + 1
+    result.append(text[last:])
+    return "".join(result)
+
+
+def _balanced_brace_end(text: str, brace_index: int) -> int | None:
+    depth = 0
+    index = brace_index
+    while index < len(text):
+        char = text[index]
+        previous = text[index - 1] if index > 0 else ""
+        if char == "{" and previous != "\\":
+            depth += 1
+        elif char == "}" and previous != "\\":
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    return None
 
 
 def _string_list(value: Any) -> list[str]:
