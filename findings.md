@@ -150,6 +150,7 @@
 | LLM 判断用于最终推荐重排 | 规则排序先产出 45 条候选，OpenCode Go 对每篇论文返回 0-10 相关性分数、保留/丢弃决策和原因，再截断到最多 15 条。无 key 或请求失败时回退到规则分。 |
 | Code 链接采用显式抽取 + GitHub 搜索兜底 | 摘要中出现 GitHub/GitLab/Bitbucket/Hugging Face 链接时展示直达 Code；否则用标题生成 GitHub repository search 链接。 |
 | 作者单位作为弱质量信号 | arXiv Atom 通常不稳定提供单位；系统解析 `arxiv:affiliation` 和外部记录里的 `affiliations`，展示给用户，并传入 LLM judge，但不会因单位缺失直接丢弃论文。 |
+| 作者单位补全从 arXiv source 提取 | 当前 live JSON 单位为空的根因是 arXiv Atom 未给出单位。新增 source bundle enrichment：对最终推荐下载 arXiv e-print，解析 TeX 中 `\\affil`、`\\affiliation`、`\\institute` 等宏。 |
 
 ## 初始数据表设想
 ### `feedback_events`

@@ -80,6 +80,13 @@ jobs:
             --output site/recommendations.json \
             --limit 15
 
+      - name: Enrich author affiliations
+        run: |
+          python -m paper_recommender.affiliations \
+            --input site/recommendations.json \
+            --output site/recommendations.json \
+            --max-items 15
+
       - name: Enrich TLDR summaries
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

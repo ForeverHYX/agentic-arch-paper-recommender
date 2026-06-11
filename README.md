@@ -67,6 +67,15 @@ OPENAI_API_KEY=... python3 -m paper_recommender.judge \
   --limit 15
 ```
 
+Enrich author affiliations from arXiv source TeX when available:
+
+```bash
+python3 -m paper_recommender.affiliations \
+  --input site/recommendations.json \
+  --output site/recommendations.json \
+  --max-items 15
+```
+
 Add TLDR summaries:
 
 ```bash
@@ -79,7 +88,7 @@ The default OpenAI-compatible endpoint is OpenCode Go: `https://opencode.ai/zen/
 
 `--min-count` fills with exploratory papers. Core arXiv categories are preferred first; if there still are not enough candidates, clean expansion-category papers without negative/noise matches are added as exploratory items.
 
-Each recommendation includes author affiliations when the source provides them, direct `Paper`, `PDF`, explicit `Code` links when found, and a `Code Search` GitHub repository search URL based on the paper title. arXiv often omits affiliations, so missing affiliations are stored as an empty list rather than guessed.
+Each recommendation includes author affiliations when the source provides them, direct `Paper`, `PDF`, explicit `Code` links when found, and a `Code Search` GitHub repository search URL based on the paper title. arXiv Atom often omits affiliations, so the workflow also tries to download the final papers' arXiv source bundles and parse common LaTeX affiliation macros. Missing affiliations are stored as an empty list rather than guessed.
 
 ## Feedback Storage
 

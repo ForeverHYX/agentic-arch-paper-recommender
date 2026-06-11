@@ -114,6 +114,28 @@
 | 本地 fallback 链路 smoke test | pipeline 45候选 → judge 15 → summarizer | 输出包含 `ai_judgement`、`ai_score`、`tldr`、`code_search_url` | 示例数据写入 2 条，字段完整；无 API key 时使用规则分兜底 | pass |
 | 作者单位局部测试 | `python3 -m unittest tests.test_arxiv_source tests.test_pipeline tests.test_judge tests.test_site_contract tests.test_emailer tests.test_feedback tests.test_feedback_page_contract tests.test_supabase_schema` | 单位被解析、展示、存储并传入 judge | 27 个测试通过 | pass |
 
+## 会话补充：前端未显示作者单位的根因修复
+- **状态：** in_progress
+- 执行的操作：
+  - 检查 live `recommendations.json`，确认前端没有显示单位不是 CSS 问题，而是 8 条推荐的 `affiliations` 全为空数组。
+  - 验证 OpenAlex/Semantic Scholar 对当前新 arXiv 标题匹配不稳定，不能直接用第一条结果补单位。
+  - 验证 arXiv source bundle 对至少一篇当前推荐包含 `\\affil` 单位信息。
+  - 新增 `paper_recommender.affiliations`，下载最终推荐的 arXiv e-print source，解析 TeX 中 `\\affil`、`\\affiliation`、`\\institute` 宏，并写回 `recommendations.json`。
+  - workflow 在 LLM judge 后、TLDR 前运行单位补全。
+- 创建/修改的文件：
+  - `paper_recommender/affiliations.py`
+  - `tests/test_affiliations.py`
+  - `.github/workflows/daily.yml`
+  - `tests/test_workflow_contract.py`
+  - `README.md`
+  - `findings.md`
+  - `progress.md`
+
+| 作者单位补全 RED 测试 | `python3 -m unittest tests.test_affiliations tests.test_workflow_contract` | 缺少 affiliations 模块和 workflow 步骤时失败 | `ModuleNotFoundError`，workflow 缺少 `paper_recommender.affiliations` | expected-fail |
+| 作者单位补全局部测试 | `python3 -m unittest tests.test_affiliations tests.test_workflow_contract` | 测试通过 | 10 个测试通过 | pass |
+| 作者单位补全全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 63 个测试通过 | pass |
+| 真实 arXiv source smoke test | `curl https://arxiv.org/e-print/2606.11356` 后调用 parser | 能抽取 FESOM2 论文单位 | 抽取出 Alfred Wegener Institute 和 University of Bremen | pass |
+
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|

@@ -25,6 +25,19 @@ class WorkflowContractTests(unittest.TestCase):
             workflow.index("python -m paper_recommender.summarizer"),
         )
 
+    def test_daily_workflow_enriches_affiliations_before_tldr_enrichment(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("python -m paper_recommender.affiliations", workflow)
+        self.assertLess(
+            workflow.index("python -m paper_recommender.judge"),
+            workflow.index("python -m paper_recommender.affiliations"),
+        )
+        self.assertLess(
+            workflow.index("python -m paper_recommender.affiliations"),
+            workflow.index("python -m paper_recommender.summarizer"),
+        )
+
     def test_daily_workflow_enriches_tldrs_before_email_and_pages(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 
