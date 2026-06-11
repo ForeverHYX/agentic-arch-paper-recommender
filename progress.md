@@ -101,7 +101,7 @@
   - `site/feedback.js`
 
 ### 当前仓库命名状态
-- 当前本地路径：`/Users/foreverhyx/daily-arxiv-recommender`，待改回 `/Users/foreverhyx/agentic-arch-paper-recommender`
+- 当前本地路径：`/Users/foreverhyx/agentic-arch-paper-recommender`
 - 当前远程仓库名：`ForeverHYX/agentic-arch-paper-recommender`
 - 当前远程 URL：`git@github.com:ForeverHYX/agentic-arch-paper-recommender.git`
 - 验证：最新提交已推送回原仓库。
