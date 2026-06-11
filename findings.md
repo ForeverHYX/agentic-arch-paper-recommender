@@ -141,6 +141,7 @@
 | 反馈页面从 `recommendations.json` 补全论文元数据 | 避免在邮件/页面反馈链接中塞长摘要，同时让 Supabase 反馈事件可用于后续关键词学习。 |
 | 先用轻量关键词 fallback 而非 embedding | 不需要额外 API key 或依赖，能在 GitHub Actions 中稳定运行；后续反馈量上来后再替换或叠加 embedding。 |
 | `recommendation_runs` 用于跨天去重 | 每次 workflow 生成推荐后写回 Supabase，下一次读取历史并按出现次数惩罚重复论文。 |
+| 空推荐默认不发邮件 | 避免用户每天收到低价值空摘要；需要时可用 `--send-empty` 显式发送。 |
 
 ## 初始数据表设想
 ### `feedback_events`

@@ -90,7 +90,7 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
           EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
-        run: python -m paper_recommender.email_delivery --recommendations site/recommendations.json
+        run: python -m paper_recommender.email_delivery --recommendations site/recommendations.json --max-attempts 3
 
       - name: Publish Supabase recommendation history
         if: env.HAS_SUPABASE == 'true'

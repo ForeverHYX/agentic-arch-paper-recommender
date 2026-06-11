@@ -53,6 +53,11 @@
 | 推荐历史 workflow 契约测试 | `python3 -m unittest tests.test_workflow_contract` | 测试通过 | 2 个测试通过 | pass |
 | 带历史生成推荐 JSON | `python3 -m paper_recommender.pipeline --input examples/sample_papers.jsonl --profile config/interests.json --feedback examples/sample_feedback.json --history examples/sample_history.json --output /tmp/recommender-history-sample.json --run-date 2026-06-12 --limit 25` | 生成推荐 JSON 并包含历史摘要 | 写入 2 条推荐，`history_summary.shown_counts.agentic-sample = 1` | pass |
 | 推荐历史全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 36 个测试通过 | pass |
+| 邮件重试 RED 测试 | `python3 -m unittest tests.test_email_delivery` | 缺少重试和空推荐跳过函数时失败 | import 缺少 `send_email_message_with_retries` | expected-fail |
+| 邮件语法回归 | `python3 -m unittest tests.test_email_delivery` | 测试通过 | 首次实现把 SMTP `else` 分支放错位置导致 SyntaxError，修正后 4 个测试通过 | pass |
+| 邮件 workflow RED 测试 | `python3 -m unittest tests.test_workflow_contract` | workflow 未传重试参数时失败 | 断言缺少 `--max-attempts 3` | expected-fail |
+| 邮件 workflow 契约测试 | `python3 -m unittest tests.test_workflow_contract` | 测试通过 | 3 个测试通过 | pass |
+| 邮件可靠性全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 40 个测试通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -181,6 +186,24 @@
   - `findings.md`
   - `progress.md`
 
+## 会话补充：邮件重试与空推荐处理
+- **状态：** complete
+- 执行的操作：
+  - 增加 `should_send_digest`，默认空推荐不发送邮件。
+  - 增加 `send_email_message_with_retries`，SMTP 失败时按固定短延迟最多重试 3 次。
+  - CLI 增加 `--max-attempts` 和 `--send-empty`。
+  - GitHub Actions 邮件步骤显式使用 `--max-attempts 3`。
+  - 增加邮件发送和 workflow 契约测试。
+- 创建/修改的文件：
+  - `paper_recommender/email_delivery.py`
+  - `tests/test_email_delivery.py`
+  - `tests/test_workflow_contract.py`
+  - `.github/workflows/daily.yml`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
 ### 当前仓库命名状态
 - 当前本地路径：`/Users/foreverhyx/agentic-arch-paper-recommender`
 - 当前远程仓库名：`ForeverHYX/agentic-arch-paper-recommender`
@@ -195,7 +218,7 @@
 | 我要去哪里？ | 继续完善真实每日 pipeline、反馈学习质量、邮件推送可靠性和上线验证 |
 | 目标是什么？ | 构建一个无自有服务器、保留 GitHub Pages、带邮件和反馈学习的个性化论文推荐系统 |
 | 我学到了什么？ | 见 `findings.md` |
-| 我做了什么？ | 已接入真实 arXiv Atom 数据源、反馈关键词学习和基于推荐历史的重复惩罚 |
+| 我做了什么？ | 已接入真实 arXiv Atom 数据源、反馈关键词学习、推荐历史去重和更稳的邮件发送 |
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*

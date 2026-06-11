@@ -21,6 +21,12 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m paper_recommender.history publish", workflow)
         self.assertIn("--recommendations site/recommendations.json", workflow)
 
+    def test_daily_workflow_retries_email_delivery(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("python -m paper_recommender.email_delivery", workflow)
+        self.assertIn("--max-attempts 3", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

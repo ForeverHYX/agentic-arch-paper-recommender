@@ -88,3 +88,17 @@ Local commands:
 python3 -m paper_recommender.history fetch --output output/history.json --limit 1000
 python3 -m paper_recommender.history publish --recommendations site/recommendations.json
 ```
+
+## Email Delivery
+
+The email step is optional and runs only when SMTP secrets are configured. By default, empty recommendation days are skipped instead of sending a low-value digest. SMTP delivery retries three times in GitHub Actions.
+
+Local command:
+
+```bash
+python3 -m paper_recommender.email_delivery \
+  --recommendations site/recommendations.json \
+  --max-attempts 3
+```
+
+Use `--send-empty` only if you explicitly want an email even when there are no matching papers.
