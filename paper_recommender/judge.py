@@ -69,7 +69,8 @@ def request_judgement(
                     "compilers, runtimes, and performance portability. Penalize generic AI agents, "
                     "web/RAG benchmarks, software architecture, and unrelated ML papers. "
                     "Use author affiliations as a weak quality/context signal when present, but do not "
-                    "drop a paper solely because affiliations are missing. "
+                    "drop a paper solely because affiliations are missing. Use decision=drop only when "
+                    "the paper is clearly unrelated, generic, or too low quality for this profile. "
                     "Return only JSON with keys score, reason, decision. score is 0-10; decision is keep or drop."
                 ),
             },
@@ -142,7 +143,7 @@ def enrich_payload_with_judgements(
     judged.sort(key=_ranking_key)
     kept = [item for item in judged if item["ai_judgement"]["decision"] != "drop"]
     dropped = [item for item in judged if item["ai_judgement"]["decision"] == "drop"]
-    selected = (kept + dropped)[:limit]
+    selected = kept[:limit]
     for rank, item in enumerate(selected, start=1):
         item["rank"] = rank
 
@@ -153,6 +154,7 @@ def enrich_payload_with_judgements(
         "model": model,
         "candidate_count": len(judged),
         "kept_count": len(kept),
+        "dropped_count": len(dropped),
         "limit": limit,
     }
     return enriched

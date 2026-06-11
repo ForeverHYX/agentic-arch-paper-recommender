@@ -138,6 +138,29 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(enriched["recommendations"][0]["ai_judgement"]["decision"], "keep")
         self.assertIn("高度贴合", enriched["recommendations"][0]["ai_judgement"]["reason"])
 
+    def test_enrich_payload_with_judgements_excludes_dropped_papers_even_when_under_limit(self):
+        payload = {
+            "recommendations": [
+                {"rank": 1, "paper_id": "keep", "title": "GPU Simulator for HPC", "abstract": "", "score": 4.0},
+                {"rank": 2, "paper_id": "drop", "title": "Generic Web Agent", "abstract": "", "score": 9.0},
+            ],
+        }
+
+        def opener(request):
+            body = json.loads(request.data.decode("utf-8"))
+            prompt = body["messages"][1]["content"]
+            if "Generic Web Agent" in prompt:
+                content = '{"score": 1, "reason": "泛 Web agent。", "decision": "drop"}'
+            else:
+                content = '{"score": 7, "reason": "相关。", "decision": "keep"}'
+            return FakeResponse({"choices": [{"message": {"content": content}}]})
+
+        enriched = enrich_payload_with_judgements(payload, api_key="secret", limit=15, opener=opener)
+
+        self.assertEqual(enriched["count"], 1)
+        self.assertEqual([item["paper_id"] for item in enriched["recommendations"]], ["keep"])
+        self.assertEqual(enriched["judge_summary"]["dropped_count"], 1)
+
     def test_cli_updates_recommendation_json_with_fallback_judgement(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "recommendations.json"
