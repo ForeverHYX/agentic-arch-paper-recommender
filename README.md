@@ -54,8 +54,8 @@ python3 -m paper_recommender.pipeline \
   --feedback examples/sample_feedback.json \
   --history examples/sample_history.json \
   --output site/recommendations.json \
-  --limit 80 \
-  --min-count 60
+  --limit 15 \
+  --min-count 15
 ```
 
 Add TLDR summaries:

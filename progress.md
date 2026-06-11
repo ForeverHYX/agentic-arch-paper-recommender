@@ -15,6 +15,19 @@
   - `findings.md`
   - `progress.md`
 
+## 会话补充：推荐数量收敛
+- **状态：** complete
+- 执行的操作：
+  - 用户反馈 60 条过多，要求不超过 15 条。
+  - 保留 arXiv 候选抓取 500 条，但 workflow 输出改为 `--limit 15 --min-count 15`。
+  - 更新 workflow 契约测试、README 和发现记录。
+- 创建/修改的文件：
+  - `.github/workflows/daily.yml`
+  - `tests/test_workflow_contract.py`
+  - `README.md`
+  - `findings.md`
+  - `progress.md`
+
 ### 阶段 2：上游项目审计与改造范围确认
 - **状态：** in_progress
 - **开始时间：** 2026-06-12 Asia/Shanghai

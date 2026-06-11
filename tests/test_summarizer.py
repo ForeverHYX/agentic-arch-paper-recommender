@@ -78,6 +78,24 @@ class SummarizerTests(unittest.TestCase):
         self.assertIn("tldr", enriched["recommendations"][0])
         self.assertIn("Agentic Microarchitecture Exploration", enriched["recommendations"][0]["tldr"])
 
+    def test_enrich_payload_with_tldrs_falls_back_on_empty_model_response(self):
+        payload = {
+            "recommendations": [
+                {
+                    "paper_id": "p1",
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies.",
+                }
+            ]
+        }
+
+        def opener(request):
+            return FakeResponse({"choices": [{"message": {"content": ""}}]})
+
+        enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener)
+
+        self.assertIn("Agentic Microarchitecture Exploration", enriched["recommendations"][0]["tldr"])
+
     def test_cli_updates_recommendation_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "recommendations.json"

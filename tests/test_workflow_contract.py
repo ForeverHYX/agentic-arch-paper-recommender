@@ -10,8 +10,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--output output/papers.jsonl", workflow)
         self.assertIn("--max-results 500", workflow)
         self.assertIn("--input output/papers.jsonl", workflow)
-        self.assertIn("--limit 80", workflow)
-        self.assertIn("--min-count 60", workflow)
+        self.assertIn("--limit 15", workflow)
+        self.assertIn("--min-count 15", workflow)
         self.assertNotIn("--input examples/sample_papers.jsonl", workflow)
 
     def test_daily_workflow_enriches_tldrs_before_email_and_pages(self):

@@ -68,8 +68,8 @@ jobs:
             --history output/history.json \
             --output site/recommendations.json \
             --run-date "$(date -u +%F)" \
-            --limit 80 \
-            --min-count 60
+            --limit 15 \
+            --min-count 15
 
       - name: Enrich TLDR summaries
         env:

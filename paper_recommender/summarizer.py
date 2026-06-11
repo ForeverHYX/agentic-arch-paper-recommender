@@ -126,7 +126,8 @@ def _safe_tldr(
     if not api_key:
         return fallback_tldr(item)
     try:
-        return request_tldr(item, api_key=api_key, base_url=base_url, model=model, opener=opener)
+        tldr = request_tldr(item, api_key=api_key, base_url=base_url, model=model, opener=opener)
+        return tldr or fallback_tldr(item)
     except Exception:
         return fallback_tldr(item)
 
