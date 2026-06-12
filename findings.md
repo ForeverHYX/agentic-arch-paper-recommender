@@ -154,6 +154,7 @@
 | LLM judge 纳入反馈画像 | `feedback_summary` 中的 section 权重和关键词权重现在会进入 LLM prompt，作为类似 Zotero/library 相似度的轻量个性化信号。 |
 | OpenCode Go 配置保持 OpenAI-compatible 形态 | `OPENAI_API_KEY` 用 Secret，`OPENAI_BASE_URL` 和 `OPENAI_MODEL` 用 GitHub Variables 覆盖；默认值仍指向 OpenCode Go 和 `deepseek-v4-flash`。 |
 | seed papers 作为无服务器个人语料锚点 | `config/interests.json` 中的 `seed_papers` 会写入推荐 JSON，并进入 LLM judge prompt，让代表性论文比单纯关键词更直接地约束相关性判断。 |
+| 反馈学习加入实体权重 | like/dislike 现在会学习作者、机构和体系结构/HPC 工具链权重，并同时影响规则排序和 LLM judge prompt。机构权重保持弱信号，避免 arXiv 单位缺失导致过度惩罚。 |
 
 ## 初始数据表设想
 ### `feedback_events`
@@ -184,6 +185,8 @@
 - `liked_keywords`
 - `disliked_keywords`
 - `liked_authors`
+- `liked_affiliations`
+- `liked_toolchains`
 - `section_weights`
 - `embedding_summary`
 

@@ -38,7 +38,7 @@ class FeedbackPipelineTests(unittest.TestCase):
             name="Custom",
             core_categories=frozenset({"cs.TEST"}),
             expansion_categories=frozenset(),
-            sections=(SectionRule("arch", "Architecture", 1.0, ("architecture",)),),
+            sections=(SectionRule("arch", "Architecture", 1.0, ("architecture", "runtime")),),
         )
         similar_to_like = Paper(
             "gem5-cache",
@@ -72,6 +72,62 @@ class FeedbackPipelineTests(unittest.TestCase):
 
         self.assertEqual(payload["recommendations"][0]["paper_id"], "gem5-cache")
         self.assertGreater(payload["feedback_summary"]["keyword_weights"]["gem5"], 0)
+
+    def test_feedback_entity_weights_adjust_recommendation_order(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.TEST"}),
+            expansion_categories=frozenset(),
+            sections=(SectionRule("arch", "Architecture", 1.0, ("architecture", "runtime")),),
+        )
+        entity_match = Paper(
+            "entity-match",
+            "Architecture Study for Accelerator Simulation",
+            "A simulator evaluates memory hierarchy behavior with gem5 and MLIR.",
+            ["A. Architect"],
+            ["cs.TEST"],
+            affiliations=["University of Architecture"],
+        )
+        stronger_rule_score = Paper(
+            "rule-strong",
+            "Architecture Study for Generic Runtime",
+            "architecture architecture architecture runtime scheduling.",
+            ["Generic Author"],
+            ["cs.TEST"],
+            affiliations=["Generic Benchmark Institute"],
+        )
+
+        payload = recommendation_payload(
+            [stronger_rule_score, entity_match],
+            run_date="2026-06-12",
+            profile=profile,
+            feedback_events=[
+                FeedbackEvent(
+                    "old-liked",
+                    "like",
+                    "arch",
+                    title="gem5 MLIR architecture simulation",
+                    abstract="A gem5 and MLIR toolchain for architecture design.",
+                    authors=["A. Architect"],
+                    affiliations=["University of Architecture"],
+                ),
+                FeedbackEvent(
+                    "old-disliked",
+                    "dislike",
+                    "arch",
+                    title="generic runtime benchmark",
+                    abstract="A generic runtime paper.",
+                    authors=["Generic Author"],
+                    affiliations=["Generic Benchmark Institute"],
+                ),
+            ],
+        )
+
+        self.assertEqual(payload["recommendations"][0]["paper_id"], "entity-match")
+        self.assertGreater(payload["feedback_summary"]["author_weights"]["A. Architect"], 0)
+        self.assertGreater(payload["feedback_summary"]["affiliation_weights"]["University of Architecture"], 0)
+        self.assertGreater(payload["feedback_summary"]["toolchain_weights"]["gem5"], 0)
+        self.assertLess(payload["feedback_summary"]["author_weights"]["Generic Author"], 0)
 
     def test_recommendation_history_penalizes_repeated_papers(self):
         profile = InterestProfile(

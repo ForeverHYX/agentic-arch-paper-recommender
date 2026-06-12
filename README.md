@@ -117,7 +117,7 @@ Run [supabase/schema.sql](supabase/schema.sql) in your Supabase SQL editor, then
 - GitHub Variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
 - GitHub Secrets: `SUPABASE_SERVICE_ROLE_KEY`
 
-The public Pages app uses the anon key only to insert feedback. GitHub Actions uses the service role key to read feedback and adjust section weights.
+The public Pages app uses the anon key only to insert feedback. GitHub Actions uses the service role key to read feedback and adjust the learned profile.
 
 Feedback records include paper metadata when available:
 
@@ -127,10 +127,13 @@ Feedback records include paper metadata when available:
 - `affiliations`
 - `categories`
 
-The daily pipeline converts likes and dislikes into two lightweight learning signals:
+The daily pipeline converts likes and dislikes into lightweight learning signals:
 
 - section weights, so preferred recommendation sections rank higher
 - keyword weights from liked/disliked paper text, so similar future papers move up or down without requiring an embedding service
+- author weights, so papers from repeatedly liked/disliked authors move accordingly
+- affiliation weights, used as a weak signal because arXiv affiliation data is incomplete
+- toolchain weights for architecture/HPC tooling such as `gem5`, `MLIR`, `CIRCT`, `Accel-Sim`, `GPGPU-Sim`, `Ramulator`, `CUDA`, `ROCm`, `SYCL`, `OpenMP`, and `MPI`
 
 ## Recommendation History
 

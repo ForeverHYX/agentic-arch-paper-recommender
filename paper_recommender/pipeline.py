@@ -12,11 +12,16 @@ from urllib.parse import quote_plus
 
 from paper_recommender.domain import Classification, InterestProfile, Paper, classify_paper, load_interest_profile, rank_papers
 from paper_recommender.feedback import (
+    affiliation_feedback_weights,
+    author_feedback_weights,
+    entity_feedback_adjustment,
     FeedbackEvent,
     load_feedback_json,
     section_feedback_weights,
     text_feedback_adjustment,
     text_feedback_weights,
+    toolchain_feedback_adjustment,
+    toolchain_feedback_weights,
 )
 from paper_recommender.history import RecommendationRun, history_counts, load_history_json
 
@@ -72,15 +77,32 @@ def recommendation_payload(
     resolved_profile = profile or load_interest_profile()
     feedback_weights = section_feedback_weights(feedback_events or [])
     keyword_weights = text_feedback_weights(feedback_events or [])
+    author_weights = author_feedback_weights(feedback_events or [])
+    affiliation_weights = affiliation_feedback_weights(feedback_events or [])
+    toolchain_weights = toolchain_feedback_weights(feedback_events or [])
     shown_counts = history_counts(history_runs or [])
     ranked = _apply_feedback_weights(
         rank_papers(papers, profile=resolved_profile),
         feedback_weights,
         keyword_weights,
+        author_weights,
+        affiliation_weights,
+        toolchain_weights,
         shown_counts,
     )
     if min_count:
-        ranked = _with_exploratory_fill(ranked, papers, resolved_profile, min_count, feedback_weights, keyword_weights, shown_counts)
+        ranked = _with_exploratory_fill(
+            ranked,
+            papers,
+            resolved_profile,
+            min_count,
+            feedback_weights,
+            keyword_weights,
+            author_weights,
+            affiliation_weights,
+            toolchain_weights,
+            shown_counts,
+        )
     if limit is not None:
         ranked = ranked[:limit]
 
@@ -118,6 +140,9 @@ def recommendation_payload(
         "feedback_summary": {
             "section_weights": feedback_weights,
             "keyword_weights": keyword_weights,
+            "author_weights": author_weights,
+            "affiliation_weights": affiliation_weights,
+            "toolchain_weights": toolchain_weights,
         },
         "history_summary": {
             "shown_counts": shown_counts,
@@ -308,6 +333,9 @@ def _with_exploratory_fill(
     min_count: int,
     section_weights: dict[str, float],
     keyword_weights: dict[str, float],
+    author_weights: dict[str, float],
+    affiliation_weights: dict[str, float],
+    toolchain_weights: dict[str, float],
     shown_counts: dict[str, int],
 ) -> list[Classification]:
     if len(ranked) >= min_count:
@@ -340,7 +368,15 @@ def _with_exploratory_fill(
             )
         )
     exploratory = core_exploratory + expansion_exploratory
-    filled = ranked + _apply_feedback_weights(exploratory, section_weights, keyword_weights, shown_counts)
+    filled = ranked + _apply_feedback_weights(
+        exploratory,
+        section_weights,
+        keyword_weights,
+        author_weights,
+        affiliation_weights,
+        toolchain_weights,
+        shown_counts,
+    )
     return filled[:max(min_count, len(ranked))]
 
 
@@ -348,6 +384,9 @@ def _apply_feedback_weights(
     results,
     section_weights: dict[str, float],
     keyword_weights: dict[str, float],
+    author_weights: dict[str, float],
+    affiliation_weights: dict[str, float],
+    toolchain_weights: dict[str, float],
     shown_counts: dict[str, int],
 ):
     adjusted = []
@@ -364,6 +403,9 @@ def _apply_feedback_weights(
         )
         adjustment = sum(section_weights.get(section, 0.0) for section in result.sections)
         adjustment += text_feedback_adjustment(paper_text, keyword_weights)
+        adjustment += entity_feedback_adjustment(paper.authors, author_weights)
+        adjustment += entity_feedback_adjustment(paper.affiliations, affiliation_weights, scale=0.5)
+        adjustment += toolchain_feedback_adjustment(paper_text, toolchain_weights)
         adjustment -= min(shown_counts.get(paper.paper_id, 0), 3) * 2.0
         if adjustment == 0:
             adjusted.append(result)

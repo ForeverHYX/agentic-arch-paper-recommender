@@ -202,6 +202,29 @@
 | seed papers RED 测试 | `python3 -m unittest tests.test_interest_profile tests.test_pipeline tests.test_judge` | 配置加载、payload 序列化、judge prompt 注入都应失败 | 缺少 `SeedPaper`、`InterestProfile.seed_papers`、`request_judgement(seed_papers=...)` | expected-fail |
 | seed papers 局部测试 | `python3 -m unittest tests.test_interest_profile tests.test_pipeline tests.test_judge` | 测试通过 | 20 个测试通过 | pass |
 
+## 会话补充：作者/机构/工具链反馈学习
+- **状态：** complete
+- 执行的操作：
+  - 增加 `author_feedback_weights`、`affiliation_feedback_weights`、`toolchain_feedback_weights`。
+  - pipeline 排序在 section、关键词、历史去重之外，额外应用作者、机构和工具链反馈权重。
+  - `feedback_summary` 增加 `author_weights`、`affiliation_weights`、`toolchain_weights`，便于观察画像状态。
+  - LLM judge prompt 增加 prefer/avoid authors、affiliations、toolchains。
+  - README、计划和发现记录补充实体反馈学习说明。
+- 创建/修改的文件：
+  - `paper_recommender/feedback.py`
+  - `paper_recommender/pipeline.py`
+  - `paper_recommender/judge.py`
+  - `tests/test_feedback.py`
+  - `tests/test_feedback_pipeline.py`
+  - `tests/test_judge.py`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+| 实体反馈学习 RED 测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline tests.test_judge` | 缺少实体权重函数、payload 字段和 LLM prompt 内容时失败 | 缺少 `author_feedback_weights`、`author_weights` 和 prompt 字段 | expected-fail |
+| 实体反馈学习局部测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline tests.test_judge` | 测试通过 | 20 个测试通过 | pass |
+
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|

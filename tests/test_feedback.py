@@ -5,10 +5,13 @@ from pathlib import Path
 
 from paper_recommender.feedback import (
     FeedbackEvent,
+    author_feedback_weights,
+    affiliation_feedback_weights,
     feedback_events_from_records,
     load_feedback_json,
     section_feedback_weights,
     text_feedback_weights,
+    toolchain_feedback_weights,
     write_feedback_json,
 )
 
@@ -143,6 +146,39 @@ class FeedbackTests(unittest.TestCase):
         self.assertNotIn("sample", weights)
         self.assertNotIn("cs.ar", weights)
         self.assertNotIn("with", weights)
+
+    def test_entity_feedback_weights_learn_authors_affiliations_and_toolchains(self):
+        events = [
+            FeedbackEvent(
+                "liked",
+                "like",
+                "microarchitecture_simulators",
+                title="gem5 and MLIR for accelerator simulation",
+                abstract="A gem5 workflow with Accel-Sim and CIRCT.",
+                authors=["A. Architect", "B. Systems"],
+                affiliations=["University of Architecture", "National HPC Lab"],
+            ),
+            FeedbackEvent(
+                "disliked",
+                "dislike",
+                "hpc_cross_over",
+                title="CUDA kernel benchmark",
+                abstract="A CUDA and OpenMP benchmark without architecture insight.",
+                authors=["C. Benchmark"],
+                affiliations=["Generic Benchmark Institute"],
+            ),
+        ]
+
+        self.assertEqual(author_feedback_weights(events)["A. Architect"], 1.0)
+        self.assertEqual(author_feedback_weights(events)["C. Benchmark"], -1.0)
+        self.assertEqual(affiliation_feedback_weights(events)["University of Architecture"], 1.0)
+        self.assertEqual(affiliation_feedback_weights(events)["Generic Benchmark Institute"], -1.0)
+        toolchains = toolchain_feedback_weights(events)
+        self.assertEqual(toolchains["gem5"], 1.0)
+        self.assertEqual(toolchains["mlir"], 1.0)
+        self.assertEqual(toolchains["accel-sim"], 1.0)
+        self.assertEqual(toolchains["cuda"], -1.0)
+        self.assertEqual(toolchains["openmp"], -1.0)
 
 
 if __name__ == "__main__":

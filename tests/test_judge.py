@@ -113,6 +113,9 @@ class JudgeTests(unittest.TestCase):
             feedback_summary={
                 "section_weights": {"microarchitecture_simulators": 2.0, "hpc_cross_over": -1.0},
                 "keyword_weights": {"gem5": 2.0, "browser": -2.0, "cache": 1.0},
+                "author_weights": {"A. Architect": 1.0, "Generic Author": -1.0},
+                "affiliation_weights": {"University of Architecture": 1.0, "Generic Benchmark Institute": -1.0},
+                "toolchain_weights": {"gem5": 2.0, "cuda": -1.0},
             },
             opener=opener,
         )
@@ -123,6 +126,12 @@ class JudgeTests(unittest.TestCase):
         self.assertIn("Avoid sections: hpc_cross_over", prompt)
         self.assertIn("Prefer keywords: gem5, cache", prompt)
         self.assertIn("Avoid keywords: browser", prompt)
+        self.assertIn("Prefer authors: A. Architect", prompt)
+        self.assertIn("Avoid authors: Generic Author", prompt)
+        self.assertIn("Prefer affiliations: University of Architecture", prompt)
+        self.assertIn("Avoid affiliations: Generic Benchmark Institute", prompt)
+        self.assertIn("Prefer toolchains: gem5", prompt)
+        self.assertIn("Avoid toolchains: cuda", prompt)
 
     def test_request_judgement_includes_seed_papers_as_interest_anchors(self):
         seen = {}

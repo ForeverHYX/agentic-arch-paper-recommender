@@ -140,7 +140,7 @@
 - [x] 将喜欢/不喜欢反馈转换为 section 权重。
 - [x] 实现轻量文本关键词 fallback，根据喜欢/不喜欢论文文本调整排序。
 - [x] 调整不同栏目权重。
-- [ ] 调整作者和工具链权重。
+- [x] 调整作者、机构和工具链权重。
 - [x] 调整反馈关键词权重。
 - [x] 记录推荐历史，避免重复推荐。
 - [x] 推荐本身引入大模型相关性判断，用于最终重排与过滤。
@@ -176,6 +176,7 @@
 | 推荐排序采用“规则召回 + LLM 判断重排” | 关键词规则保证召回和稳定兜底，LLM 判断负责理解论文是否真正贴合 agentic architecture、co-design、microarchitecture、simulator 和 HPC 交叉兴趣。 |
 | 作者单位只做展示和弱质量信号 | arXiv 经常不提供单位，因此不伪造单位；若数据源提供 `affiliations`，页面、邮件、反馈和 LLM judge 都会使用。 |
 | seed papers 作为无服务器个人语料锚点 | `config/interests.json` 中的 `seed_papers` 会写入推荐 JSON，并进入 LLM judge prompt，让代表性论文比单纯关键词更直接地约束相关性判断。 |
+| 反馈学习加入实体权重 | like/dislike 现在会学习作者、机构和体系结构/HPC 工具链权重，并同时影响规则排序和 LLM judge prompt。 |
 
 ## 遇到的错误
 | 错误 | 尝试次数 | 解决方案 |

@@ -41,6 +41,33 @@ STOPWORDS = frozenset(
 )
 
 
+TOOLCHAIN_ALIASES = {
+    "accel-sim": ("accel-sim", "accelsim"),
+    "champsim": ("champsim", "champ sim"),
+    "circt": ("circt",),
+    "cuda": ("cuda",),
+    "dramsim": ("dramsim", "dram sim"),
+    "gem5": ("gem5",),
+    "gpgpu-sim": ("gpgpu-sim", "gpgpusim", "gpgpu sim"),
+    "halide": ("halide",),
+    "kokkos": ("kokkos",),
+    "llvm": ("llvm",),
+    "mlir": ("mlir",),
+    "mpi": ("mpi",),
+    "openmp": ("openmp",),
+    "raja": ("raja",),
+    "ramulator": ("ramulator",),
+    "risc-v": ("risc-v", "riscv"),
+    "rocm": ("rocm",),
+    "sniper": ("sniper",),
+    "sst": ("sst",),
+    "sycl": ("sycl",),
+    "triton": ("triton",),
+    "tvm": ("tvm",),
+    "xla": ("xla",),
+}
+
+
 @dataclass(frozen=True)
 class FeedbackEvent:
     paper_id: str
@@ -110,10 +137,41 @@ def text_feedback_weights(events: list[FeedbackEvent]) -> dict[str, float]:
     return {token: weight for token, weight in weights.items() if weight != 0}
 
 
+def author_feedback_weights(events: list[FeedbackEvent]) -> dict[str, float]:
+    return _entity_feedback_weights(events, lambda event: event.authors)
+
+
+def affiliation_feedback_weights(events: list[FeedbackEvent]) -> dict[str, float]:
+    return _entity_feedback_weights(events, lambda event: event.affiliations)
+
+
+def toolchain_feedback_weights(events: list[FeedbackEvent]) -> dict[str, float]:
+    weights: dict[str, float] = defaultdict(float)
+    for event in events:
+        direction = 1.0 if event.rating == "like" else -1.0
+        text = " ".join([event.title, event.abstract])
+        for toolchain in _toolchain_terms(text):
+            weights[toolchain] += direction
+    return {toolchain: weight for toolchain, weight in weights.items() if weight != 0}
+
+
 def text_feedback_adjustment(text: str, weights: dict[str, float], scale: float = 0.25) -> float:
     if not weights:
         return 0.0
     return sum(weights.get(token, 0.0) for token in set(_tokens(text))) * scale
+
+
+def entity_feedback_adjustment(values: list[str] | tuple[str, ...], weights: dict[str, float], scale: float = 0.75) -> float:
+    if not weights:
+        return 0.0
+    normalized_weights = {_normalize_entity(name): weight for name, weight in weights.items()}
+    return sum(normalized_weights.get(_normalize_entity(value), 0.0) for value in values) * scale
+
+
+def toolchain_feedback_adjustment(text: str, weights: dict[str, float], scale: float = 0.5) -> float:
+    if not weights:
+        return 0.0
+    return sum(weights.get(toolchain, 0.0) for toolchain in _toolchain_terms(text)) * scale
 
 
 def fetch_feedback_events(
@@ -197,6 +255,36 @@ def _tokens(text: str) -> list[str]:
     raw_tokens = re.findall(r"[a-z0-9][a-z0-9.+#-]*", normalized)
     tokens = [token.strip(".,;:!?()[]{}\"'") for token in raw_tokens]
     return [token for token in tokens if len(token) >= 3 and token not in STOPWORDS and not token.isdigit()]
+
+
+def _entity_feedback_weights(events: list[FeedbackEvent], extractor: Callable[[FeedbackEvent], tuple[str, ...]]) -> dict[str, float]:
+    labels: dict[str, str] = {}
+    weights: dict[str, float] = defaultdict(float)
+    for event in events:
+        direction = 1.0 if event.rating == "like" else -1.0
+        for value in extractor(event):
+            normalized = _normalize_entity(value)
+            if not normalized:
+                continue
+            labels.setdefault(normalized, " ".join(str(value).split()))
+            weights[normalized] += direction
+    return {labels[key]: weight for key, weight in weights.items() if weight != 0}
+
+
+def _normalize_entity(value: str) -> str:
+    return re.sub(r"\s+", " ", str(value).strip()).casefold()
+
+
+def _toolchain_terms(text: str) -> set[str]:
+    normalized = str(text).casefold()
+    matches = set()
+    for canonical, aliases in TOOLCHAIN_ALIASES.items():
+        for alias in aliases:
+            pattern = rf"(?<![a-z0-9]){re.escape(alias.casefold())}(?![a-z0-9])"
+            if re.search(pattern, normalized):
+                matches.add(canonical)
+                break
+    return matches
 
 
 if __name__ == "__main__":

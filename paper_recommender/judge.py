@@ -257,15 +257,30 @@ def _section_text(item: dict[str, Any], section_labels: dict[str, str]) -> str:
 def _feedback_text(feedback_summary: dict[str, Any]) -> str:
     section_weights = _weight_dict(feedback_summary.get("section_weights", {}))
     keyword_weights = _weight_dict(feedback_summary.get("keyword_weights", {}))
+    author_weights = _weight_dict(feedback_summary.get("author_weights", {}))
+    affiliation_weights = _weight_dict(feedback_summary.get("affiliation_weights", {}))
+    toolchain_weights = _weight_dict(feedback_summary.get("toolchain_weights", {}))
     prefer_sections = _top_weight_names(section_weights, positive=True)
     avoid_sections = _top_weight_names(section_weights, positive=False)
     prefer_keywords = _top_weight_names(keyword_weights, positive=True)
     avoid_keywords = _top_weight_names(keyword_weights, positive=False)
+    prefer_authors = _top_weight_names(author_weights, positive=True)
+    avoid_authors = _top_weight_names(author_weights, positive=False)
+    prefer_affiliations = _top_weight_names(affiliation_weights, positive=True)
+    avoid_affiliations = _top_weight_names(affiliation_weights, positive=False)
+    prefer_toolchains = _top_weight_names(toolchain_weights, positive=True)
+    avoid_toolchains = _top_weight_names(toolchain_weights, positive=False)
     parts = [
         f"Prefer sections: {', '.join(prefer_sections) if prefer_sections else 'none'}",
         f"Avoid sections: {', '.join(avoid_sections) if avoid_sections else 'none'}",
         f"Prefer keywords: {', '.join(prefer_keywords) if prefer_keywords else 'none'}",
         f"Avoid keywords: {', '.join(avoid_keywords) if avoid_keywords else 'none'}",
+        f"Prefer authors: {', '.join(prefer_authors) if prefer_authors else 'none'}",
+        f"Avoid authors: {', '.join(avoid_authors) if avoid_authors else 'none'}",
+        f"Prefer affiliations: {', '.join(prefer_affiliations) if prefer_affiliations else 'none'}",
+        f"Avoid affiliations: {', '.join(avoid_affiliations) if avoid_affiliations else 'none'}",
+        f"Prefer toolchains: {', '.join(prefer_toolchains) if prefer_toolchains else 'none'}",
+        f"Avoid toolchains: {', '.join(avoid_toolchains) if avoid_toolchains else 'none'}",
     ]
     return "; ".join(parts)
 
