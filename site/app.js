@@ -274,10 +274,10 @@ function highlightTargetPaper() {
 function renderAffiliationBlock(affiliations) {
   const values = stringList(affiliations);
   if (values.length === 0) {
-    return '<div class="paper-affiliations is-missing"><strong>单位</strong><div><span>未解析到作者单位</span></div></div>';
+    return '<div class="paper-affiliations is-missing"><strong>作者单位</strong><div><span>未解析到作者单位</span></div></div>';
   }
   const items = values.map((value) => `<span>${escapeHtml(value)}</span>`).join("");
-  return `<div class="paper-affiliations"><strong>单位</strong><div>${items}</div></div>`;
+  return `<div class="paper-affiliations"><strong>作者单位</strong><div>${items}</div></div>`;
 }
 
 function hasAffiliations(paper) {

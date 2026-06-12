@@ -584,5 +584,20 @@
 | 我学到了什么？ | 见 `findings.md` |
 | 我做了什么？ | 已接入真实 arXiv Atom 数据源、反馈关键词学习、推荐历史去重、邮件发送、TLDR 总结和更清爽的前端 |
 
+## 会话补充：作者单位前端可见性
+- **状态：** complete
+- 执行的操作：
+  - 验证线上 `recommendations.json` 已有部分论文作者单位：当前 12 篇中 6 篇带 `affiliations`。
+  - 将论文卡片单位标签从“单位”改为更明确的“作者单位”。
+  - 更新 `app.js` 查询版本号，避免浏览器继续使用旧缓存。
+  - 给仓库自带示例推荐数据补充 `affiliations` 和 `affiliation_summary`，避免本地静态预览误以为页面没有单位展示。
+  - 增加站点契约测试，覆盖明确标签、示例数据和缓存版本号。
+- 创建/修改的文件：
+  - `site/app.js`
+  - `site/index.html`
+  - `site/recommendations.json`
+  - `tests/test_site_contract.py`
+  - `progress.md`
+
 ---
 *每个阶段完成后或遇到错误时更新此文件*

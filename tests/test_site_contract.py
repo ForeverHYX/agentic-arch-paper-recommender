@@ -1,3 +1,4 @@
+import json
 import unittest
 import subprocess
 from pathlib import Path
@@ -104,6 +105,9 @@ if (!withAffiliations.includes("paper-affiliations")) {
 if (!withAffiliations.includes("University of Architecture")) {
   throw new Error("affiliation value missing");
 }
+if (!withAffiliations.includes("作者单位")) {
+  throw new Error("explicit author affiliation label missing");
+}
 
 const withoutAffiliations = context.renderPaper({
   ...basePaper,
@@ -112,8 +116,24 @@ const withoutAffiliations = context.renderPaper({
 if (!withoutAffiliations.includes("未解析到作者单位")) {
   throw new Error("missing-affiliation status not rendered");
 }
+if (!withoutAffiliations.includes("作者单位")) {
+  throw new Error("explicit missing affiliation label missing");
+}
 """
         )
+
+    def test_committed_sample_payload_exercises_affiliation_ui(self):
+        payload = json.loads(Path("site/recommendations.json").read_text(encoding="utf-8"))
+        recommendations = payload.get("recommendations", [])
+
+        self.assertTrue(recommendations)
+        self.assertTrue(all(isinstance(item.get("affiliations"), list) for item in recommendations))
+        self.assertTrue(any(item.get("affiliations") for item in recommendations))
+
+    def test_index_busts_app_cache_for_affiliation_ui(self):
+        html = Path("site/index.html").read_text(encoding="utf-8")
+
+        self.assertIn("app.js?v=20260612-affiliations", html)
 
     def test_summary_stats_show_affiliation_coverage(self):
         self.run_app_script(
