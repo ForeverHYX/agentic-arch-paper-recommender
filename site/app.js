@@ -120,10 +120,12 @@ function renderSummaryStats(payload) {
   const recommendations = payload.recommendations || [];
   const sectionCount = new Set(recommendations.map((paper) => paper.sections?.[0] || "exploratory")).size;
   const codeCount = recommendations.filter((paper) => (Array.isArray(paper.code_urls) && paper.code_urls.length > 0) || paper.code_search_url).length;
+  const affiliationCount = recommendations.filter(hasAffiliations).length;
   target.innerHTML = `
     <div><strong>${recommendations.length}</strong><span>papers</span></div>
     <div><strong>${sectionCount}</strong><span>sections</span></div>
     <div><strong>${codeCount}</strong><span>code refs</span></div>
+    <div><strong>${affiliationCount}</strong><span>with units</span></div>
   `;
 }
 
@@ -145,7 +147,6 @@ function renderPaper(paper) {
   const likeUrl = `${feedbackBase}?paper_id=${encodeURIComponent(paper.paper_id)}&rating=like&source=page&section=${encodeURIComponent(section)}`;
   const dislikeUrl = `${feedbackBase}?paper_id=${encodeURIComponent(paper.paper_id)}&rating=dislike&source=page&section=${encodeURIComponent(section)}`;
   const authors = Array.isArray(paper.authors) ? paper.authors.join(", ") : "";
-  const affiliations = Array.isArray(paper.affiliations) ? paper.affiliations.join(" · ") : "";
   const categories = Array.isArray(paper.categories) ? paper.categories.join(", ") : "";
   const paperUrl = paper.url || `https://arxiv.org/abs/${encodeURIComponent(paper.paper_id)}`;
   const pdfUrl = paper.pdf_url || `https://arxiv.org/pdf/${encodeURIComponent(paper.paper_id)}`;
@@ -158,7 +159,7 @@ function renderPaper(paper) {
       <div class="paper-meta"><span>#${paper.rank}</span><span>rule ${paper.score}</span>${aiScore !== undefined ? `<span>AI ${escapeHtml(aiScore)}</span>` : ""}<span>${escapeHtml(categories)}</span></div>
       <h3>${escapeHtml(paper.title)}</h3>
       <p class="authors">${escapeHtml(authors)}</p>
-      ${affiliations ? `<p class="affiliations"><strong>单位</strong> ${escapeHtml(affiliations)}</p>` : ""}
+      ${renderAffiliationBlock(paper.affiliations)}
       ${paper.tldr ? `<div class="paper-tldr"><span>AI 总结</span><p>${escapeHtml(paper.tldr)}</p></div>` : ""}
       ${aiJudgement ? `<div class="ai-judgement"><span>AI 判断</span><p>${escapeHtml(aiJudgement.reason || "")}</p></div>` : ""}
       <p class="abstract">${escapeHtml(paper.abstract || "")}</p>
@@ -172,6 +173,24 @@ function renderPaper(paper) {
       </div>
     </article>
   `;
+}
+
+function renderAffiliationBlock(affiliations) {
+  const values = stringList(affiliations);
+  if (values.length === 0) {
+    return '<div class="paper-affiliations is-missing"><strong>单位</strong><div><span>未解析到作者单位</span></div></div>';
+  }
+  const items = values.map((value) => `<span>${escapeHtml(value)}</span>`).join("");
+  return `<div class="paper-affiliations"><strong>单位</strong><div>${items}</div></div>`;
+}
+
+function hasAffiliations(paper) {
+  return stringList(paper.affiliations).length > 0;
+}
+
+function stringList(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item).trim()).filter(Boolean);
 }
 
 function githubSearchUrl(paper) {

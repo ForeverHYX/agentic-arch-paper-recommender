@@ -1,8 +1,53 @@
 import unittest
+import subprocess
 from pathlib import Path
 
 
 class SiteContractTests(unittest.TestCase):
+    def run_app_script(self, body):
+        harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const script = fs.readFileSync("site/app.js", "utf8");
+const elements = {};
+
+function element(id) {
+  if (!elements[id]) {
+    elements[id] = {
+      textContent: "",
+      innerHTML: "",
+      dataset: {},
+      value: "",
+      checked: false,
+      addEventListener() {},
+    };
+  }
+  return elements[id];
+}
+
+const context = {
+  document: { getElementById: element },
+  fetch: async () => ({
+    ok: true,
+    json: async () => ({ recommendations: [], section_labels: {} }),
+  }),
+  encodeURIComponent,
+};
+
+vm.createContext(context);
+vm.runInContext(script, context);
+
+__BODY__
+"""
+        result = subprocess.run(
+            ["node", "-e", harness.replace("__BODY__", body)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
     def test_recommendation_page_renders_tldr_and_external_links(self):
         script = Path("site/app.js").read_text(encoding="utf-8")
 
@@ -20,6 +65,59 @@ class SiteContractTests(unittest.TestCase):
         self.assertIn("PDF", script)
         self.assertIn("Code", script)
         self.assertIn("Code Search", script)
+
+    def test_recommendation_cards_always_render_affiliation_status(self):
+        self.run_app_script(
+            """
+const basePaper = {
+  rank: 1,
+  score: 7,
+  paper_id: "2606.00001",
+  title: "Agentic Architecture Exploration",
+  abstract: "Architecture design space exploration.",
+  authors: ["A. Architect"],
+  categories: ["cs.AR"],
+  sections: ["agentic_architecture"],
+};
+
+const withAffiliations = context.renderPaper({
+  ...basePaper,
+  affiliations: ["University of Architecture", "National HPC Lab"],
+});
+if (!withAffiliations.includes("paper-affiliations")) {
+  throw new Error("affiliation block class missing");
+}
+if (!withAffiliations.includes("University of Architecture")) {
+  throw new Error("affiliation value missing");
+}
+
+const withoutAffiliations = context.renderPaper({
+  ...basePaper,
+  affiliations: [],
+});
+if (!withoutAffiliations.includes("未解析到作者单位")) {
+  throw new Error("missing-affiliation status not rendered");
+}
+"""
+        )
+
+    def test_summary_stats_show_affiliation_coverage(self):
+        self.run_app_script(
+            """
+context.renderSummaryStats({
+  recommendations: [
+    { sections: ["agentic_architecture"], affiliations: ["University of Architecture"], code_urls: [] },
+    { sections: ["agentic_architecture"], affiliations: [], code_urls: [] },
+    { sections: ["hpc_cross_over"], code_search_url: "https://github.com/search?q=x", code_urls: [] },
+  ],
+});
+
+const html = elements.summaryStats.innerHTML;
+if (!html.includes("<strong>1</strong><span>with units</span>")) {
+  throw new Error(`affiliation coverage stat missing: ${html}`);
+}
+"""
+        )
 
     def test_recommendation_page_has_workbench_layout_hooks(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
