@@ -17,8 +17,21 @@ async function recordFeedback() {
 
   const config = window.RECOMMENDER_CONFIG || {};
   if (!config.supabaseUrl || !config.supabaseAnonKey) {
+    const paperMetadata = await findPaperMetadata(paperId);
+    storeLocalFeedback({
+      paper_id: paperId,
+      rating,
+      source,
+      section: params.get("section") || null,
+      title: paperMetadata.title,
+      abstract: paperMetadata.abstract,
+      authors: paperMetadata.authors,
+      affiliations: paperMetadata.affiliations,
+      categories: paperMetadata.categories,
+      created_at: new Date().toISOString(),
+    });
     titleEl.textContent = "Feedback captured locally";
-    detailEl.textContent = "Supabase is not configured yet. Configure SUPABASE_URL and SUPABASE_ANON_KEY in GitHub Variables to persist feedback.";
+    detailEl.textContent = "This feedback was stored locally in this browser. Configure Supabase to use it in future daily recommendations.";
     return;
   }
 
@@ -79,4 +92,11 @@ function emptyPaperMetadata() {
     affiliations: [],
     categories: [],
   };
+}
+
+function storeLocalFeedback(event) {
+  const key = "recommender_local_feedback_events";
+  const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  existing.push(event);
+  localStorage.setItem(key, JSON.stringify(existing));
 }

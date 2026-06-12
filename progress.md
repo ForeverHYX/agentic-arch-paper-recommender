@@ -242,6 +242,22 @@
 | 上游 clone 复核 | `git clone --depth 1 ...` | 能拉取上游代码 | 两个仓库均因 `github.com:443` 超时失败 | failed-network |
 | 上游 raw 审计 | GitHub 页面/raw 文件 | 能确认上游功能和可借鉴范围 | 完成审计并更新文档 | pass |
 
+## 会话补充：反馈未配置时的本地 fallback
+- **状态：** complete
+- 执行的操作：
+  - 定位到 `site/feedback.js` 在 Supabase 未配置时显示 “Feedback captured locally”，但没有真正写入本地存储。
+  - 增加浏览器 `localStorage` 队列 `recommender_local_feedback_events`，保存 paper id、rating、section 和论文元数据。
+  - 更新页面提示，明确本地存储只保存在当前浏览器；跨天推荐学习仍需要 Supabase。
+  - 更新 README 说明 Supabase 与 localStorage fallback 的边界。
+- 创建/修改的文件：
+  - `site/feedback.js`
+  - `tests/test_feedback_page_contract.py`
+  - `README.md`
+  - `progress.md`
+
+| 反馈本地 fallback RED 测试 | `python3 -m unittest tests.test_feedback_page_contract` | Supabase 未配置时应写入 localStorage | 初始没有写入 `recommender_local_feedback_events` | expected-fail |
+| 反馈本地 fallback 局部测试 | `python3 -m unittest tests.test_feedback_page_contract` | 测试通过 | 2 个测试通过 | pass |
+
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|

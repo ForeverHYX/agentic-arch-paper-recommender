@@ -117,7 +117,7 @@ Run [supabase/schema.sql](supabase/schema.sql) in your Supabase SQL editor, then
 - GitHub Variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
 - GitHub Secrets: `SUPABASE_SERVICE_ROLE_KEY`
 
-The public Pages app uses the anon key only to insert feedback. GitHub Actions uses the service role key to read feedback and adjust the learned profile.
+The public Pages app uses the anon key only to insert feedback. GitHub Actions uses the service role key to read feedback and adjust the learned profile. If Supabase is not configured, the feedback page stores clicks in browser `localStorage` so the action is not lost on that device, but GitHub Actions cannot read that local queue for future daily recommendations.
 
 Feedback records include paper metadata when available:
 
