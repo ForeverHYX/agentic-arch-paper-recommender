@@ -111,8 +111,19 @@ def feedback_events_from_records(records: list[dict[str, Any]]) -> list[Feedback
     return events
 
 
+def feedback_events_from_json_text(text: str) -> list[FeedbackEvent]:
+    data = json.loads(text)
+    if isinstance(data, dict):
+        records = data.get("events", data.get("feedback_events", []))
+    else:
+        records = data
+    if not isinstance(records, list):
+        raise ValueError("Feedback JSON must be an array or an object containing an events array.")
+    return feedback_events_from_records(records)
+
+
 def load_feedback_json(path: str | Path) -> list[FeedbackEvent]:
-    return feedback_events_from_records(json.loads(Path(path).read_text(encoding="utf-8")))
+    return feedback_events_from_json_text(Path(path).read_text(encoding="utf-8"))
 
 
 def section_feedback_weights(events: list[FeedbackEvent]) -> dict[str, float]:
@@ -252,11 +263,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Fetch Supabase feedback events into a JSON file.")
     parser.add_argument("--output", required=True, help="Output JSON path.")
     parser.add_argument("--limit", type=int, default=500, help="Maximum feedback events to fetch.")
+    parser.add_argument("--from-env", default=None, help="Read feedback JSON from this environment variable instead of Supabase.")
     args = parser.parse_args(argv)
 
-    supabase_url = _required_env("SUPABASE_URL")
-    service_role_key = _required_env("SUPABASE_SERVICE_ROLE_KEY")
-    events = fetch_feedback_events(supabase_url, service_role_key, limit=args.limit)
+    if args.from_env:
+        events = feedback_events_from_json_text(_required_env(args.from_env))
+    else:
+        supabase_url = _required_env("SUPABASE_URL")
+        service_role_key = _required_env("SUPABASE_SERVICE_ROLE_KEY")
+        events = fetch_feedback_events(supabase_url, service_role_key, limit=args.limit)
     write_feedback_json(events, args.output)
     print(f"Wrote {len(events)} feedback events to {args.output}")
     return 0

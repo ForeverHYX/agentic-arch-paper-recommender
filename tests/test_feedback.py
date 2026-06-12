@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +9,7 @@ from paper_recommender.feedback import (
     author_feedback_weights,
     affiliation_feedback_weights,
     feedback_events_from_records,
+    feedback_events_from_json_text,
     feedback_metrics,
     load_feedback_json,
     section_feedback_weights,
@@ -67,6 +69,46 @@ class FeedbackTests(unittest.TestCase):
 
         self.assertEqual(events[0].paper_id, "p1")
         self.assertEqual(events[0].rating, "dislike")
+
+    def test_feedback_events_from_json_text_accepts_local_export_shape(self):
+        events = feedback_events_from_json_text(
+            json.dumps(
+                [
+                    {
+                        "paper_id": "local-liked",
+                        "rating": "like",
+                        "section": "arch",
+                        "title": "Local exported feedback",
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual(events[0].paper_id, "local-liked")
+        self.assertEqual(events[0].title, "Local exported feedback")
+
+    def test_feedback_cli_can_write_events_from_environment_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "feedback.json"
+            old_value = os.environ.get("LOCAL_FEEDBACK_JSON")
+            os.environ["LOCAL_FEEDBACK_JSON"] = json.dumps(
+                [{"paper_id": "secret-liked", "rating": "like", "section": "arch"}]
+            )
+            try:
+                from paper_recommender.feedback import main
+
+                exit_code = main(["--from-env", "LOCAL_FEEDBACK_JSON", "--output", str(path)])
+            finally:
+                if old_value is None:
+                    os.environ.pop("LOCAL_FEEDBACK_JSON", None)
+                else:
+                    os.environ["LOCAL_FEEDBACK_JSON"] = old_value
+
+            rows = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(rows[0]["paper_id"], "secret-liked")
+        self.assertEqual(rows[0]["rating"], "like")
 
     def test_feedback_events_preserve_paper_metadata_for_learning(self):
         events = feedback_events_from_records(

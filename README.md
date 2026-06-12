@@ -124,6 +124,15 @@ The reader sidebar shows the current feedback persistence mode:
 - `Supabase active`: like/dislike clicks are written to Supabase and can affect future GitHub Actions runs.
 - `local only`: clicks are saved only in this browser. The feedback page exposes a JSON export of the local queue so the records are not trapped in browser storage while Supabase is being configured.
 
+If you do not want to configure Supabase yet, you can still feed local clicks back into the daily workflow manually:
+
+1. Click like/dislike on the Pages site.
+2. Download `recommender-local-feedback.json` from the feedback page.
+3. Put that JSON content into the GitHub Secret `LOCAL_FEEDBACK_JSON`.
+4. Re-run the `Daily Paper Recommender` workflow.
+
+When Supabase is not enabled and `LOCAL_FEEDBACK_JSON` is present, GitHub Actions loads that secret into `output/feedback.json` and the same learning logic is applied. Supabase still remains the better long-term option because it records clicks automatically; the secret fallback is a no-database bridge.
+
 Feedback records include paper metadata when available:
 
 - `title`

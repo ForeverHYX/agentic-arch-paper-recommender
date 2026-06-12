@@ -18,6 +18,7 @@ env:
   SITE_BASE_URL: https://foreverhyx.github.io/agentic-arch-paper-recommender
   HAS_SMTP: ${{ secrets.SMTP_HOST != '' && secrets.SMTP_PASSWORD != '' && secrets.EMAIL_SENDER != '' && secrets.EMAIL_RECEIVER != '' }}
   HAS_SUPABASE: ${{ vars.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}
+  HAS_LOCAL_FEEDBACK: ${{ secrets.LOCAL_FEEDBACK_JSON != '' }}
 
 jobs:
   build:
@@ -51,6 +52,12 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python -m paper_recommender.feedback --output output/feedback.json --limit 500
+
+      - name: Load local feedback secret
+        if: env.HAS_SUPABASE != 'true' && env.HAS_LOCAL_FEEDBACK == 'true'
+        env:
+          LOCAL_FEEDBACK_JSON: ${{ secrets.LOCAL_FEEDBACK_JSON }}
+        run: python -m paper_recommender.feedback --from-env LOCAL_FEEDBACK_JSON --output output/feedback.json
 
       - name: Fetch Supabase recommendation history
         if: env.HAS_SUPABASE == 'true'

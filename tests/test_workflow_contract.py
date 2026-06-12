@@ -64,6 +64,19 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m paper_recommender.history publish", workflow)
         self.assertIn("--recommendations site/recommendations.json", workflow)
 
+    def test_daily_workflow_can_load_local_feedback_secret_without_supabase(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("HAS_LOCAL_FEEDBACK: ${{ secrets.LOCAL_FEEDBACK_JSON != '' }}", workflow)
+        self.assertIn("Load local feedback secret", workflow)
+        self.assertIn("if: env.HAS_SUPABASE != 'true' && env.HAS_LOCAL_FEEDBACK == 'true'", workflow)
+        self.assertIn("LOCAL_FEEDBACK_JSON: ${{ secrets.LOCAL_FEEDBACK_JSON }}", workflow)
+        self.assertIn("python -m paper_recommender.feedback --from-env LOCAL_FEEDBACK_JSON --output output/feedback.json", workflow)
+        self.assertLess(
+            workflow.index("Load local feedback secret"),
+            workflow.index("python -m paper_recommender.pipeline"),
+        )
+
     def test_daily_workflow_retries_email_delivery(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 

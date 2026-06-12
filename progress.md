@@ -185,6 +185,26 @@
 | 反馈指标 RED 测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline tests.test_site_contract tests.test_emailer` | 缺少 metrics 函数、payload 字段、页面函数和邮件摘要时失败 | import/key/function/assertion 失败 | expected-fail |
 | 反馈指标局部测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline tests.test_site_contract tests.test_emailer` | 测试通过 | 22 个测试通过 | pass |
 
+## 会话补充：无 Supabase 的反馈回灌
+- **状态：** in_progress
+- 执行的操作：
+  - 增加 `feedback_events_from_json_text`，支持读取 Pages 本地导出的反馈 JSON。
+  - `paper_recommender.feedback` 增加 `--from-env`，可从指定环境变量读取反馈 JSON 并写入标准 `output/feedback.json`。
+  - workflow 增加 `LOCAL_FEEDBACK_JSON` Secret fallback：Supabase 未启用且该 Secret 存在时，自动加载本地导出的反馈进入推荐 pipeline。
+  - README、计划和发现记录补充该 fallback 的使用方式和边界。
+- 创建/修改的文件：
+  - `.github/workflows/daily.yml`
+  - `paper_recommender/feedback.py`
+  - `tests/test_feedback.py`
+  - `tests/test_workflow_contract.py`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+| 本地反馈 Secret fallback RED 测试 | `python3 -m unittest tests.test_feedback tests.test_workflow_contract` | 缺少 JSON text parser、`--from-env` 和 workflow step 时失败 | import 失败，workflow 断言失败 | expected-fail |
+| 本地反馈 Secret fallback 局部测试 | `python3 -m unittest tests.test_feedback tests.test_workflow_contract` | 测试通过 | 18 个测试通过 | pass |
+
 ## 会话补充：LLM 使用反馈画像和 provider 可配置化
 - **状态：** in_progress
 - 执行的操作：
