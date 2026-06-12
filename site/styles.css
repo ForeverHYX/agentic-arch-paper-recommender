@@ -114,11 +114,64 @@ h1 {
 }
 
 .sidebar-title {
-  margin-bottom: 10px;
+  margin: 12px 0 10px;
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.sidebar-title:first-child {
+  margin-top: 0;
+}
+
+.controls {
+  display: grid;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+.filter-row {
+  display: grid;
+  gap: 5px;
+}
+
+.filter-row span,
+.check-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.filter-row input,
+.filter-row select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 7px 9px;
+  font: inherit;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.result-count {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .section-nav {

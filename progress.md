@@ -157,6 +157,27 @@
 | LLM feedback prompt 局部测试 | `python3 -m unittest tests.test_workflow_contract tests.test_judge` | 测试通过 | 14 个测试通过 | pass |
 | LLM feedback/provider 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 66 个测试通过 | pass |
 
+## 会话补充：GitHub Pages 阅读筛选增强
+- **状态：** complete
+- 执行的操作：
+  - 参考 daily arXiv 类项目常见阅读体验，给 Pages 增加本地筛选和排序控件。
+  - 支持搜索标题/摘要/TLDR/AI 判断/作者/单位/分类。
+  - 支持按栏目、最低 AI 分、是否有显式 Code repo、是否有单位筛选。
+  - 支持按原始 rank、AI 分、规则分、标题排序。
+  - 所有控件只在浏览器本地处理 `recommendations.json`，不需要后端。
+- 创建/修改的文件：
+  - `site/index.html`
+  - `site/app.js`
+  - `site/styles.css`
+  - `tests/test_site_contract.py`
+  - `README.md`
+  - `progress.md`
+
+| Pages 筛选控件 RED 测试 | `python3 -m unittest tests.test_site_contract` | 页面和脚本包含搜索、筛选、排序 hook | 初始缺少 `searchInput` 等控件 | expected-fail |
+| Pages 筛选控件局部测试 | `python3 -m unittest tests.test_site_contract` | 测试通过 | 2 个测试通过 | pass |
+| Pages 筛选控件全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 66 个测试通过 | pass |
+| 本地静态资源检查 | `node --check site/app.js` 和 `curl http://localhost:8765/` | JS 语法正确，控件存在，JSON 可读取 | 通过；`agent-browser` 因本机未安装 Chrome 未运行 | pass-with-note |
+
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|

@@ -17,6 +17,39 @@
     </header>
     <main class="layout">
       <aside class="sidebar" aria-label="Recommendation sections">
+        <div class="sidebar-title">Filters</div>
+        <div class="controls">
+          <label class="filter-row">
+            <span>Search</span>
+            <input id="searchInput" type="search" autocomplete="off">
+          </label>
+          <label class="filter-row">
+            <span>Section</span>
+            <select id="sectionFilter"></select>
+          </label>
+          <label class="filter-row">
+            <span>Min AI</span>
+            <input id="minAiScore" type="number" min="0" max="10" step="1">
+          </label>
+          <label class="filter-row">
+            <span>Sort</span>
+            <select id="sortSelect">
+              <option value="rank">Rank</option>
+              <option value="ai">AI score</option>
+              <option value="rule">Rule score</option>
+              <option value="title">Title</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input id="hasCodeFilter" type="checkbox">
+            <span>Code repo</span>
+          </label>
+          <label class="check-row">
+            <input id="hasAffiliationFilter" type="checkbox">
+            <span>Affiliation</span>
+          </label>
+          <div id="resultCount" class="result-count" aria-live="polite"></div>
+        </div>
         <div class="sidebar-title">Sections</div>
         <nav id="sectionNav" class="section-nav"></nav>
       </aside>

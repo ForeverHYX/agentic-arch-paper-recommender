@@ -90,6 +90,8 @@ The default OpenAI-compatible endpoint is OpenCode Go: `https://opencode.ai/zen/
 
 Each recommendation includes author affiliations when the source provides them, direct `Paper`, `PDF`, explicit `Code` links when found, and a `Code Search` GitHub repository search URL based on the paper title. arXiv Atom often omits affiliations, so the workflow also tries to download the final papers' arXiv source bundles and parse common LaTeX affiliation macros. Missing affiliations are stored as an empty list rather than guessed.
 
+The GitHub Pages reader includes local controls for search, section filtering, minimum AI score, explicit code repository availability, affiliation availability, and rank/AI/rule/title sorting. These controls run entirely in the browser against `recommendations.json`.
+
 ## LLM Provider Configuration
 
 GitHub Actions reads the OpenAI-compatible provider configuration from:
