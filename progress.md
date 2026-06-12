@@ -611,13 +611,15 @@
   - `progress.md`
 
 ## 会话补充：Run Health 安静状态提示
-- **状态：** in_progress
+- **状态：** complete
 - 执行的操作：
   - 增加 GitHub Pages 侧边栏 `Run Health` 状态块。
   - 页面现在显示 AI 判断覆盖率和 TLDR 覆盖率，例如 `12/12 judged, 12/12 TLDR`。
   - 页面现在显示反馈模式：`Supabase active` 或 `local only`。
   - Supabase 未启用时显示 `not persistent yet`，并列出 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY` 作为下一步配置项。
   - 增加站点契约测试覆盖 HTML 占位、cache bust、local-only 模式和 Supabase active 模式。
+  - 触发 GitHub Actions run `27413293913` 并成功部署 Pages。
+  - 线上验证：`index.html` 已包含 `runHealth` 占位和 `app.js?v=20260612-run-health`；线上 `recommendations.json` 当前 12 条推荐中 12 条有 AI 判断、12 条有 TLDR；线上 `status.json` 显示 LLM/SMTP 已启用、Supabase 未启用。
 - 创建/修改的文件：
   - `site/index.html`
   - `site/app.js`
