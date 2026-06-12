@@ -133,7 +133,68 @@ if (!withoutAffiliations.includes("作者单位")) {
     def test_index_busts_app_cache_for_affiliation_ui(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
-        self.assertIn("app.js?v=20260612-affiliations", html)
+        self.assertIn("app.js?v=20260612-run-health", html)
+
+    def test_index_contains_run_health_placeholder_and_cache_bust(self):
+        html = Path("site/index.html").read_text(encoding="utf-8")
+
+        self.assertIn('id="runHealth"', html)
+        self.assertIn('class="run-health"', html)
+        self.assertIn("app.js?v=20260612-run-health", html)
+
+    def test_reader_shows_run_health_for_local_feedback_mode(self):
+        self.run_app_script(
+            """
+context.renderRunHealth({
+  recommendations: [
+    { ai_judgement: { score: 9 }, tldr: "Good architecture paper." },
+    { ai_judgement: { score: 7 }, tldr: "" },
+    { tldr: "Fallback summary." },
+  ],
+  feedback_summary: { metrics: { total_events: 0 } },
+}, {
+  llm: { configured: true, model: "deepseek-v4-flash" },
+  supabase: { configured: false },
+});
+
+const html = elements.runHealth.innerHTML;
+if (!html.includes("Run Health")) throw new Error(`missing heading: ${html}`);
+if (!html.includes("2/3 judged")) throw new Error(`missing judgement coverage: ${html}`);
+if (!html.includes("2/3 TLDR")) throw new Error(`missing TLDR coverage: ${html}`);
+if (!html.includes("local only")) throw new Error(`missing local feedback mode: ${html}`);
+if (!html.includes("not persistent yet")) throw new Error(`missing learning warning: ${html}`);
+if (!html.includes("SUPABASE_URL")) throw new Error(`missing Supabase URL setup: ${html}`);
+if (!html.includes("SUPABASE_ANON_KEY")) throw new Error(`missing Supabase anon setup: ${html}`);
+if (!html.includes("SUPABASE_SERVICE_ROLE_KEY")) throw new Error(`missing service role setup: ${html}`);
+"""
+        )
+
+    def test_reader_shows_run_health_for_supabase_mode(self):
+        self.run_app_script(
+            """
+context.window.RECOMMENDER_CONFIG = {
+  supabaseUrl: "https://example.supabase.co",
+  supabaseAnonKey: "anon-key",
+};
+context.renderRunHealth({
+  recommendations: [
+    { ai_judgement: { score: 9 }, tldr: "Summary." },
+    { ai_judgement: { score: 8 }, tldr: "Summary." },
+  ],
+  feedback_summary: { metrics: { total_events: 5 } },
+}, {
+  llm: { configured: true, model: "deepseek-v4-flash" },
+  supabase: { configured: true },
+});
+
+const html = elements.runHealth.innerHTML;
+if (!html.includes("2/2 judged")) throw new Error(`missing judgement coverage: ${html}`);
+if (!html.includes("2/2 TLDR")) throw new Error(`missing TLDR coverage: ${html}`);
+if (!html.includes("Supabase active")) throw new Error(`missing Supabase active mode: ${html}`);
+if (!html.includes("5 persisted events")) throw new Error(`missing persisted feedback count: ${html}`);
+if (html.includes("SUPABASE_SERVICE_ROLE_KEY")) throw new Error(`unexpected setup prompt: ${html}`);
+"""
+        )
 
     def test_summary_stats_show_affiliation_coverage(self):
         self.run_app_script(

@@ -23,7 +23,14 @@ function render(payload) {
   renderControls(payload);
   renderFeedbackStatus();
   renderFeedbackInsights(payload.feedback_summary?.metrics || {});
-  loadStatus().then(renderSubsystemStatus).catch(() => renderSubsystemStatus(null));
+  renderRunHealth(payload, null);
+  loadStatus().then((status) => {
+    renderSubsystemStatus(status);
+    renderRunHealth(payload, status);
+  }).catch(() => {
+    renderSubsystemStatus(null);
+    renderRunHealth(payload, null);
+  });
   applyControls();
 }
 
@@ -208,6 +215,42 @@ function renderSubsystemStatus(status) {
     <strong>Systems</strong>
     ${rows.map(([label, configured, detail]) => renderStatusRow(label, configured, detail)).join("")}
   `;
+}
+
+function renderRunHealth(payload, status) {
+  const target = document.getElementById("runHealth");
+  if (!target) return;
+
+  const recommendations = Array.isArray(payload?.recommendations) ? payload.recommendations : [];
+  const total = recommendations.length;
+  const judged = recommendations.filter((paper) => paper.ai_judgement || paper.ai_score !== undefined).length;
+  const summarized = recommendations.filter((paper) => String(paper.tldr || "").trim()).length;
+  const metrics = payload?.feedback_summary?.metrics || {};
+  const persistedEvents = Number(metrics.total_events || 0);
+  const supabaseActive = isSupabaseActive(status);
+  const feedbackMode = supabaseActive ? "Supabase active" : "local only";
+  const learningState = supabaseActive
+    ? `${persistedEvents} persisted event${persistedEvents === 1 ? "" : "s"}`
+    : "not persistent yet";
+  const setup = supabaseActive
+    ? ""
+    : "<span>Next setup: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY</span>";
+
+  target.innerHTML = `
+    <strong>Run Health</strong>
+    <span>AI: ${judged}/${total} judged, ${summarized}/${total} TLDR</span>
+    <span>Feedback: ${escapeHtml(feedbackMode)}</span>
+    <span>Learning: ${escapeHtml(learningState)}</span>
+    ${setup}
+  `;
+}
+
+function isSupabaseActive(status) {
+  const config = window.RECOMMENDER_CONFIG || {};
+  return Boolean(
+    status?.supabase?.configured ||
+    (config.supabaseUrl && config.supabaseAnonKey)
+  );
 }
 
 function renderStatusRow(label, configured, detail) {
