@@ -628,5 +628,18 @@
   - `progress.md`
   - `docs/superpowers/plans/2026-06-12-run-health.md`
 
+## 会话补充：Supabase 配置清单
+- **状态：** complete
+- 执行的操作：
+  - 增加 `docs/setup-supabase.md`，把持久化反馈所需步骤从 README 简述扩展为可执行清单。
+  - 清单覆盖运行 `supabase/schema.sql`、配置 `SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、重跑 `Daily Paper Recommender` workflow、检查 Pages `Run Health` 和验证 `feedback_events` 写入。
+  - README 的 `Feedback Storage` 段落增加配置清单链接。
+  - 增加 `tests/test_docs_contract.py`，防止 Supabase 配置入口和关键变量名从文档中丢失。
+- 创建/修改的文件：
+  - `docs/setup-supabase.md`
+  - `README.md`
+  - `tests/test_docs_contract.py`
+  - `progress.md`
+
 ---
 *每个阶段完成后或遇到错误时更新此文件*

@@ -125,6 +125,8 @@ The daily pipeline uses the LLM twice:
 
 ## Feedback Storage
 
+For an end-to-end checklist with exact `gh` commands, see [docs/setup-supabase.md](docs/setup-supabase.md).
+
 Run [supabase/schema.sql](supabase/schema.sql) in your Supabase SQL editor, then configure:
 
 - GitHub Variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
