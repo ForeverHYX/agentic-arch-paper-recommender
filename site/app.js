@@ -52,6 +52,7 @@ function applyControls() {
   renderRecommendationGroups(filtered, activePayload.section_labels || {});
   const resultCount = document.getElementById("resultCount");
   resultCount.textContent = `${filtered.length} / ${(activePayload.recommendations || []).length} papers`;
+  highlightTargetPaper();
 }
 
 function renderRecommendationGroups(recommendations, sectionLabels) {
@@ -259,6 +260,15 @@ function renderPaper(paper) {
       </div>
     </article>
   `;
+}
+
+function highlightTargetPaper() {
+  const paperId = new URLSearchParams(window.location.search).get("paper_id");
+  if (!paperId) return;
+  const target = document.getElementById(`paper-${escapeAttr(paperId)}`);
+  if (!target) return;
+  target.classList.add("is-target");
+  target.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
 function renderAffiliationBlock(affiliations) {

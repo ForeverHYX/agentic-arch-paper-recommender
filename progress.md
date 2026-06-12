@@ -255,6 +255,22 @@
 | 部署状态诊断 RED 测试 | `python3 -m unittest tests.test_status tests.test_workflow_contract tests.test_site_contract` | 缺少 status 模块、workflow step 和前端函数时失败 | module/function/workflow 断言失败 | expected-fail |
 | 部署状态诊断局部测试 | `python3 -m unittest tests.test_status tests.test_workflow_contract tests.test_site_contract` | 测试通过 | 19 个测试通过 | pass |
 
+## 会话补充：邮件到 Pages 论文深链
+- **状态：** in_progress
+- 执行的操作：
+  - 发现邮件标题链接已经携带 `?paper_id=...`，但 Pages 没有读取该参数定位论文卡片。
+  - 增加 `highlightTargetPaper`，在渲染/筛选后根据 `paper_id` 查询对应卡片、加高亮并滚动到可视区域。
+  - 为目标论文卡片增加 `.paper.is-target` 高亮样式。
+- 创建/修改的文件：
+  - `site/app.js`
+  - `site/index.html`
+  - `site/styles.css`
+  - `tests/test_site_contract.py`
+  - `progress.md`
+
+| 邮件深链 RED 测试 | `python3 -m unittest tests.test_site_contract.SiteContractTests.test_reader_deep_links_to_paper_from_email_query_param tests.test_site_contract.SiteContractTests.test_recommendation_page_has_workbench_layout_hooks` | 缺少 `highlightTargetPaper` 时失败 | `highlightTargetPaper is not a function` | expected-fail |
+| 邮件深链局部测试 | 同上 | 测试通过 | 2 个测试通过 | pass |
+
 ## 会话补充：LLM 使用反馈画像和 provider 可配置化
 - **状态：** in_progress
 - 执行的操作：

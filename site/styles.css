@@ -311,6 +311,11 @@ h2 {
   margin-bottom: 12px;
 }
 
+.paper.is-target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
+}
+
 .paper-meta {
   display: flex;
   flex-wrap: wrap;

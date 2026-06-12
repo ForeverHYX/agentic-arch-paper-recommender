@@ -13,6 +13,7 @@ const elements = {};
 
 function element(id) {
   if (!elements[id]) {
+    const classes = new Set();
     elements[id] = {
       textContent: "",
       innerHTML: "",
@@ -20,13 +21,21 @@ function element(id) {
       value: "",
       checked: false,
       addEventListener() {},
+      classList: {
+        add(name) { classes.add(name); },
+        contains(name) { return classes.has(name); },
+      },
+      scrollIntoView() {
+        this.scrolled = true;
+      },
+      scrolled: false,
     };
   }
   return elements[id];
 }
 
 const context = {
-  window: { RECOMMENDER_CONFIG: {} },
+  window: { RECOMMENDER_CONFIG: {}, location: { search: "" } },
   document: { getElementById: element },
   fetch: async () => ({
     ok: true,
@@ -36,6 +45,7 @@ const context = {
     getItem() { return null; },
   },
   encodeURIComponent,
+  URLSearchParams,
 };
 
 vm.createContext(context);
@@ -194,6 +204,22 @@ if (!html.includes("local feedback")) throw new Error(`missing local feedback st
 """
         )
 
+    def test_reader_deep_links_to_paper_from_email_query_param(self):
+        self.run_app_script(
+            """
+context.window.location.search = "?paper_id=2606.00001";
+context.highlightTargetPaper();
+
+const target = elements["paper-2606.00001"];
+if (!target.classList.contains("is-target")) {
+  throw new Error("target paper was not highlighted");
+}
+if (!target.scrolled) {
+  throw new Error("target paper was not scrolled into view");
+}
+"""
+        )
+
     def test_index_uses_versioned_frontend_assets(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
@@ -224,6 +250,7 @@ if (!html.includes("local feedback")) throw new Error(`missing local feedback st
         self.assertIn("renderFeedbackStatus", script)
         self.assertIn("renderFeedbackInsights", script)
         self.assertIn("renderSubsystemStatus", script)
+        self.assertIn("highlightTargetPaper", script)
         self.assertIn("applyControls", script)
         self.assertIn("filteredRecommendations", script)
         self.assertIn("collectFilterState", script)
