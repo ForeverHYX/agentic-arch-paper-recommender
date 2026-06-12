@@ -599,5 +599,16 @@
   - `tests/test_site_contract.py`
   - `progress.md`
 
+## 会话补充：上线验证状态同步
+- **状态：** complete
+- 执行的操作：
+  - 查询 GitHub Actions run `27405554116`，确认 `Daily Paper Recommender` 在提交 `4c6415203374113e8ba879070d8a57d842ce5693` 上成功完成。
+  - 查询线上 `status.json`，确认 LLM 和 SMTP 已配置，Supabase、`LOCAL_FEEDBACK_JSON` 和 `PROFILE_OVERRIDE_JSON` 尚未配置。
+  - 查询线上 `recommendations.json`，确认 2026-06-12 页面加载 12 条推荐，12 条都有 TLDR 和 AI 判断。
+  - 同步 `task_plan.md` 阶段 8 状态：真实 workflow、Pages 当天数据加载、邮件跳转链路标记为已验证；Supabase 写入和反馈影响排序继续保留未完成。
+- 创建/修改的文件：
+  - `task_plan.md`
+  - `progress.md`
+
 ---
 *每个阶段完成后或遇到错误时更新此文件*

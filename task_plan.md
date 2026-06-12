@@ -154,14 +154,14 @@
 - **状态：** in_progress
 
 ### 阶段 8：验证与上线
-- [ ] 本地或 GitHub Actions 手动运行一次真实 arXiv 完整流程。
+- [x] 本地或 GitHub Actions 手动运行一次真实 arXiv 完整流程。
 - [x] 增加 workflow 契约测试，防止每日流程退回示例 JSONL。
 - [x] 发布 `status.json`，在 Pages 显示 LLM/邮件/Supabase/反馈 fallback/profile override 启用状态。
-- [ ] 验证 GitHub Pages 能加载当天数据。
-- [ ] 验证邮件能收到并正确跳转。
+- [x] 验证 GitHub Pages 能加载当天数据。
+- [x] 验证邮件能收到并正确跳转。
 - [ ] 验证反馈写入 Supabase。
 - [ ] 验证次日或手动重跑时反馈影响排序。
-- **状态：** pending
+- **状态：** in_progress
 
 ## 关键问题
 1. `ASSASSYN` 的准确论文标题或链接需要用户补充，以便作为 full-stack co-design seed。
