@@ -186,9 +186,16 @@
 - `liked_keywords`
 - `disliked_keywords`
 - `liked_authors`
+- `disliked_authors`
 - `liked_affiliations`
+- `disliked_affiliations`
 - `liked_toolchains`
+- `disliked_toolchains`
 - `section_weights`
+- `keyword_weights`
+- `author_weights`
+- `affiliation_weights`
+- `toolchain_weights`
 - `embedding_summary`
 
 ## 遇到的问题

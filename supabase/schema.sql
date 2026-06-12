@@ -45,7 +45,16 @@ create table if not exists public.profile_state (
   liked_keywords jsonb not null default '[]'::jsonb,
   disliked_keywords jsonb not null default '[]'::jsonb,
   liked_authors jsonb not null default '[]'::jsonb,
+  disliked_authors jsonb not null default '[]'::jsonb,
+  liked_affiliations jsonb not null default '[]'::jsonb,
+  disliked_affiliations jsonb not null default '[]'::jsonb,
+  liked_toolchains jsonb not null default '[]'::jsonb,
+  disliked_toolchains jsonb not null default '[]'::jsonb,
   section_weights jsonb not null default '{}'::jsonb,
+  keyword_weights jsonb not null default '{}'::jsonb,
+  author_weights jsonb not null default '{}'::jsonb,
+  affiliation_weights jsonb not null default '{}'::jsonb,
+  toolchain_weights jsonb not null default '{}'::jsonb,
   embedding_summary jsonb not null default '{}'::jsonb
 );
 
