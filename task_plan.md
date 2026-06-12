@@ -91,13 +91,13 @@
 - **状态：** complete
 
 ### 阶段 2：上游项目审计与改造范围确认
-- [ ] Fork 或 clone `daily-arXiv-ai-enhanced` 到本地工作区。
-- [ ] 审计现有 workflow、爬虫、AI 摘要、Pages 数据格式和前端偏好逻辑。
-- [ ] 明确最小改造点：分类配置、推荐排序、反馈页面、邮件发送、Supabase 接入。
-- [ ] 记录不改动或延后改动的范围。
-- **状态：** in_progress
+- [x] 通过 GitHub 页面/raw 文件审计 `daily-arXiv-ai-enhanced` 和 `zotero-arxiv-daily`。
+- [x] 审计现有 workflow、AI 摘要、Pages 展示、邮件和前端偏好逻辑。
+- [x] 明确最小改造点：分类配置、推荐排序、反馈页面、邮件发送、Supabase 接入。
+- [x] 记录不改动或延后改动的范围。
+- **状态：** complete
 
-备注：2026-06-12 首次尝试 `git clone` 和 GitHub zip archive 下载均因连接 `github.com:443` 超时失败。当前先推进自有 MVP，后续网络可用时再补做上游审计。
+备注：2026-06-12 多次 `git clone` 仍因连接 `github.com:443` 超时失败；随后改用 GitHub 页面/raw 访问完成只读审计。
 
 ### 阶段 3：领域过滤和推荐画像 MVP
 - [x] 配置核心分类和扩展分类。

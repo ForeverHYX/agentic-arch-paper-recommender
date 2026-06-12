@@ -19,6 +19,7 @@
 - `daily-arXiv-ai-enhanced` 的定位是每日抓取 arXiv、AI 摘要、GitHub Pages 展示，适合作为无服务器展示层起点。
 - 上游 README 中默认分类偏向 `cs.CV, cs.GR, cs.CL, cs.AI`，不适合当前用户的体系结构/HPC/co-design 兴趣。
 - 上游项目已有本地关键词和作者偏好能力，但主要是浏览器本地高亮/过滤，不是服务端或跨设备的反馈学习。
+- 2026-06-12 复核上游：`daily-ArXiv-ai-enhanced` 适合借鉴 Actions + Pages + AI 摘要/邮件形态；`zotero-arxiv-daily` 适合借鉴 Zotero library/collections 作为兴趣锚点。本仓库已经用 `seed_papers`、feedback events 和 LLM judge 替代必须依赖 Zotero 账户的部分。
 - GitHub Pages 是静态页面，不能安全地直接写入私有仓库或 GitHub Actions 状态。
 - 反馈闭环需要外部托管存储。初始推荐 Supabase，因为它可以用免费层提供 Postgres、RLS 和前端写入能力。
 - 对于当前兴趣，`cs.AI` 和 `cs.LG` 不能直接全量抓取，否则会引入大量泛 AI/agent 噪声，必须通过关键词 gate。
@@ -196,10 +197,11 @@
 | `ASSASSYN` 暂未确认准确论文链接 | 已按用户描述作为可编辑 seed 加入 `config/interests.json`；后续可补精确 URL。 |
 | 静态页面无法安全写入 GitHub 仓库 | 使用 Supabase 或后续 Cloudflare Worker/D1。 |
 | 泛 AI agent 论文会污染结果 | 扩展分类必须经过领域 gate，并对泛 agent 关键词降权。 |
-| 当前环境连接 `github.com:443` 下载上游代码多次超时 | 先实现自有 MVP，保留后续接入 `daily-arXiv-ai-enhanced` 的阶段任务。 |
+| 当前环境连接 `github.com:443` 下载上游代码多次超时 | 本地 `git clone` 仍失败，但已通过 GitHub 页面/raw 文件完成上游只读审计。 |
 
 ## 资源
 - `daily-arXiv-ai-enhanced`: https://github.com/dw-dengwei/daily-arXiv-ai-enhanced
+- `zotero-arxiv-daily`: https://github.com/TideDra/zotero-arxiv-daily
 - arXiv taxonomy: https://arxiv.org/category_taxonomy
 - 代表方向 seed，已固化到 `config/interests.json` 中：
   - ArchAgent: Agentic AI-driven Computer Architecture Discovery

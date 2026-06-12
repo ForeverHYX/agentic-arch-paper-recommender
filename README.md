@@ -9,7 +9,7 @@ The target deployment model is serverless:
 - Supabase stores feedback events.
 - Email delivery is handled from GitHub Actions through SMTP.
 
-The current repository starts with a self-contained MVP while upstream `daily-arXiv-ai-enhanced` integration is pending network availability.
+This repository is self-contained, with selected design cues from `daily-arXiv-ai-enhanced` and `zotero-arxiv-daily`: GitHub Actions scheduling, GitHub Pages reading, optional email delivery, LLM summaries, affiliation/code links, and a no-server personalization loop.
 
 ## Interest Profile
 

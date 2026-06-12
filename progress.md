@@ -225,6 +225,23 @@
 | 实体反馈学习 RED 测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline tests.test_judge` | 缺少实体权重函数、payload 字段和 LLM prompt 内容时失败 | 缺少 `author_feedback_weights`、`author_weights` 和 prompt 字段 | expected-fail |
 | 实体反馈学习局部测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline tests.test_judge` | 测试通过 | 20 个测试通过 | pass |
 
+## 会话补充：上游项目审计复核
+- **状态：** complete
+- 执行的操作：
+  - 重新尝试 clone `daily-arXiv-ai-enhanced` 和 `zotero-arxiv-daily`，本地 git 仍因 `github.com:443` 连接超时失败。
+  - 改用 GitHub 页面/raw 文件完成只读审计。
+  - 确认 `daily-arXiv-ai-enhanced` 的主要可借鉴点是 GitHub Actions + Pages + AI 摘要/邮件形态。
+  - 确认 `zotero-arxiv-daily` 的主要可借鉴点是 Zotero library/collection 作为兴趣锚点；本仓库已用 `seed_papers` 和反馈画像替代 Zotero 账户依赖。
+  - 更新 README、计划和发现记录，去掉“等待网络可用再审计”的旧表述。
+- 创建/修改的文件：
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+| 上游 clone 复核 | `git clone --depth 1 ...` | 能拉取上游代码 | 两个仓库均因 `github.com:443` 超时失败 | failed-network |
+| 上游 raw 审计 | GitHub 页面/raw 文件 | 能确认上游功能和可借鉴范围 | 完成审计并更新文档 | pass |
+
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|
