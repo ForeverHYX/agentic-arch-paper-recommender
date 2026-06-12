@@ -136,6 +136,28 @@
 | 作者单位补全全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 63 个测试通过 | pass |
 | 真实 arXiv source smoke test | `curl https://arxiv.org/e-print/2606.11356` 后调用 parser | 能抽取 FESOM2 论文单位 | 抽取出 Alfred Wegener Institute 和 University of Bremen | pass |
 
+## 会话补充：反馈闭环状态诊断与本地导出
+- **状态：** in_progress
+- 执行的操作：
+  - 在 Pages 侧边栏增加反馈持久化状态，区分 `Supabase active` 和 `local only`。
+  - `local only` 模式显示当前浏览器保存的本地反馈数量，避免误以为点击已经进入跨天推荐学习。
+  - 反馈页在 Supabase 未配置时展示本地反馈 JSON，并提供下载链接。
+  - README 增加本地反馈导出、Supabase RLS、服务密钥和后续滥用加固说明。
+- 创建/修改的文件：
+  - `site/index.html`
+  - `site/app.js`
+  - `site/feedback.html`
+  - `site/feedback.js`
+  - `site/styles.css`
+  - `tests/test_site_contract.py`
+  - `tests/test_feedback_page_contract.py`
+  - `README.md`
+  - `task_plan.md`
+  - `progress.md`
+
+| 反馈状态诊断 RED 测试 | `python3 -m unittest tests.test_site_contract tests.test_feedback_page_contract` | 缺少 `renderFeedbackStatus`、`feedbackStatus` 和本地导出时失败 | `renderFeedbackStatus is not a function`，页面缺少导出元素 | expected-fail |
+| 反馈状态诊断局部测试 | `python3 -m unittest tests.test_site_contract tests.test_feedback_page_contract` | 测试通过 | 9 个测试通过 | pass |
+
 ## 会话补充：LLM 使用反馈画像和 provider 可配置化
 - **状态：** in_progress
 - 执行的操作：

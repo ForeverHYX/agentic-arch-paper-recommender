@@ -26,11 +26,15 @@ function element(id) {
 }
 
 const context = {
+  window: { RECOMMENDER_CONFIG: {} },
   document: { getElementById: element },
   fetch: async () => ({
     ok: true,
     json: async () => ({ recommendations: [], section_labels: {} }),
   }),
+  localStorage: {
+    getItem() { return null; },
+  },
   encodeURIComponent,
 };
 
@@ -119,6 +123,27 @@ if (!html.includes("<strong>1</strong><span>with units</span>")) {
 """
         )
 
+    def test_reader_shows_feedback_persistence_status(self):
+        self.run_app_script(
+            """
+context.renderFeedbackStatus();
+let html = elements.feedbackStatus.innerHTML;
+if (!html.includes("local only")) {
+  throw new Error(`missing local-only status: ${html}`);
+}
+
+context.window.RECOMMENDER_CONFIG = {
+  supabaseUrl: "https://example.supabase.co",
+  supabaseAnonKey: "anon-key",
+};
+context.renderFeedbackStatus();
+html = elements.feedbackStatus.innerHTML;
+if (!html.includes("Supabase active")) {
+  throw new Error(`missing Supabase status: ${html}`);
+}
+"""
+        )
+
     def test_index_uses_versioned_frontend_assets(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
@@ -139,9 +164,12 @@ if (!html.includes("<strong>1</strong><span>with units</span>")) {
         self.assertIn('id="hasAffiliationFilter"', html)
         self.assertIn('id="sortSelect"', html)
         self.assertIn('id="resultCount"', html)
+        self.assertIn('id="feedbackStatus"', html)
+        self.assertLess(html.index("config.js"), html.index("app.js"))
         self.assertIn("renderSummaryStats", script)
         self.assertIn("renderSectionNav", script)
         self.assertIn("renderControls", script)
+        self.assertIn("renderFeedbackStatus", script)
         self.assertIn("applyControls", script)
         self.assertIn("filteredRecommendations", script)
         self.assertIn("collectFilterState", script)

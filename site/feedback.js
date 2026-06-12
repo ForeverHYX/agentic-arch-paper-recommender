@@ -4,6 +4,7 @@ const rating = params.get("rating");
 const source = params.get("source") || "page";
 const titleEl = document.getElementById("statusTitle");
 const detailEl = document.getElementById("statusDetail");
+const localFeedbackKey = "recommender_local_feedback_events";
 
 recordFeedback().catch((error) => {
   titleEl.textContent = "Feedback was not recorded";
@@ -30,8 +31,9 @@ async function recordFeedback() {
       categories: paperMetadata.categories,
       created_at: new Date().toISOString(),
     });
+    renderLocalFeedbackExport();
     titleEl.textContent = "Feedback captured locally";
-    detailEl.textContent = "This feedback was stored locally in this browser. Configure Supabase to use it in future daily recommendations.";
+    detailEl.textContent = "This feedback was stored locally in this browser. Export it below if you want to preserve it before configuring Supabase.";
     return;
   }
 
@@ -95,8 +97,29 @@ function emptyPaperMetadata() {
 }
 
 function storeLocalFeedback(event) {
-  const key = "recommender_local_feedback_events";
-  const existing = JSON.parse(localStorage.getItem(key) || "[]");
+  const existing = readLocalFeedbackEvents();
   existing.push(event);
-  localStorage.setItem(key, JSON.stringify(existing));
+  localStorage.setItem(localFeedbackKey, JSON.stringify(existing));
+}
+
+function readLocalFeedbackEvents() {
+  try {
+    const events = JSON.parse(localStorage.getItem(localFeedbackKey) || "[]");
+    return Array.isArray(events) ? events : [];
+  } catch {
+    return [];
+  }
+}
+
+function renderLocalFeedbackExport() {
+  const exportEl = document.getElementById("localFeedbackExport");
+  const downloadEl = document.getElementById("localFeedbackDownload");
+  if (!exportEl || !downloadEl) return;
+
+  const json = JSON.stringify(readLocalFeedbackEvents(), null, 2);
+  exportEl.hidden = false;
+  exportEl.value = json;
+  downloadEl.hidden = false;
+  downloadEl.download = "recommender-local-feedback.json";
+  downloadEl.href = `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
 }

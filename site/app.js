@@ -13,6 +13,7 @@ function render(payload) {
   const runDate = document.getElementById("runDate");
   runDate.textContent = payload.run_date ? `Run date: ${payload.run_date}` : "";
   renderControls(payload);
+  renderFeedbackStatus();
   applyControls();
 }
 
@@ -129,6 +130,26 @@ function renderSummaryStats(payload) {
   `;
 }
 
+function renderFeedbackStatus() {
+  const target = document.getElementById("feedbackStatus");
+  if (!target) return;
+
+  const config = window.RECOMMENDER_CONFIG || {};
+  if (config.supabaseUrl && config.supabaseAnonKey) {
+    target.innerHTML = `
+      <strong>Feedback</strong>
+      <span>Supabase active. Like/dislike clicks will update future runs.</span>
+    `;
+    return;
+  }
+
+  const count = localFeedbackCount();
+  target.innerHTML = `
+    <strong>Feedback</strong>
+    <span>local only. ${count} local click${count === 1 ? "" : "s"} saved on this browser; configure Supabase for daily learning.</span>
+  `;
+}
+
 function renderSectionNav(groups, sectionLabels) {
   const target = document.getElementById("sectionNav");
   if (!groups.size) {
@@ -191,6 +212,15 @@ function hasAffiliations(paper) {
 function stringList(value) {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function localFeedbackCount() {
+  try {
+    const events = JSON.parse(localStorage.getItem("recommender_local_feedback_events") || "[]");
+    return Array.isArray(events) ? events.length : 0;
+  } catch {
+    return 0;
+  }
 }
 
 function githubSearchUrl(paper) {

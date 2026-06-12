@@ -156,6 +156,8 @@
 | OpenCode Go 配置保持 OpenAI-compatible 形态 | `OPENAI_API_KEY` 用 Secret，`OPENAI_BASE_URL` 和 `OPENAI_MODEL` 用 GitHub Variables 覆盖；默认值仍指向 OpenCode Go 和 `deepseek-v4-flash`。 |
 | seed papers 作为无服务器个人语料锚点 | `config/interests.json` 中的 `seed_papers` 会写入推荐 JSON，并进入 LLM judge prompt，让代表性论文比单纯关键词更直接地约束相关性判断。 |
 | 反馈学习加入实体权重 | like/dislike 现在会学习作者、机构和体系结构/HPC 工具链权重，并同时影响规则排序和 LLM judge prompt。机构权重保持弱信号，避免 arXiv 单位缺失导致过度惩罚。 |
+| Pages 显示反馈持久化状态 | 静态页面无法自动证明点击是否进入跨天学习闭环；侧边栏现在直接显示 Supabase 是否启用，并在 local-only 模式提示本地保存数量。 |
+| 本地反馈可导出 | 未配置 Supabase 时，like/dislike 会进入浏览器 localStorage。反馈页现在提供 JSON 导出，避免用户在配置 Supabase 前丢失点击记录。 |
 
 ## 初始数据表设想
 ### `feedback_events`
@@ -205,6 +207,7 @@
 | 静态页面无法安全写入 GitHub 仓库 | 使用 Supabase 或后续 Cloudflare Worker/D1。 |
 | 泛 AI agent 论文会污染结果 | 扩展分类必须经过领域 gate，并对泛 agent 关键词降权。 |
 | 当前环境连接 `github.com:443` 下载上游代码多次超时 | 本地 `git clone` 仍失败，但已通过 GitHub 页面/raw 文件完成上游只读审计。 |
+| Supabase anon key 暴露在 Pages 前端 | 这是 Supabase 前端写入模式的正常形态；必须依赖 RLS 限制匿名用户只能 insert，不能 select/update/delete。若公开页面后出现滥用，再加 edge function、token 或验证码类保护。 |
 
 ## 资源
 - `daily-arXiv-ai-enhanced`: https://github.com/dw-dengwei/daily-arXiv-ai-enhanced

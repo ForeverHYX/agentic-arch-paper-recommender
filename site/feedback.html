@@ -4,16 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Feedback</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260612-feedback-status">
   </head>
   <body>
     <main class="feedback">
       <h1 id="statusTitle">Recording feedback...</h1>
       <p id="statusDetail"></p>
+      <textarea id="localFeedbackExport" class="local-feedback-export" readonly hidden></textarea>
+      <p><a id="localFeedbackDownload" class="link-button" hidden>Download local feedback JSON</a></p>
       <p><a href="index.html">Back to recommendations</a></p>
     </main>
-    <script src="config.js"></script>
-    <script src="feedback.js"></script>
+    <script src="config.js?v=20260612-feedback-status"></script>
+    <script src="feedback.js?v=20260612-feedback-status"></script>
   </body>
 </html>
-

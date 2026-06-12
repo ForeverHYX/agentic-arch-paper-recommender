@@ -14,7 +14,7 @@ const storage = {};
 
 function element(id) {
   if (!elements[id]) {
-    elements[id] = { textContent: "" };
+    elements[id] = { textContent: "", value: "", href: "", download: "", hidden: false };
   }
   return elements[id];
 }
@@ -37,6 +37,7 @@ const context = {
       storage[key] = String(value);
     },
   },
+  encodeURIComponent,
   setTimeout,
 };
 
@@ -84,6 +85,24 @@ if (events[0].rating !== "like") throw new Error("rating not stored");
 if (events[0].section !== "arch") throw new Error("section not stored");
 if (!elements.statusDetail.textContent.includes("stored locally")) {
   throw new Error(`missing local storage status: ${elements.statusDetail.textContent}`);
+}
+"""
+        )
+
+    def test_feedback_page_exposes_local_feedback_export_when_supabase_is_not_configured(self):
+        self.run_feedback_script(
+            """
+if (elements.localFeedbackExport.hidden) {
+  throw new Error("local feedback export remained hidden");
+}
+if (!elements.localFeedbackExport.value.includes('"paper_id": "p1"')) {
+  throw new Error(`local feedback JSON missing event: ${elements.localFeedbackExport.value}`);
+}
+if (!elements.localFeedbackDownload.href.startsWith("data:application/json;charset=utf-8,")) {
+  throw new Error(`download href missing data URL: ${elements.localFeedbackDownload.href}`);
+}
+if (elements.localFeedbackDownload.download !== "recommender-local-feedback.json") {
+  throw new Error(`unexpected download filename: ${elements.localFeedbackDownload.download}`);
 }
 """
         )

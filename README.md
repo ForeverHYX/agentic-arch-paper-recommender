@@ -119,6 +119,11 @@ Run [supabase/schema.sql](supabase/schema.sql) in your Supabase SQL editor, then
 
 The public Pages app uses the anon key only to insert feedback. GitHub Actions uses the service role key to read feedback and adjust the learned profile. If Supabase is not configured, the feedback page stores clicks in browser `localStorage` so the action is not lost on that device, but GitHub Actions cannot read that local queue for future daily recommendations.
 
+The reader sidebar shows the current feedback persistence mode:
+
+- `Supabase active`: like/dislike clicks are written to Supabase and can affect future GitHub Actions runs.
+- `local only`: clicks are saved only in this browser. The feedback page exposes a JSON export of the local queue so the records are not trapped in browser storage while Supabase is being configured.
+
 Feedback records include paper metadata when available:
 
 - `title`
@@ -134,6 +139,13 @@ The daily pipeline converts likes and dislikes into lightweight learning signals
 - author weights, so papers from repeatedly liked/disliked authors move accordingly
 - affiliation weights, used as a weak signal because arXiv affiliation data is incomplete
 - toolchain weights for architecture/HPC tooling such as `gem5`, `MLIR`, `CIRCT`, `Accel-Sim`, `GPGPU-Sim`, `Ramulator`, `CUDA`, `ROCm`, `SYCL`, `OpenMP`, and `MPI`
+
+Operational notes:
+
+- The anon key is public by design; RLS in [supabase/schema.sql](supabase/schema.sql) must remain enabled so the browser can only insert feedback rows.
+- The service role key must stay in GitHub Secrets only. It is required for GitHub Actions to read feedback and publish recommendation history.
+- The current feedback endpoint is intentionally simple. If the Pages URL becomes public or abused, add rate limiting through a lightweight edge function or move feedback submission behind a short-lived token.
+- Treat affiliations as weak evidence. arXiv source parsing is incomplete and missing affiliations should not be interpreted as low quality by themselves.
 
 ## Recommendation History
 
