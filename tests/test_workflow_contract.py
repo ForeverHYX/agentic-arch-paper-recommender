@@ -69,6 +69,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}", workflow)
         self.assertIn("OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}", workflow)
 
+    def test_daily_workflow_publishes_subsystem_status_without_secret_values(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("HAS_LLM: ${{ secrets.OPENAI_API_KEY != '' }}", workflow)
+        self.assertIn("Publish subsystem status", workflow)
+        self.assertIn("python -m paper_recommender.status --output site/status.json", workflow)
+        self.assertLess(
+            workflow.index("Publish subsystem status"),
+            workflow.index("actions/upload-pages-artifact"),
+        )
+
     def test_daily_workflow_reads_and_publishes_recommendation_history(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 

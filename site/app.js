@@ -8,6 +8,14 @@ async function loadRecommendations() {
   return response.json();
 }
 
+async function loadStatus() {
+  const response = await fetch("status.json", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Failed to load status: ${response.status}`);
+  }
+  return response.json();
+}
+
 function render(payload) {
   activePayload = payload;
   const runDate = document.getElementById("runDate");
@@ -15,6 +23,7 @@ function render(payload) {
   renderControls(payload);
   renderFeedbackStatus();
   renderFeedbackInsights(payload.feedback_summary?.metrics || {});
+  loadStatus().then(renderSubsystemStatus).catch(() => renderSubsystemStatus(null));
   applyControls();
 }
 
@@ -173,6 +182,37 @@ function renderFeedbackInsights(metrics) {
     ${likedTopics.length ? `<span>liked: ${escapeHtml(likedTopics.join(", "))}</span>` : ""}
     ${dislikedTopics.length ? `<span>disliked: ${escapeHtml(dislikedTopics.join(", "))}</span>` : ""}
   `;
+}
+
+function renderSubsystemStatus(status) {
+  const target = document.getElementById("subsystemStatus");
+  if (!target) return;
+
+  if (!status) {
+    target.innerHTML = `
+      <strong>Systems</strong>
+      <span>Status unavailable.</span>
+    `;
+    return;
+  }
+
+  const rows = [
+    ["LLM", status.llm?.configured, status.llm?.model],
+    ["Email", status.smtp?.configured, ""],
+    ["Supabase", status.supabase?.configured, ""],
+    ["local feedback", status.local_feedback?.configured, ""],
+    ["profile override", status.profile_override?.configured, ""],
+  ];
+  target.innerHTML = `
+    <strong>Systems</strong>
+    ${rows.map(([label, configured, detail]) => renderStatusRow(label, configured, detail)).join("")}
+  `;
+}
+
+function renderStatusRow(label, configured, detail) {
+  const state = configured ? "on" : "off";
+  const detailText = detail ? ` <em>${escapeHtml(detail)}</em>` : "";
+  return `<span><b class="status-${state}">${state}</b> ${escapeHtml(label)}${detailText}</span>`;
 }
 
 function renderSectionNav(groups, sectionLabels) {

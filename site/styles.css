@@ -175,7 +175,8 @@ h1 {
 }
 
 .feedback-status,
-.feedback-insights {
+.feedback-insights,
+.subsystem-status {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
@@ -185,15 +186,37 @@ h1 {
 }
 
 .feedback-status strong,
-.feedback-insights strong {
+.feedback-insights strong,
+.subsystem-status strong {
   display: block;
   margin-bottom: 3px;
 }
 
 .feedback-status span,
-.feedback-insights span {
+.feedback-insights span,
+.subsystem-status span {
   display: block;
   color: var(--muted);
+}
+
+.subsystem-status b {
+  display: inline-block;
+  min-width: 22px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.subsystem-status em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.status-on {
+  color: var(--accent-strong);
+}
+
+.status-off {
+  color: var(--danger);
 }
 
 .section-nav {

@@ -161,6 +161,7 @@
 | 评估指标先聚焦可验证反馈 | 邮件打开率需要追踪像素或邮件服务商统计，不适合静态 Pages MVP；当前实现反馈量、喜欢率、来源/栏目统计和正负反馈主题，直接来自 GitHub Actions 可读取的 feedback events。 |
 | `LOCAL_FEEDBACK_JSON` 作为无数据库回灌 | 如果暂时不配置 Supabase，用户可以把 Pages 导出的本地反馈 JSON 放到 GitHub Secret，workflow 会在 Supabase 不可用时加载它并参与推荐学习。 |
 | `PROFILE_OVERRIDE_JSON` 作为无代码画像覆盖 | Pages 设置页编辑并导出与 `config/interests.json` 相同 schema 的 JSON；workflow 会在抓取 arXiv 前验证并使用该 Secret 覆盖默认 profile。 |
+| `status.json` 只暴露非敏感启用状态 | Pages 需要告诉用户 LLM、邮件、Supabase、fallback 和 profile override 是否启用；状态文件只写布尔值和公开模型/base URL，不写任何 Secret 内容。 |
 
 ## 初始数据表设想
 ### `feedback_events`

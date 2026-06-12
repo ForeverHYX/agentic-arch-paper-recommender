@@ -174,6 +174,26 @@ if (!html.includes("browser")) {
 """
         )
 
+    def test_reader_shows_subsystem_status(self):
+        self.run_app_script(
+            """
+context.renderSubsystemStatus({
+  llm: { configured: true, model: "deepseek-v4-flash" },
+  smtp: { configured: true },
+  supabase: { configured: false },
+  local_feedback: { configured: true },
+  profile_override: { configured: false },
+});
+
+const html = elements.subsystemStatus.innerHTML;
+if (!html.includes("LLM")) throw new Error(`missing LLM status: ${html}`);
+if (!html.includes("deepseek-v4-flash")) throw new Error(`missing model: ${html}`);
+if (!html.includes("Email")) throw new Error(`missing Email status: ${html}`);
+if (!html.includes("Supabase")) throw new Error(`missing Supabase status: ${html}`);
+if (!html.includes("local feedback")) throw new Error(`missing local feedback status: ${html}`);
+"""
+        )
+
     def test_index_uses_versioned_frontend_assets(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
@@ -196,12 +216,14 @@ if (!html.includes("browser")) {
         self.assertIn('id="resultCount"', html)
         self.assertIn('id="feedbackStatus"', html)
         self.assertIn('id="feedbackInsights"', html)
+        self.assertIn('id="subsystemStatus"', html)
         self.assertLess(html.index("config.js"), html.index("app.js"))
         self.assertIn("renderSummaryStats", script)
         self.assertIn("renderSectionNav", script)
         self.assertIn("renderControls", script)
         self.assertIn("renderFeedbackStatus", script)
         self.assertIn("renderFeedbackInsights", script)
+        self.assertIn("renderSubsystemStatus", script)
         self.assertIn("applyControls", script)
         self.assertIn("filteredRecommendations", script)
         self.assertIn("collectFilterState", script)

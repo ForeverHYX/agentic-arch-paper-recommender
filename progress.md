@@ -231,6 +231,30 @@
 | profile override RED 测试 | `python3 -m unittest tests.test_interest_profile tests.test_workflow_contract tests.test_profile_page_contract` | 缺少 profile_config、workflow override 和 profile 页面时失败 | module/html/js/workflow 断言失败 | expected-fail |
 | profile override 局部测试 | `python3 -m unittest tests.test_interest_profile tests.test_workflow_contract tests.test_profile_page_contract` | 测试通过 | 15 个测试通过 | pass |
 
+## 会话补充：部署状态诊断
+- **状态：** in_progress
+- 执行的操作：
+  - 增加 `paper_recommender.status`，生成不含密钥值的 `status.json`。
+  - workflow 增加 `HAS_LLM` 和 `Publish subsystem status` 步骤，发布 LLM、SMTP、Supabase、本地反馈 fallback、profile override 的启用状态。
+  - Pages 侧边栏显示 Systems 状态，包含 LLM 模型名和各子系统 on/off。
+  - README、计划和发现记录补充状态诊断说明。
+- 创建/修改的文件：
+  - `.github/workflows/daily.yml`
+  - `paper_recommender/status.py`
+  - `site/index.html`
+  - `site/app.js`
+  - `site/styles.css`
+  - `tests/test_status.py`
+  - `tests/test_workflow_contract.py`
+  - `tests/test_site_contract.py`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+| 部署状态诊断 RED 测试 | `python3 -m unittest tests.test_status tests.test_workflow_contract tests.test_site_contract` | 缺少 status 模块、workflow step 和前端函数时失败 | module/function/workflow 断言失败 | expected-fail |
+| 部署状态诊断局部测试 | `python3 -m unittest tests.test_status tests.test_workflow_contract tests.test_site_contract` | 测试通过 | 19 个测试通过 | pass |
+
 ## 会话补充：LLM 使用反馈画像和 provider 可配置化
 - **状态：** in_progress
 - 执行的操作：

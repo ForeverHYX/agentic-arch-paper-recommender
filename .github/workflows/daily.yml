@@ -16,6 +16,7 @@ concurrency:
 
 env:
   SITE_BASE_URL: https://foreverhyx.github.io/agentic-arch-paper-recommender
+  HAS_LLM: ${{ secrets.OPENAI_API_KEY != '' }}
   HAS_SMTP: ${{ secrets.SMTP_HOST != '' && secrets.SMTP_PASSWORD != '' && secrets.EMAIL_SENDER != '' && secrets.EMAIL_RECEIVER != '' }}
   HAS_SUPABASE: ${{ vars.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}
   HAS_LOCAL_FEEDBACK: ${{ secrets.LOCAL_FEEDBACK_JSON != '' }}
@@ -123,6 +124,12 @@ jobs:
             supabaseAnonKey: "${{ vars.SUPABASE_ANON_KEY }}",
           };
           EOF
+
+      - name: Publish subsystem status
+        env:
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}
+        run: python -m paper_recommender.status --output site/status.json
 
       - name: Send email digest
         if: env.HAS_SMTP == 'true'

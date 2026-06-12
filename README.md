@@ -106,6 +106,8 @@ Each recommendation includes author affiliations when the source provides them, 
 
 The GitHub Pages reader includes local controls for search, section filtering, minimum AI score, explicit code repository availability, affiliation availability, and rank/AI/rule/title sorting. These controls run entirely in the browser against `recommendations.json`.
 
+The workflow also publishes `status.json`, a non-secret deployment status file. The reader sidebar shows whether LLM judging/summarization, email, Supabase, local feedback fallback, and profile override are configured for the latest run. It only contains booleans plus the public OpenAI-compatible base URL/model, never API keys or SMTP credentials.
+
 ## LLM Provider Configuration
 
 GitHub Actions reads the OpenAI-compatible provider configuration from:
