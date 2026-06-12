@@ -35,6 +35,31 @@ class InterestProfileTests(unittest.TestCase):
         self.assertEqual(profile.sections[0].id, "quantum_control")
         self.assertEqual(profile.sections[0].label, "Quantum Control")
 
+    def test_load_interest_profile_seed_papers_from_json(self):
+        profile = self._write_profile(
+            {
+                "name": "Agentic Architecture",
+                "core_categories": ["cs.AR"],
+                "expansion_categories": ["cs.AI"],
+                "sections": [],
+                "seed_papers": [
+                    {
+                        "title": "Computer Architecture's AlphaZero Moment",
+                        "url": "https://arxiv.org/abs/2407.XXXX",
+                        "notes": "Representative automated architecture discovery seed.",
+                        "keywords": ["automated architecture discovery", "design space exploration"],
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(len(profile.seed_papers), 1)
+        seed = profile.seed_papers[0]
+        self.assertEqual(seed.title, "Computer Architecture's AlphaZero Moment")
+        self.assertEqual(seed.url, "https://arxiv.org/abs/2407.XXXX")
+        self.assertEqual(seed.notes, "Representative automated architecture discovery seed.")
+        self.assertEqual(seed.keywords, ("automated architecture discovery", "design space exploration"))
+
     def test_custom_profile_drives_classification_without_code_changes(self):
         profile = self._write_profile(
             {
@@ -74,4 +99,3 @@ class InterestProfileTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

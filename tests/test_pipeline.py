@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from paper_recommender.domain import InterestProfile, SectionRule
+from paper_recommender.domain import InterestProfile, SectionRule, SeedPaper
 from paper_recommender.pipeline import (
     load_papers_jsonl,
     paper_from_record,
@@ -138,6 +138,52 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(payload["profile_name"], "Quantum Systems")
         self.assertEqual(payload["section_labels"]["quantum_control"], "Quantum Control")
+
+    def test_recommendation_payload_includes_seed_papers_in_profile_context(self):
+        profile = InterestProfile(
+            name="Agentic Architecture",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI"}),
+            sections=(
+                SectionRule(
+                    id="agentic_architecture",
+                    label="Agentic Architecture",
+                    weight=5.0,
+                    keywords=("architecture design space exploration",),
+                ),
+            ),
+            seed_papers=(
+                SeedPaper(
+                    title="Computer Architecture's AlphaZero Moment",
+                    url="https://arxiv.org/abs/2407.XXXX",
+                    notes="Use as a positive example for automated architecture discovery.",
+                    keywords=("automated architecture discovery", "design space exploration"),
+                ),
+            ),
+        )
+        paper = paper_from_record(
+            {
+                "paper_id": "agentic",
+                "title": "Agentic Architecture Design Space Exploration",
+                "abstract": "A system explores architecture design space.",
+                "authors": ["A. Architect"],
+                "categories": ["cs.AR"],
+            }
+        )
+
+        payload = recommendation_payload([paper], "2026-06-12", profile=profile)
+
+        self.assertEqual(
+            payload["profile_context"]["seed_papers"],
+            [
+                {
+                    "title": "Computer Architecture's AlphaZero Moment",
+                    "url": "https://arxiv.org/abs/2407.XXXX",
+                    "notes": "Use as a positive example for automated architecture discovery.",
+                    "keywords": ["automated architecture discovery", "design space exploration"],
+                }
+            ],
+        )
 
     def test_recommendation_payload_can_fill_minimum_count_with_exploratory_core_papers(self):
         profile = InterestProfile(

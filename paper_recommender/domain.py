@@ -52,6 +52,22 @@ class NegativeRule:
 
 
 @dataclass(frozen=True)
+class SeedPaper:
+    title: str
+    url: str = ""
+    notes: str = ""
+    keywords: tuple[str, ...] = field(default_factory=tuple)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "title": self.title,
+            "url": self.url,
+            "notes": self.notes,
+            "keywords": list(self.keywords),
+        }
+
+
+@dataclass(frozen=True)
 class InterestProfile:
     name: str
     core_categories: frozenset[str]
@@ -59,6 +75,7 @@ class InterestProfile:
     sections: tuple[SectionRule, ...]
     negative_rules: tuple[NegativeRule, ...] = field(default_factory=tuple)
     expansion_accept_score: float = 4.0
+    seed_papers: tuple[SeedPaper, ...] = field(default_factory=tuple)
 
     @property
     def section_labels(self) -> dict[str, str]:
@@ -85,6 +102,16 @@ def load_interest_profile(path: str | Path = DEFAULT_PROFILE_PATH) -> InterestPr
         )
         for item in payload.get("negative_rules", [])
     )
+    seed_papers = tuple(
+        SeedPaper(
+            title=str(item.get("title", "")).strip(),
+            url=str(item.get("url", "")).strip(),
+            notes=str(item.get("notes", "")).strip(),
+            keywords=tuple(str(keyword) for keyword in item.get("keywords", [])),
+        )
+        for item in payload.get("seed_papers", [])
+        if str(item.get("title", "")).strip()
+    )
     return InterestProfile(
         name=str(payload.get("name", "Daily arXiv Recommender")),
         core_categories=frozenset(str(item) for item in payload.get("core_categories", [])),
@@ -92,6 +119,7 @@ def load_interest_profile(path: str | Path = DEFAULT_PROFILE_PATH) -> InterestPr
         sections=sections,
         negative_rules=negative_rules,
         expansion_accept_score=float(payload.get("expansion_accept_score", 4.0)),
+        seed_papers=seed_papers,
     )
 
 

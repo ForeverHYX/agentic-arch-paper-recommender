@@ -23,10 +23,13 @@ The profile controls:
 
 - arXiv core categories
 - arXiv expansion categories
+- representative seed papers used as interest anchors for the LLM judge
 - recommendation sections and display labels
 - weighted keywords
 - negative/noise rules
 - recovery terms for ambiguous topics
+
+`seed_papers` is the closest no-server equivalent to a small Zotero library. Add papers that represent what you want more of, with short notes and keywords. The daily workflow serializes those seeds into `recommendations.json`, and the LLM judge reads them when deciding whether a candidate is genuinely close to the profile.
 
 ## Development
 
@@ -104,7 +107,7 @@ OpenCode documents OpenCode Go API keys under its provider docs and documents cu
 
 The daily pipeline uses the LLM twice:
 
-- `paper_recommender.judge`: applies the fixed interest profile plus learned like/dislike feedback when scoring candidates.
+- `paper_recommender.judge`: applies the fixed interest profile, representative seed papers, and learned like/dislike feedback when scoring candidates.
 - `paper_recommender.summarizer`: generates concise Chinese TLDRs for the final papers.
 
 ## Feedback Storage

@@ -103,7 +103,7 @@
 - [x] 配置核心分类和扩展分类。
 - [x] 增加真实 arXiv Atom API 数据源，按独立兴趣配置生成抓取分类查询。
 - [x] 实现领域关键词 gate。
-- [ ] 建立 seed paper 列表和手动关键词权重。
+- [x] 建立 seed paper 列表和手动关键词权重。
 - [x] 实现栏目分配和初版排序。
 - [x] 添加排除词和降权逻辑。
 - [x] 将关键词画像抽离到 `config/interests.json`。
@@ -175,6 +175,7 @@
 | TLDR 使用 OpenAI-compatible enrichment 且有本地 fallback | 让邮件和页面更易扫读，同时避免 LLM 服务失败导致每日 workflow 失败。 |
 | 推荐排序采用“规则召回 + LLM 判断重排” | 关键词规则保证召回和稳定兜底，LLM 判断负责理解论文是否真正贴合 agentic architecture、co-design、microarchitecture、simulator 和 HPC 交叉兴趣。 |
 | 作者单位只做展示和弱质量信号 | arXiv 经常不提供单位，因此不伪造单位；若数据源提供 `affiliations`，页面、邮件、反馈和 LLM judge 都会使用。 |
+| seed papers 作为无服务器个人语料锚点 | `config/interests.json` 中的 `seed_papers` 会写入推荐 JSON，并进入 LLM judge prompt，让代表性论文比单纯关键词更直接地约束相关性判断。 |
 
 ## 遇到的错误
 | 错误 | 尝试次数 | 解决方案 |

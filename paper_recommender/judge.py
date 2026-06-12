@@ -48,6 +48,7 @@ def request_judgement(
     profile_name: str = "",
     section_labels: dict[str, str] | None = None,
     feedback_summary: dict[str, Any] | None = None,
+    seed_papers: list[dict[str, Any]] | None = None,
     base_url: str = DEFAULT_BASE_URL,
     model: str = DEFAULT_MODEL,
     opener: Callable[[Request], Any] = urlopen,
@@ -56,6 +57,7 @@ def request_judgement(
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
     section_text = _section_text(item, section_labels or {})
     feedback_text = _feedback_text(feedback_summary or {})
+    seed_text = _seed_papers_text(seed_papers or [])
     body = {
         "model": model,
         "temperature": 0.1,
@@ -81,6 +83,7 @@ def request_judgement(
                 "content": (
                     f"Profile: {profile_name}\n"
                     f"Learned feedback profile: {feedback_text}\n"
+                    f"Representative seed papers: {seed_text}\n"
                     f"Current rule sections: {section_text}\n"
                     f"Rule score: {item.get('score', '')}\n"
                     f"Title: {item.get('title', '')}\n"
@@ -124,6 +127,7 @@ def enrich_payload_with_judgements(
     profile_name = str(payload.get("profile_name", ""))
     section_labels = payload.get("section_labels") or {}
     feedback_summary = payload.get("feedback_summary") or {}
+    seed_papers = _payload_seed_papers(payload)
     judged = []
     for item in payload.get("recommendations", []):
         updated = dict(item)
@@ -137,6 +141,7 @@ def enrich_payload_with_judgements(
                 profile_name=profile_name,
                 section_labels=section_labels,
                 feedback_summary=feedback_summary,
+                seed_papers=seed_papers,
                 base_url=base_url,
                 model=model,
                 opener=opener,
@@ -199,6 +204,7 @@ def _safe_judgement(
     profile_name: str,
     section_labels: dict[str, str],
     feedback_summary: dict[str, Any],
+    seed_papers: list[dict[str, Any]],
     base_url: str,
     model: str,
     opener: Callable[[Request], Any],
@@ -212,6 +218,7 @@ def _safe_judgement(
             profile_name=profile_name,
             section_labels=section_labels,
             feedback_summary=feedback_summary,
+            seed_papers=seed_papers,
             base_url=base_url,
             model=model,
             opener=opener,
@@ -261,6 +268,33 @@ def _feedback_text(feedback_summary: dict[str, Any]) -> str:
         f"Avoid keywords: {', '.join(avoid_keywords) if avoid_keywords else 'none'}",
     ]
     return "; ".join(parts)
+
+
+def _payload_seed_papers(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    profile_context = payload.get("profile_context")
+    if not isinstance(profile_context, dict):
+        return []
+    seed_papers = profile_context.get("seed_papers", [])
+    if not isinstance(seed_papers, list):
+        return []
+    return [item for item in seed_papers if isinstance(item, dict)]
+
+
+def _seed_papers_text(seed_papers: list[dict[str, Any]], limit: int = 6) -> str:
+    lines = []
+    for item in seed_papers[:limit]:
+        title = str(item.get("title", "")).strip()
+        if not title:
+            continue
+        notes = " ".join(str(item.get("notes", "")).split())
+        keywords = ", ".join(str(value) for value in item.get("keywords", []) if str(value))
+        parts = [title]
+        if keywords:
+            parts.append(f"keywords: {keywords}")
+        if notes:
+            parts.append(f"notes: {notes}")
+        lines.append(" | ".join(parts))
+    return "\n".join(lines) if lines else "none"
 
 
 def _top_weight_names(weights: dict[str, float], positive: bool, limit: int = 8) -> list[str]:

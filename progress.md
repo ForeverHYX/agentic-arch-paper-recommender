@@ -178,6 +178,30 @@
 | Pages 筛选控件全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 66 个测试通过 | pass |
 | 本地静态资源检查 | `node --check site/app.js` 和 `curl http://localhost:8765/` | JS 语法正确，控件存在，JSON 可读取 | 通过；`agent-browser` 因本机未安装 Chrome 未运行 | pass-with-note |
 
+## 会话补充：seed papers 个人语料锚点
+- **状态：** complete
+- 执行的操作：
+  - 增加 `SeedPaper` 数据结构，并让 `InterestProfile` 从 `config/interests.json` 读取 `seed_papers`。
+  - 推荐 payload 增加 `profile_context.seed_papers`，便于调试和后续展示。
+  - LLM judge prompt 增加 `Representative seed papers`，把代表性论文标题、备注和关键词作为个性化兴趣锚点。
+  - 默认配置加入 AlphaZero Moment、ArchAgent、ArchExplorer、ASSASSYN 四类代表性 seed。
+  - README、计划和发现记录补充 seed papers 的维护方式和作用。
+- 创建/修改的文件：
+  - `config/interests.json`
+  - `paper_recommender/domain.py`
+  - `paper_recommender/pipeline.py`
+  - `paper_recommender/judge.py`
+  - `tests/test_interest_profile.py`
+  - `tests/test_pipeline.py`
+  - `tests/test_judge.py`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+| seed papers RED 测试 | `python3 -m unittest tests.test_interest_profile tests.test_pipeline tests.test_judge` | 配置加载、payload 序列化、judge prompt 注入都应失败 | 缺少 `SeedPaper`、`InterestProfile.seed_papers`、`request_judgement(seed_papers=...)` | expected-fail |
+| seed papers 局部测试 | `python3 -m unittest tests.test_interest_profile tests.test_pipeline tests.test_judge` | 测试通过 | 20 个测试通过 | pass |
+
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|

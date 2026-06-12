@@ -153,6 +153,7 @@
 | 作者单位补全从 arXiv source 提取 | 当前 live JSON 单位为空的根因是 arXiv Atom 未给出单位。新增 source bundle enrichment：对最终推荐下载 arXiv e-print，解析 TeX 中 `\\affil`、`\\affiliation`、`\\institute` 等宏。 |
 | LLM judge 纳入反馈画像 | `feedback_summary` 中的 section 权重和关键词权重现在会进入 LLM prompt，作为类似 Zotero/library 相似度的轻量个性化信号。 |
 | OpenCode Go 配置保持 OpenAI-compatible 形态 | `OPENAI_API_KEY` 用 Secret，`OPENAI_BASE_URL` 和 `OPENAI_MODEL` 用 GitHub Variables 覆盖；默认值仍指向 OpenCode Go 和 `deepseek-v4-flash`。 |
+| seed papers 作为无服务器个人语料锚点 | `config/interests.json` 中的 `seed_papers` 会写入推荐 JSON，并进入 LLM judge prompt，让代表性论文比单纯关键词更直接地约束相关性判断。 |
 
 ## 初始数据表设想
 ### `feedback_events`
@@ -189,7 +190,7 @@
 ## 遇到的问题
 | 问题 | 解决方案 |
 |------|---------|
-| `ASSASSYN` 暂未确认准确论文链接或标题 | 等用户补充后加入 seed paper 和关键词组。 |
+| `ASSASSYN` 暂未确认准确论文链接 | 已按用户描述作为可编辑 seed 加入 `config/interests.json`；后续可补精确 URL。 |
 | 静态页面无法安全写入 GitHub 仓库 | 使用 Supabase 或后续 Cloudflare Worker/D1。 |
 | 泛 AI agent 论文会污染结果 | 扩展分类必须经过领域 gate，并对泛 agent 关键词降权。 |
 | 当前环境连接 `github.com:443` 下载上游代码多次超时 | 先实现自有 MVP，保留后续接入 `daily-arXiv-ai-enhanced` 的阶段任务。 |
@@ -197,10 +198,11 @@
 ## 资源
 - `daily-arXiv-ai-enhanced`: https://github.com/dw-dengwei/daily-arXiv-ai-enhanced
 - arXiv taxonomy: https://arxiv.org/category_taxonomy
-- 代表方向 seed，需要后续在实现阶段固化到配置中：
+- 代表方向 seed，已固化到 `config/interests.json` 中：
   - ArchAgent: Agentic AI-driven Computer Architecture Discovery
-  - Agentic Architect: Agentic AI Framework for Architecture Design Exploration and Optimization
   - Computer Architecture's AlphaZero Moment: Automated Discovery in an Encircled World
+  - ArchExplorer: Microarchitecture Exploration Via Bottleneck Analysis
+  - ASSASSYN: A Unified Abstraction for Architectural Simulation and Implementation
 
 ## 视觉/浏览器发现
 - 上游项目 README 显示其主要能力为 GitHub Actions、Pages、AI 摘要、本地偏好存储和关键词/作者配置。

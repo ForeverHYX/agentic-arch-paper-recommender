@@ -124,6 +124,46 @@ class JudgeTests(unittest.TestCase):
         self.assertIn("Prefer keywords: gem5, cache", prompt)
         self.assertIn("Avoid keywords: browser", prompt)
 
+    def test_request_judgement_includes_seed_papers_as_interest_anchors(self):
+        seen = {}
+
+        def opener(request):
+            seen["body"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"score": 9, "reason": "贴近种子论文画像。", "decision": "keep"}'
+                            }
+                        }
+                    ]
+                }
+            )
+
+        request_judgement(
+            {
+                "title": "Agentic Architecture Design Space Exploration",
+                "abstract": "A hardware design agent explores microarchitecture choices.",
+                "score": 5.0,
+            },
+            api_key="secret",
+            seed_papers=[
+                {
+                    "title": "Computer Architecture's AlphaZero Moment",
+                    "notes": "Positive seed for automated architecture discovery.",
+                    "keywords": ["automated architecture discovery", "design space exploration"],
+                }
+            ],
+            opener=opener,
+        )
+
+        prompt = seen["body"]["messages"][1]["content"]
+        self.assertIn("Representative seed papers", prompt)
+        self.assertIn("Computer Architecture's AlphaZero Moment", prompt)
+        self.assertIn("Positive seed for automated architecture discovery", prompt)
+        self.assertIn("automated architecture discovery", prompt)
+
     def test_enrich_payload_with_judgements_reranks_and_limits_by_ai_score(self):
         payload = {
             "profile_name": "Agentic Architecture",
@@ -175,6 +215,48 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(enriched["recommendations"][0]["ai_score"], 9.0)
         self.assertEqual(enriched["recommendations"][0]["ai_judgement"]["decision"], "keep")
         self.assertIn("高度贴合", enriched["recommendations"][0]["ai_judgement"]["reason"])
+
+    def test_enrich_payload_with_judgements_passes_profile_seed_papers_to_model(self):
+        payload = {
+            "profile_name": "Agentic Architecture",
+            "profile_context": {
+                "seed_papers": [
+                    {
+                        "title": "ASSASSYN-style Full-stack Co-design",
+                        "notes": "Positive seed for full-stack hardware/software co-design.",
+                        "keywords": ["full-stack co-design"],
+                    }
+                ]
+            },
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "paper_id": "codesign",
+                    "title": "Full-stack Accelerator Co-design",
+                    "abstract": "Compiler and hardware are optimized together.",
+                    "score": 5.0,
+                }
+            ],
+        }
+        seen = {}
+
+        def opener(request):
+            seen["prompt"] = json.loads(request.data.decode("utf-8"))["messages"][1]["content"]
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"score": 8, "reason": "符合 seed。", "decision": "keep"}'
+                            }
+                        }
+                    ]
+                }
+            )
+
+        enrich_payload_with_judgements(payload, api_key="secret", opener=opener)
+
+        self.assertIn("ASSASSYN-style Full-stack Co-design", seen["prompt"])
 
     def test_enrich_payload_with_judgements_excludes_dropped_papers_even_when_under_limit(self):
         payload = {

@@ -3,6 +3,48 @@
   "core_categories": ["cs.AR", "cs.PF", "cs.DC", "cs.PL"],
   "expansion_categories": ["cs.AI", "cs.LG"],
   "expansion_accept_score": 4.0,
+  "seed_papers": [
+    {
+      "title": "Computer Architecture's AlphaZero Moment: Automated Discovery in an Encircled World",
+      "notes": "Positive seed for automated computer architecture discovery and agentic design exploration.",
+      "keywords": [
+        "automated architecture discovery",
+        "agentic computer architecture",
+        "architecture design space exploration",
+        "simulator-guided search"
+      ]
+    },
+    {
+      "title": "ArchAgent: Agentic AI-driven Computer Architecture Discovery",
+      "notes": "Positive seed for LLM/agent-driven architecture proposal, evaluation, and iterative refinement.",
+      "keywords": [
+        "agentic ai-driven",
+        "hardware design agent",
+        "microarchitecture exploration",
+        "architecture idea factory"
+      ]
+    },
+    {
+      "title": "ArchExplorer: Microarchitecture Exploration Via Bottleneck Analysis",
+      "notes": "Positive seed for principled architecture design-space exploration and bottleneck-guided search.",
+      "keywords": [
+        "microarchitecture design space exploration",
+        "bottleneck analysis",
+        "architecture exploration",
+        "performance modeling"
+      ]
+    },
+    {
+      "title": "ASSASSYN: A Unified Abstraction for Architectural Simulation and Implementation",
+      "notes": "Positive seed for full-stack hardware/software co-design and simulation-to-implementation workflows.",
+      "keywords": [
+        "full-stack co-design",
+        "architectural simulation",
+        "hardware software co-design",
+        "compiler architecture co-design"
+      ]
+    }
+  ],
   "sections": [
     {
       "id": "agentic_architecture",
@@ -126,4 +168,3 @@
     }
   ]
 }
-

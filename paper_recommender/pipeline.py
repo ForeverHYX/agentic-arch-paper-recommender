@@ -112,6 +112,9 @@ def recommendation_payload(
         "run_date": resolved_run_date,
         "profile_name": resolved_profile.name,
         "section_labels": resolved_profile.section_labels,
+        "profile_context": {
+            "seed_papers": [seed.to_dict() for seed in resolved_profile.seed_papers],
+        },
         "feedback_summary": {
             "section_weights": feedback_weights,
             "keyword_weights": keyword_weights,
