@@ -129,6 +129,53 @@ class FeedbackPipelineTests(unittest.TestCase):
         self.assertGreater(payload["feedback_summary"]["toolchain_weights"]["gem5"], 0)
         self.assertLess(payload["feedback_summary"]["author_weights"]["Generic Author"], 0)
 
+    def test_recommendation_payload_includes_feedback_metrics(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.TEST"}),
+            expansion_categories=frozenset(),
+            sections=(SectionRule("arch", "Architecture", 1.0, ("architecture",)),),
+        )
+        paper = Paper(
+            "candidate",
+            "Architecture Study",
+            "architecture cache design",
+            [],
+            ["cs.TEST"],
+        )
+
+        payload = recommendation_payload(
+            [paper],
+            run_date="2026-06-12",
+            profile=profile,
+            feedback_events=[
+                FeedbackEvent(
+                    "liked",
+                    "like",
+                    "arch",
+                    title="gem5 architecture exploration",
+                    abstract="MLIR and gem5 for architecture DSE.",
+                    source="page",
+                ),
+                FeedbackEvent(
+                    "disliked",
+                    "dislike",
+                    "arch",
+                    title="web agent benchmark",
+                    abstract="Browser automation benchmark.",
+                    source="email",
+                ),
+            ],
+        )
+
+        metrics = payload["feedback_summary"]["metrics"]
+        self.assertEqual(metrics["total_events"], 2)
+        self.assertEqual(metrics["like_count"], 1)
+        self.assertEqual(metrics["dislike_count"], 1)
+        self.assertEqual(metrics["source_counts"]["page"], 1)
+        self.assertIn("gem5", metrics["top_liked_keywords"])
+        self.assertIn("browser", metrics["top_disliked_keywords"])
+
     def test_recommendation_history_penalizes_repeated_papers(self):
         profile = InterestProfile(
             name="Custom",

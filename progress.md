@@ -158,6 +158,33 @@
 | 反馈状态诊断 RED 测试 | `python3 -m unittest tests.test_site_contract tests.test_feedback_page_contract` | 缺少 `renderFeedbackStatus`、`feedbackStatus` 和本地导出时失败 | `renderFeedbackStatus is not a function`，页面缺少导出元素 | expected-fail |
 | 反馈状态诊断局部测试 | `python3 -m unittest tests.test_site_contract tests.test_feedback_page_contract` | 测试通过 | 9 个测试通过 | pass |
 
+## 会话补充：反馈学习指标
+- **状态：** in_progress
+- 执行的操作：
+  - 增加 `feedback_metrics`，统计反馈总数、like/dislike、like rate、来源/栏目分布和正负反馈主题。
+  - `recommendations.json` 的 `feedback_summary.metrics` 写入上述指标。
+  - Pages 侧边栏显示学习指标摘要：反馈量、喜欢率、liked/disliked topics。
+  - 邮件 digest 顶部显示同一组反馈指标，便于每天查看推荐画像状态。
+  - README 和计划说明邮件打开率需要外部追踪，MVP 只做可验证的反馈指标。
+- 创建/修改的文件：
+  - `paper_recommender/feedback.py`
+  - `paper_recommender/pipeline.py`
+  - `paper_recommender/emailer.py`
+  - `site/index.html`
+  - `site/app.js`
+  - `site/styles.css`
+  - `tests/test_feedback.py`
+  - `tests/test_feedback_pipeline.py`
+  - `tests/test_site_contract.py`
+  - `tests/test_emailer.py`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+| 反馈指标 RED 测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline tests.test_site_contract tests.test_emailer` | 缺少 metrics 函数、payload 字段、页面函数和邮件摘要时失败 | import/key/function/assertion 失败 | expected-fail |
+| 反馈指标局部测试 | `python3 -m unittest tests.test_feedback tests.test_feedback_pipeline tests.test_site_contract tests.test_emailer` | 测试通过 | 22 个测试通过 | pass |
+
 ## 会话补充：LLM 使用反馈画像和 provider 可配置化
 - **状态：** in_progress
 - 执行的操作：

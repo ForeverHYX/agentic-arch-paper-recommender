@@ -8,6 +8,7 @@ from paper_recommender.feedback import (
     author_feedback_weights,
     affiliation_feedback_weights,
     feedback_events_from_records,
+    feedback_metrics,
     load_feedback_json,
     section_feedback_weights,
     text_feedback_weights,
@@ -179,6 +180,56 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(toolchains["accel-sim"], 1.0)
         self.assertEqual(toolchains["cuda"], -1.0)
         self.assertEqual(toolchains["openmp"], -1.0)
+
+    def test_feedback_metrics_summarize_activity_and_topics(self):
+        events = [
+            FeedbackEvent(
+                "liked-1",
+                "like",
+                "agentic_architecture",
+                source="page",
+                title="gem5 agentic architecture exploration",
+                abstract="A gem5 architecture design agent with MLIR.",
+                authors=["A. Architect"],
+                affiliations=["University of Architecture"],
+            ),
+            FeedbackEvent(
+                "liked-2",
+                "like",
+                "agentic_architecture",
+                source="email",
+                title="MLIR hardware software co-design",
+                abstract="Full-stack co-design with gem5.",
+                authors=["A. Architect"],
+                affiliations=["University of Architecture"],
+            ),
+            FeedbackEvent(
+                "disliked-1",
+                "dislike",
+                "hpc_cross_over",
+                source="page",
+                title="web agent benchmark",
+                abstract="Browser automation benchmark without architecture insight.",
+                authors=["Generic Author"],
+                affiliations=["Generic Benchmark Institute"],
+            ),
+        ]
+
+        metrics = feedback_metrics(events)
+
+        self.assertEqual(metrics["total_events"], 3)
+        self.assertEqual(metrics["like_count"], 2)
+        self.assertEqual(metrics["dislike_count"], 1)
+        self.assertAlmostEqual(metrics["like_rate"], 2 / 3)
+        self.assertEqual(metrics["source_counts"]["page"], 2)
+        self.assertEqual(metrics["section_counts"]["agentic_architecture"], 2)
+        self.assertIn("gem5", metrics["top_liked_keywords"])
+        self.assertIn("browser", metrics["top_disliked_keywords"])
+        self.assertEqual(metrics["top_liked_authors"][0], "A. Architect")
+        self.assertEqual(metrics["top_disliked_authors"][0], "Generic Author")
+        self.assertIn("University of Architecture", metrics["top_liked_affiliations"])
+        self.assertIn("Generic Benchmark Institute", metrics["top_disliked_affiliations"])
+        self.assertIn("gem5", metrics["top_liked_toolchains"])
 
 
 if __name__ == "__main__":

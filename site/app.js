@@ -14,6 +14,7 @@ function render(payload) {
   runDate.textContent = payload.run_date ? `Run date: ${payload.run_date}` : "";
   renderControls(payload);
   renderFeedbackStatus();
+  renderFeedbackInsights(payload.feedback_summary?.metrics || {});
   applyControls();
 }
 
@@ -150,6 +151,30 @@ function renderFeedbackStatus() {
   `;
 }
 
+function renderFeedbackInsights(metrics) {
+  const target = document.getElementById("feedbackInsights");
+  if (!target) return;
+
+  const total = Number(metrics.total_events || 0);
+  if (!total) {
+    target.innerHTML = `
+      <strong>Learning</strong>
+      <span>No persisted feedback yet.</span>
+    `;
+    return;
+  }
+
+  const likeRate = Math.round(Number(metrics.like_rate || 0) * 100);
+  const likedTopics = uniqueStrings([...(metrics.top_liked_keywords || []), ...(metrics.top_liked_toolchains || [])]).slice(0, 4);
+  const dislikedTopics = uniqueStrings([...(metrics.top_disliked_keywords || []), ...(metrics.top_disliked_toolchains || [])]).slice(0, 4);
+  target.innerHTML = `
+    <strong>Learning</strong>
+    <span>${total} feedback events, ${likeRate}% like rate</span>
+    ${likedTopics.length ? `<span>liked: ${escapeHtml(likedTopics.join(", "))}</span>` : ""}
+    ${dislikedTopics.length ? `<span>disliked: ${escapeHtml(dislikedTopics.join(", "))}</span>` : ""}
+  `;
+}
+
 function renderSectionNav(groups, sectionLabels) {
   const target = document.getElementById("sectionNav");
   if (!groups.size) {
@@ -212,6 +237,19 @@ function hasAffiliations(paper) {
 function stringList(value) {
   if (!Array.isArray(value)) return [];
   return value.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const result = [];
+  values.forEach((value) => {
+    const text = String(value).trim();
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) return;
+    seen.add(key);
+    result.push(text);
+  });
+  return result;
 }
 
 function localFeedbackCount() {

@@ -158,6 +158,7 @@
 | 反馈学习加入实体权重 | like/dislike 现在会学习作者、机构和体系结构/HPC 工具链权重，并同时影响规则排序和 LLM judge prompt。机构权重保持弱信号，避免 arXiv 单位缺失导致过度惩罚。 |
 | Pages 显示反馈持久化状态 | 静态页面无法自动证明点击是否进入跨天学习闭环；侧边栏现在直接显示 Supabase 是否启用，并在 local-only 模式提示本地保存数量。 |
 | 本地反馈可导出 | 未配置 Supabase 时，like/dislike 会进入浏览器 localStorage。反馈页现在提供 JSON 导出，避免用户在配置 Supabase 前丢失点击记录。 |
+| 评估指标先聚焦可验证反馈 | 邮件打开率需要追踪像素或邮件服务商统计，不适合静态 Pages MVP；当前实现反馈量、喜欢率、来源/栏目统计和正负反馈主题，直接来自 GitHub Actions 可读取的 feedback events。 |
 
 ## 初始数据表设想
 ### `feedback_events`

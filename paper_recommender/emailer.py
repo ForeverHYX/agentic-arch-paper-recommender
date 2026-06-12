@@ -19,6 +19,7 @@ def render_email_html(
     run_date = escape(str(payload.get("run_date", "")))
     section_labels = payload.get("section_labels") or {}
     grouped = _group_recommendations(payload.get("recommendations", []))
+    feedback_html = _render_feedback_metrics((payload.get("feedback_summary") or {}).get("metrics") or {})
 
     sections_html = []
     for section_key, recommendations in grouped.items():
@@ -34,6 +35,7 @@ def render_email_html(
 <html>
   <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5;">
     <h1>Daily arXiv Recommendations - {run_date}</h1>
+    {feedback_html}
     {body}
   </body>
 </html>
@@ -98,6 +100,44 @@ def _render_recommendation_item(
         </p>
       </li>
     """
+
+
+def _render_feedback_metrics(metrics: dict[str, Any]) -> str:
+    total = int(metrics.get("total_events") or 0)
+    if total <= 0:
+        return ""
+
+    like_rate = round(float(metrics.get("like_rate") or 0) * 100)
+    liked_topics = _unique_strings(
+        list(metrics.get("top_liked_keywords") or []) + list(metrics.get("top_liked_toolchains") or [])
+    )[:4]
+    disliked_topics = _unique_strings(
+        list(metrics.get("top_disliked_keywords") or []) + list(metrics.get("top_disliked_toolchains") or [])
+    )[:4]
+    topic_parts = []
+    if liked_topics:
+        topic_parts.append(f"liked: {escape(', '.join(liked_topics))}")
+    if disliked_topics:
+        topic_parts.append(f"disliked: {escape(', '.join(disliked_topics))}")
+    topics = f"<br>{' | '.join(topic_parts)}" if topic_parts else ""
+    return (
+        '<p style="color: #555; border-left: 4px solid #0f766e; padding-left: 10px;">'
+        f"<strong>Feedback: {total} events</strong>, {like_rate}% like rate"
+        f"{topics}</p>"
+    )
+
+
+def _unique_strings(values: list[Any]) -> list[str]:
+    seen = set()
+    result = []
+    for value in values:
+        text = str(value).strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
 
 
 def _feedback_url(base_url: str, paper_id: str, rating: str, section: str) -> str:

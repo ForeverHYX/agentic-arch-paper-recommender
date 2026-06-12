@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 import json
 import os
@@ -155,6 +155,33 @@ def toolchain_feedback_weights(events: list[FeedbackEvent]) -> dict[str, float]:
     return {toolchain: weight for toolchain, weight in weights.items() if weight != 0}
 
 
+def feedback_metrics(events: list[FeedbackEvent], limit: int = 5) -> dict[str, Any]:
+    like_count = sum(1 for event in events if event.rating == "like")
+    dislike_count = sum(1 for event in events if event.rating == "dislike")
+    total = like_count + dislike_count
+    keyword_weights = text_feedback_weights(events)
+    author_weights = author_feedback_weights(events)
+    affiliation_weights = affiliation_feedback_weights(events)
+    toolchain_weights = toolchain_feedback_weights(events)
+
+    return {
+        "total_events": total,
+        "like_count": like_count,
+        "dislike_count": dislike_count,
+        "like_rate": like_count / total if total else 0.0,
+        "source_counts": dict(Counter(event.source or "unknown" for event in events)),
+        "section_counts": dict(Counter(event.section for event in events if event.section)),
+        "top_liked_keywords": _top_positive(keyword_weights, limit=limit),
+        "top_disliked_keywords": _top_negative(keyword_weights, limit=limit),
+        "top_liked_authors": _top_positive(author_weights, limit=limit),
+        "top_disliked_authors": _top_negative(author_weights, limit=limit),
+        "top_liked_affiliations": _top_positive(affiliation_weights, limit=limit),
+        "top_disliked_affiliations": _top_negative(affiliation_weights, limit=limit),
+        "top_liked_toolchains": _top_positive(toolchain_weights, limit=limit),
+        "top_disliked_toolchains": _top_negative(toolchain_weights, limit=limit),
+    }
+
+
 def text_feedback_adjustment(text: str, weights: dict[str, float], scale: float = 0.25) -> float:
     if not weights:
         return 0.0
@@ -273,6 +300,22 @@ def _entity_feedback_weights(events: list[FeedbackEvent], extractor: Callable[[F
 
 def _normalize_entity(value: str) -> str:
     return re.sub(r"\s+", " ", str(value).strip()).casefold()
+
+
+def _top_positive(weights: dict[str, float], limit: int = 5) -> list[str]:
+    return [
+        name
+        for name, weight in sorted(weights.items(), key=lambda item: (-item[1], item[0].casefold()))
+        if weight > 0
+    ][:limit]
+
+
+def _top_negative(weights: dict[str, float], limit: int = 5) -> list[str]:
+    return [
+        name
+        for name, weight in sorted(weights.items(), key=lambda item: (item[1], item[0].casefold()))
+        if weight < 0
+    ][:limit]
 
 
 def _toolchain_terms(text: str) -> set[str]:

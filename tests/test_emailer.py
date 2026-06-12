@@ -8,6 +8,18 @@ class EmailerTests(unittest.TestCase):
         payload = {
             "run_date": "2026-06-12",
             "section_labels": {"agentic_architecture": "Agentic Architecture / Auto-DSE"},
+            "feedback_summary": {
+                "metrics": {
+                    "total_events": 3,
+                    "like_count": 2,
+                    "dislike_count": 1,
+                    "like_rate": 2 / 3,
+                    "top_liked_keywords": ["gem5", "mlir"],
+                    "top_disliked_keywords": ["browser"],
+                    "top_liked_toolchains": ["gem5"],
+                    "top_disliked_toolchains": ["cuda"],
+                }
+            },
             "recommendations": [
                 {
                     "rank": 1,
@@ -54,6 +66,10 @@ class EmailerTests(unittest.TestCase):
         self.assertIn("https://github.com/example/arch-agent", html)
         self.assertIn("Code Search", html)
         self.assertIn("https://github.com/search?q=Agentic+Architecture+Exploration", html)
+        self.assertIn("Feedback: 3 events", html)
+        self.assertIn("67% like rate", html)
+        self.assertIn("liked: gem5, mlir", html)
+        self.assertIn("disliked: browser", html)
 
     def test_render_email_uses_payload_section_labels(self):
         payload = {

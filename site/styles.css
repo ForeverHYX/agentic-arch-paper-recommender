@@ -174,7 +174,8 @@ h1 {
   font-size: 12px;
 }
 
-.feedback-status {
+.feedback-status,
+.feedback-insights {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
@@ -183,12 +184,15 @@ h1 {
   line-height: 1.45;
 }
 
-.feedback-status strong {
+.feedback-status strong,
+.feedback-insights strong {
   display: block;
   margin-bottom: 3px;
 }
 
-.feedback-status span {
+.feedback-status span,
+.feedback-insights span {
+  display: block;
   color: var(--muted);
 }
 

@@ -140,6 +140,8 @@ The daily pipeline converts likes and dislikes into lightweight learning signals
 - affiliation weights, used as a weak signal because arXiv affiliation data is incomplete
 - toolchain weights for architecture/HPC tooling such as `gem5`, `MLIR`, `CIRCT`, `Accel-Sim`, `GPGPU-Sim`, `Ramulator`, `CUDA`, `ROCm`, `SYCL`, `OpenMP`, and `MPI`
 
+`recommendations.json` also includes `feedback_summary.metrics`, which is shown in the reader sidebar and email digest. It reports persisted feedback count, like/dislike counts, like rate, source/section counts, and the strongest liked/disliked keywords, authors, affiliations, and toolchains. These metrics are based on feedback rows GitHub Actions can read, so they remain zero until Supabase is configured or a feedback JSON file is provided locally.
+
 Operational notes:
 
 - The anon key is public by design; RLS in [supabase/schema.sql](supabase/schema.sql) must remain enabled so the browser can only insert feedback rows.

@@ -144,6 +144,36 @@ if (!html.includes("Supabase active")) {
 """
         )
 
+    def test_reader_shows_feedback_learning_metrics(self):
+        self.run_app_script(
+            """
+context.renderFeedbackInsights({
+  total_events: 3,
+  like_count: 2,
+  dislike_count: 1,
+  like_rate: 0.6667,
+  top_liked_keywords: ["gem5", "mlir"],
+  top_disliked_keywords: ["browser"],
+  top_liked_toolchains: ["gem5"],
+  top_disliked_toolchains: ["cuda"],
+});
+
+const html = elements.feedbackInsights.innerHTML;
+if (!html.includes("3 feedback events")) {
+  throw new Error(`missing feedback count: ${html}`);
+}
+if (!html.includes("67% like rate")) {
+  throw new Error(`missing like rate: ${html}`);
+}
+if (!html.includes("gem5")) {
+  throw new Error(`missing liked topic: ${html}`);
+}
+if (!html.includes("browser")) {
+  throw new Error(`missing disliked topic: ${html}`);
+}
+"""
+        )
+
     def test_index_uses_versioned_frontend_assets(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
@@ -165,11 +195,13 @@ if (!html.includes("Supabase active")) {
         self.assertIn('id="sortSelect"', html)
         self.assertIn('id="resultCount"', html)
         self.assertIn('id="feedbackStatus"', html)
+        self.assertIn('id="feedbackInsights"', html)
         self.assertLess(html.index("config.js"), html.index("app.js"))
         self.assertIn("renderSummaryStats", script)
         self.assertIn("renderSectionNav", script)
         self.assertIn("renderControls", script)
         self.assertIn("renderFeedbackStatus", script)
+        self.assertIn("renderFeedbackInsights", script)
         self.assertIn("applyControls", script)
         self.assertIn("filteredRecommendations", script)
         self.assertIn("collectFilterState", script)

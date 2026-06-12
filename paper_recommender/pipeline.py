@@ -16,6 +16,7 @@ from paper_recommender.feedback import (
     author_feedback_weights,
     entity_feedback_adjustment,
     FeedbackEvent,
+    feedback_metrics,
     load_feedback_json,
     section_feedback_weights,
     text_feedback_adjustment,
@@ -75,11 +76,12 @@ def recommendation_payload(
     min_count: int = 0,
 ) -> dict[str, Any]:
     resolved_profile = profile or load_interest_profile()
-    feedback_weights = section_feedback_weights(feedback_events or [])
-    keyword_weights = text_feedback_weights(feedback_events or [])
-    author_weights = author_feedback_weights(feedback_events or [])
-    affiliation_weights = affiliation_feedback_weights(feedback_events or [])
-    toolchain_weights = toolchain_feedback_weights(feedback_events or [])
+    resolved_feedback_events = feedback_events or []
+    feedback_weights = section_feedback_weights(resolved_feedback_events)
+    keyword_weights = text_feedback_weights(resolved_feedback_events)
+    author_weights = author_feedback_weights(resolved_feedback_events)
+    affiliation_weights = affiliation_feedback_weights(resolved_feedback_events)
+    toolchain_weights = toolchain_feedback_weights(resolved_feedback_events)
     shown_counts = history_counts(history_runs or [])
     ranked = _apply_feedback_weights(
         rank_papers(papers, profile=resolved_profile),
@@ -143,6 +145,7 @@ def recommendation_payload(
             "author_weights": author_weights,
             "affiliation_weights": affiliation_weights,
             "toolchain_weights": toolchain_weights,
+            "metrics": feedback_metrics(resolved_feedback_events),
         },
         "history_summary": {
             "shown_counts": shown_counts,
