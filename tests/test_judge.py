@@ -86,6 +86,44 @@ class JudgeTests(unittest.TestCase):
         self.assertIn("University of Architecture", seen["body"]["messages"][1]["content"])
         self.assertIn("Affiliations", seen["body"]["messages"][1]["content"])
 
+    def test_request_judgement_includes_learned_feedback_profile(self):
+        seen = {}
+
+        def opener(request):
+            seen["body"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"score": 8, "reason": "符合反馈画像。", "decision": "keep"}'
+                            }
+                        }
+                    ]
+                }
+            )
+
+        request_judgement(
+            {
+                "title": "GPU Simulator for HPC Kernels",
+                "abstract": "A simulator evaluates GPU memory hierarchy behavior.",
+                "score": 4.0,
+            },
+            api_key="secret",
+            feedback_summary={
+                "section_weights": {"microarchitecture_simulators": 2.0, "hpc_cross_over": -1.0},
+                "keyword_weights": {"gem5": 2.0, "browser": -2.0, "cache": 1.0},
+            },
+            opener=opener,
+        )
+
+        prompt = seen["body"]["messages"][1]["content"]
+        self.assertIn("Learned feedback profile", prompt)
+        self.assertIn("Prefer sections: microarchitecture_simulators", prompt)
+        self.assertIn("Avoid sections: hpc_cross_over", prompt)
+        self.assertIn("Prefer keywords: gem5, cache", prompt)
+        self.assertIn("Avoid keywords: browser", prompt)
+
     def test_enrich_payload_with_judgements_reranks_and_limits_by_ai_score(self):
         payload = {
             "profile_name": "Agentic Architecture",

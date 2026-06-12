@@ -74,6 +74,8 @@ jobs:
       - name: Judge recommendations with LLM
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}
         run: |
           python -m paper_recommender.judge \
             --input site/recommendations.json \
@@ -90,6 +92,8 @@ jobs:
       - name: Enrich TLDR summaries
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}
         run: |
           python -m paper_recommender.summarizer \
             --input site/recommendations.json \

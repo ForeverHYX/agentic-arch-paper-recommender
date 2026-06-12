@@ -90,6 +90,21 @@ The default OpenAI-compatible endpoint is OpenCode Go: `https://opencode.ai/zen/
 
 Each recommendation includes author affiliations when the source provides them, direct `Paper`, `PDF`, explicit `Code` links when found, and a `Code Search` GitHub repository search URL based on the paper title. arXiv Atom often omits affiliations, so the workflow also tries to download the final papers' arXiv source bundles and parse common LaTeX affiliation macros. Missing affiliations are stored as an empty list rather than guessed.
 
+## LLM Provider Configuration
+
+GitHub Actions reads the OpenAI-compatible provider configuration from:
+
+- GitHub Secret: `OPENAI_API_KEY`
+- GitHub Variable: `OPENAI_BASE_URL`, optional, defaults to `https://opencode.ai/zen/go/v1`
+- GitHub Variable: `OPENAI_MODEL`, optional, defaults to `deepseek-v4-flash`
+
+OpenCode documents OpenCode Go API keys under its provider docs and documents custom OpenAI-compatible providers with a configurable `baseURL`. This repository keeps the same shape at the workflow level: the API key stays secret, while base URL and model can be changed without code edits.
+
+The daily pipeline uses the LLM twice:
+
+- `paper_recommender.judge`: applies the fixed interest profile plus learned like/dislike feedback when scoring candidates.
+- `paper_recommender.summarizer`: generates concise Chinese TLDRs for the final papers.
+
 ## Feedback Storage
 
 Run [supabase/schema.sql](supabase/schema.sql) in your Supabase SQL editor, then configure:

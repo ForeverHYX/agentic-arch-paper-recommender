@@ -136,6 +136,27 @@
 | 作者单位补全全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 63 个测试通过 | pass |
 | 真实 arXiv source smoke test | `curl https://arxiv.org/e-print/2606.11356` 后调用 parser | 能抽取 FESOM2 论文单位 | 抽取出 Alfred Wegener Institute 和 University of Bremen | pass |
 
+## 会话补充：LLM 使用反馈画像和 provider 可配置化
+- **状态：** in_progress
+- 执行的操作：
+  - 检查当前项目与目标差距：已有 LLM TLDR、LLM judge、反馈存储，但 judge prompt 尚未显式纳入 feedback summary。
+  - 增加 judge 测试，要求 OpenAI-compatible 请求中包含 learned feedback profile。
+  - `paper_recommender.judge` 现在把 `feedback_summary.section_weights` 和 `feedback_summary.keyword_weights` 格式化为 prefer/avoid sections/keywords，传给 LLM 判断。
+  - workflow 的 LLM 步骤支持 GitHub Variables `OPENAI_BASE_URL`、`OPENAI_MODEL` 覆盖，默认 OpenCode Go。
+  - README 增加 LLM provider 配置说明。
+- 创建/修改的文件：
+  - `paper_recommender/judge.py`
+  - `.github/workflows/daily.yml`
+  - `tests/test_judge.py`
+  - `tests/test_workflow_contract.py`
+  - `README.md`
+  - `findings.md`
+  - `progress.md`
+
+| LLM feedback prompt RED 测试 | `python3 -m unittest tests.test_judge` | request_judgement 支持 feedback_summary 并写入 prompt | 初始因未知参数失败 | expected-fail |
+| LLM feedback prompt 局部测试 | `python3 -m unittest tests.test_workflow_contract tests.test_judge` | 测试通过 | 14 个测试通过 | pass |
+| LLM feedback/provider 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 66 个测试通过 | pass |
+
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
 |--------|------|---------|---------|

@@ -151,6 +151,8 @@
 | Code 链接采用显式抽取 + GitHub 搜索兜底 | 摘要中出现 GitHub/GitLab/Bitbucket/Hugging Face 链接时展示直达 Code；否则用标题生成 GitHub repository search 链接。 |
 | 作者单位作为弱质量信号 | arXiv Atom 通常不稳定提供单位；系统解析 `arxiv:affiliation` 和外部记录里的 `affiliations`，展示给用户，并传入 LLM judge，但不会因单位缺失直接丢弃论文。 |
 | 作者单位补全从 arXiv source 提取 | 当前 live JSON 单位为空的根因是 arXiv Atom 未给出单位。新增 source bundle enrichment：对最终推荐下载 arXiv e-print，解析 TeX 中 `\\affil`、`\\affiliation`、`\\institute` 等宏。 |
+| LLM judge 纳入反馈画像 | `feedback_summary` 中的 section 权重和关键词权重现在会进入 LLM prompt，作为类似 Zotero/library 相似度的轻量个性化信号。 |
+| OpenCode Go 配置保持 OpenAI-compatible 形态 | `OPENAI_API_KEY` 用 Secret，`OPENAI_BASE_URL` 和 `OPENAI_MODEL` 用 GitHub Variables 覆盖；默认值仍指向 OpenCode Go 和 `deepseek-v4-flash`。 |
 
 ## 初始数据表设想
 ### `feedback_events`

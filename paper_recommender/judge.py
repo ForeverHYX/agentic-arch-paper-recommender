@@ -47,6 +47,7 @@ def request_judgement(
     api_key: str,
     profile_name: str = "",
     section_labels: dict[str, str] | None = None,
+    feedback_summary: dict[str, Any] | None = None,
     base_url: str = DEFAULT_BASE_URL,
     model: str = DEFAULT_MODEL,
     opener: Callable[[Request], Any] = urlopen,
@@ -54,6 +55,7 @@ def request_judgement(
 ) -> Judgement:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
     section_text = _section_text(item, section_labels or {})
+    feedback_text = _feedback_text(feedback_summary or {})
     body = {
         "model": model,
         "temperature": 0.1,
@@ -78,6 +80,7 @@ def request_judgement(
                 "role": "user",
                 "content": (
                     f"Profile: {profile_name}\n"
+                    f"Learned feedback profile: {feedback_text}\n"
                     f"Current rule sections: {section_text}\n"
                     f"Rule score: {item.get('score', '')}\n"
                     f"Title: {item.get('title', '')}\n"
@@ -120,6 +123,7 @@ def enrich_payload_with_judgements(
 ) -> dict[str, Any]:
     profile_name = str(payload.get("profile_name", ""))
     section_labels = payload.get("section_labels") or {}
+    feedback_summary = payload.get("feedback_summary") or {}
     judged = []
     for item in payload.get("recommendations", []):
         updated = dict(item)
@@ -132,6 +136,7 @@ def enrich_payload_with_judgements(
                 api_key=api_key,
                 profile_name=profile_name,
                 section_labels=section_labels,
+                feedback_summary=feedback_summary,
                 base_url=base_url,
                 model=model,
                 opener=opener,
@@ -193,6 +198,7 @@ def _safe_judgement(
     api_key: str,
     profile_name: str,
     section_labels: dict[str, str],
+    feedback_summary: dict[str, Any],
     base_url: str,
     model: str,
     opener: Callable[[Request], Any],
@@ -205,6 +211,7 @@ def _safe_judgement(
             api_key=api_key,
             profile_name=profile_name,
             section_labels=section_labels,
+            feedback_summary=feedback_summary,
             base_url=base_url,
             model=model,
             opener=opener,
@@ -238,6 +245,46 @@ def _section_text(item: dict[str, Any], section_labels: dict[str, str]) -> str:
         section_key = str(section)
         labels.append(str(section_labels.get(section_key, section_key)))
     return ", ".join(labels)
+
+
+def _feedback_text(feedback_summary: dict[str, Any]) -> str:
+    section_weights = _weight_dict(feedback_summary.get("section_weights", {}))
+    keyword_weights = _weight_dict(feedback_summary.get("keyword_weights", {}))
+    prefer_sections = _top_weight_names(section_weights, positive=True)
+    avoid_sections = _top_weight_names(section_weights, positive=False)
+    prefer_keywords = _top_weight_names(keyword_weights, positive=True)
+    avoid_keywords = _top_weight_names(keyword_weights, positive=False)
+    parts = [
+        f"Prefer sections: {', '.join(prefer_sections) if prefer_sections else 'none'}",
+        f"Avoid sections: {', '.join(avoid_sections) if avoid_sections else 'none'}",
+        f"Prefer keywords: {', '.join(prefer_keywords) if prefer_keywords else 'none'}",
+        f"Avoid keywords: {', '.join(avoid_keywords) if avoid_keywords else 'none'}",
+    ]
+    return "; ".join(parts)
+
+
+def _top_weight_names(weights: dict[str, float], positive: bool, limit: int = 8) -> list[str]:
+    filtered = [
+        (name, weight)
+        for name, weight in weights.items()
+        if (weight > 0 if positive else weight < 0)
+    ]
+    filtered.sort(key=lambda item: (-abs(item[1]), item[0]))
+    return [name for name, _ in filtered[:limit]]
+
+
+def _weight_dict(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    weights = {}
+    for key, raw_weight in value.items():
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError):
+            continue
+        if weight != 0:
+            weights[str(key)] = weight
+    return weights
 
 
 def _float_value(value: Any, default: float) -> float:

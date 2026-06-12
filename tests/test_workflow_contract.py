@@ -48,6 +48,12 @@ class WorkflowContractTests(unittest.TestCase):
             workflow.index("python -m paper_recommender.email_delivery"),
         )
 
+    def test_daily_workflow_allows_openai_compatible_base_url_and_model_overrides(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}", workflow)
+        self.assertIn("OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}", workflow)
+
     def test_daily_workflow_reads_and_publishes_recommendation_history(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 
