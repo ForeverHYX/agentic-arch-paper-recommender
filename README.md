@@ -19,6 +19,8 @@ The active keyword/category profile lives in:
 
 Edit that file to change the recommender's domain without touching Python code. The initial profile is seeded for agentic computer architecture, full-stack hardware/software co-design, CPU/GPU microarchitecture, simulators, and HPC cross-over work.
 
+The GitHub Pages reader also publishes an `Interest Profile` page at `profile.html`. It loads the current workflow profile, lets you edit the same JSON schema in the browser, saves a local browser copy, and exports `recommender-profile.json`. Put the exported JSON content into the GitHub Secret `PROFILE_OVERRIDE_JSON` to make future workflow runs use it instead of the repository default. This mirrors the settings-page idea from daily arXiv readers while keeping the actual daily recommendation profile under GitHub Actions control.
+
 The profile controls:
 
 - arXiv core categories
@@ -46,6 +48,15 @@ python3 -m paper_recommender.arxiv_source \
   --profile config/interests.json \
   --output output/papers.jsonl \
   --max-results 500
+```
+
+Validate a profile override from an environment variable:
+
+```bash
+PROFILE_OVERRIDE_JSON="$(cat config/interests.json)" \
+python3 -m paper_recommender.profile_config \
+  --from-env PROFILE_OVERRIDE_JSON \
+  --output output/interests.json
 ```
 
 Build recommendations from JSONL:

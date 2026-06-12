@@ -201,7 +201,8 @@ h1 {
   gap: 8px;
 }
 
-.section-nav a {
+.section-nav a,
+.profile-link {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -214,6 +215,50 @@ h1 {
 
 .section-nav strong {
   color: var(--accent-strong);
+}
+
+.profile-settings {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px clamp(16px, 4vw, 32px) 56px;
+}
+
+.profile-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.profile-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-editor {
+  width: 100%;
+  min-height: 560px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text);
+  padding: 14px;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  resize: vertical;
+}
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .section {

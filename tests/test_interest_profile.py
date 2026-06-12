@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -89,6 +90,41 @@ class InterestProfileTests(unittest.TestCase):
 
         self.assertTrue(result.accepted)
         self.assertEqual(result.sections, ("quantum_control",))
+
+    def test_profile_config_cli_writes_valid_profile_from_environment_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "interests.json"
+            old_value = os.environ.get("PROFILE_OVERRIDE_JSON")
+            os.environ["PROFILE_OVERRIDE_JSON"] = json.dumps(
+                {
+                    "name": "EDA Agents",
+                    "core_categories": ["cs.AR"],
+                    "expansion_categories": ["cs.AI"],
+                    "sections": [
+                        {
+                            "id": "eda_agents",
+                            "label": "EDA Agents",
+                            "weight": 4.0,
+                            "keywords": ["placement agent", "routing agent"],
+                        }
+                    ],
+                }
+            )
+            try:
+                from paper_recommender.profile_config import main
+
+                exit_code = main(["--from-env", "PROFILE_OVERRIDE_JSON", "--output", str(output)])
+            finally:
+                if old_value is None:
+                    os.environ.pop("PROFILE_OVERRIDE_JSON", None)
+                else:
+                    os.environ["PROFILE_OVERRIDE_JSON"] = old_value
+
+            profile = load_interest_profile(output)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(profile.name, "EDA Agents")
+        self.assertEqual(profile.sections[0].keywords, ("placement agent", "routing agent"))
 
     def _write_profile(self, payload):
         with tempfile.TemporaryDirectory() as tmpdir:

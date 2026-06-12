@@ -205,6 +205,32 @@
 | 本地反馈 Secret fallback RED 测试 | `python3 -m unittest tests.test_feedback tests.test_workflow_contract` | 缺少 JSON text parser、`--from-env` 和 workflow step 时失败 | import 失败，workflow 断言失败 | expected-fail |
 | 本地反馈 Secret fallback 局部测试 | `python3 -m unittest tests.test_feedback tests.test_workflow_contract` | 测试通过 | 18 个测试通过 | pass |
 
+## 会话补充：兴趣设置页和 profile override
+- **状态：** in_progress
+- 执行的操作：
+  - 增加 `paper_recommender.profile_config`，从 `PROFILE_OVERRIDE_JSON` 环境变量读取并验证兴趣画像 JSON。
+  - workflow 初始化 `output/interests.json`，可用 `PROFILE_OVERRIDE_JSON` 覆盖默认 `config/interests.json`。
+  - arXiv 抓取和推荐 pipeline 都改为使用 `output/interests.json`，并把该文件发布为 Pages `interests.json`。
+  - 新增 `site/profile.html` 和 `site/profile.js`，支持浏览器编辑、保存本地 copy、下载 `recommender-profile.json`。
+  - README、计划和发现记录补充设置页和 Secret 导入说明。
+- 创建/修改的文件：
+  - `.github/workflows/daily.yml`
+  - `paper_recommender/profile_config.py`
+  - `site/profile.html`
+  - `site/profile.js`
+  - `site/index.html`
+  - `site/styles.css`
+  - `tests/test_interest_profile.py`
+  - `tests/test_workflow_contract.py`
+  - `tests/test_profile_page_contract.py`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+| profile override RED 测试 | `python3 -m unittest tests.test_interest_profile tests.test_workflow_contract tests.test_profile_page_contract` | 缺少 profile_config、workflow override 和 profile 页面时失败 | module/html/js/workflow 断言失败 | expected-fail |
+| profile override 局部测试 | `python3 -m unittest tests.test_interest_profile tests.test_workflow_contract tests.test_profile_page_contract` | 测试通过 | 15 个测试通过 | pass |
+
 ## 会话补充：LLM 使用反馈画像和 provider 可配置化
 - **状态：** in_progress
 - 执行的操作：

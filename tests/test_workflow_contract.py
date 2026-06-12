@@ -10,9 +10,24 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--output output/papers.jsonl", workflow)
         self.assertIn("--max-results 500", workflow)
         self.assertIn("--input output/papers.jsonl", workflow)
+        self.assertIn("--profile output/interests.json", workflow)
         self.assertIn("--limit 45", workflow)
         self.assertIn("--min-count 45", workflow)
         self.assertNotIn("--input examples/sample_papers.jsonl", workflow)
+
+    def test_daily_workflow_allows_profile_override_secret(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("HAS_PROFILE_OVERRIDE: ${{ secrets.PROFILE_OVERRIDE_JSON != '' }}", workflow)
+        self.assertIn("cp config/interests.json output/interests.json", workflow)
+        self.assertIn("Load profile override secret", workflow)
+        self.assertIn("PROFILE_OVERRIDE_JSON: ${{ secrets.PROFILE_OVERRIDE_JSON }}", workflow)
+        self.assertIn("python -m paper_recommender.profile_config --from-env PROFILE_OVERRIDE_JSON --output output/interests.json", workflow)
+        self.assertIn("cp output/interests.json site/interests.json", workflow)
+        self.assertLess(
+            workflow.index("Load profile override secret"),
+            workflow.index("python -m paper_recommender.arxiv_source"),
+        )
 
     def test_daily_workflow_judges_candidates_with_llm_before_tldr_enrichment(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")

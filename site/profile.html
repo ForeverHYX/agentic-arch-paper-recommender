@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Interest Profile</title>
+    <link rel="stylesheet" href="styles.css?v=20260612-profile-settings">
+  </head>
+  <body>
+    <main class="profile-settings">
+      <header class="profile-header">
+        <div>
+          <p class="eyebrow">Personal profile</p>
+          <h1>Interest Profile</h1>
+          <p id="profileStatus">Loading profile...</p>
+        </div>
+        <a class="link-button" href="index.html">Back</a>
+      </header>
+      <section class="profile-panel">
+        <textarea id="profileEditor" class="profile-editor" spellcheck="false"></textarea>
+        <div class="profile-actions">
+          <button id="saveProfileButton" class="link-button" type="button">Save Local Copy</button>
+          <a id="downloadProfileLink" class="link-button">Download JSON</a>
+        </div>
+        <p class="profile-note">To use this profile in daily runs, put the downloaded JSON content into the GitHub Secret <code>PROFILE_OVERRIDE_JSON</code> and rerun the workflow.</p>
+      </section>
+    </main>
+    <script src="profile.js?v=20260612-profile-settings"></script>
+  </body>
+</html>

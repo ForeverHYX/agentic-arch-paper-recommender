@@ -19,6 +19,7 @@ env:
   HAS_SMTP: ${{ secrets.SMTP_HOST != '' && secrets.SMTP_PASSWORD != '' && secrets.EMAIL_SENDER != '' && secrets.EMAIL_RECEIVER != '' }}
   HAS_SUPABASE: ${{ vars.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}
   HAS_LOCAL_FEEDBACK: ${{ secrets.LOCAL_FEEDBACK_JSON != '' }}
+  HAS_PROFILE_OVERRIDE: ${{ secrets.PROFILE_OVERRIDE_JSON != '' }}
 
 jobs:
   build:
@@ -38,11 +39,18 @@ jobs:
           mkdir -p output
           echo '[]' > output/feedback.json
           echo '[]' > output/history.json
+          cp config/interests.json output/interests.json
+
+      - name: Load profile override secret
+        if: env.HAS_PROFILE_OVERRIDE == 'true'
+        env:
+          PROFILE_OVERRIDE_JSON: ${{ secrets.PROFILE_OVERRIDE_JSON }}
+        run: python -m paper_recommender.profile_config --from-env PROFILE_OVERRIDE_JSON --output output/interests.json
 
       - name: Fetch arXiv papers
         run: |
           python -m paper_recommender.arxiv_source \
-            --profile config/interests.json \
+            --profile output/interests.json \
             --output output/papers.jsonl \
             --max-results 500
 
@@ -70,7 +78,7 @@ jobs:
         run: |
           python -m paper_recommender.pipeline \
             --input output/papers.jsonl \
-            --profile config/interests.json \
+            --profile output/interests.json \
             --feedback output/feedback.json \
             --history output/history.json \
             --output site/recommendations.json \
@@ -108,6 +116,7 @@ jobs:
 
       - name: Inject public feedback config
         run: |
+          cp output/interests.json site/interests.json
           cat > site/config.js <<'EOF'
           window.RECOMMENDER_CONFIG = {
             supabaseUrl: "${{ vars.SUPABASE_URL }}",

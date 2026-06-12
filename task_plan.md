@@ -107,6 +107,8 @@
 - [x] 实现栏目分配和初版排序。
 - [x] 添加排除词和降权逻辑。
 - [x] 将关键词画像抽离到 `config/interests.json`。
+- [x] 增加 Pages 兴趣设置页，可编辑并导出同一 profile JSON schema。
+- [x] 增加 `PROFILE_OVERRIDE_JSON` Secret，workflow 可无代码改动替换默认画像。
 - [x] 增加 exploratory 补足策略，避免每日推荐数量过少。
 - [x] 增加 LLM 判断与重排：规则召回 45 条候选，AI 判断后输出最多 15 条。
 - **状态：** in_progress
@@ -126,7 +128,7 @@
 - [x] 反馈成功后显示简洁确认和返回链接。
 - [x] Supabase 未配置时显示本地反馈导出，避免点击记录困在浏览器里。
 - [x] 本地导出的反馈可作为 GitHub Secret 被每日 workflow 读取。
-- [ ] 保留现有关键词/作者设置页，并考虑导入到推荐画像。
+- [x] 增加兴趣设置页，支持导出 `PROFILE_OVERRIDE_JSON` 供 workflow 导入推荐画像。
 - **状态：** in_progress
 
 ### 阶段 6：邮件推送
