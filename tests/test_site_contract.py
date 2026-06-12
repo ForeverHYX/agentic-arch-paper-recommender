@@ -119,6 +119,12 @@ if (!html.includes("<strong>1</strong><span>with units</span>")) {
 """
         )
 
+    def test_index_uses_versioned_frontend_assets(self):
+        html = Path("site/index.html").read_text(encoding="utf-8")
+
+        self.assertIn('href="styles.css?v=', html)
+        self.assertIn('src="app.js?v=', html)
+
     def test_recommendation_page_has_workbench_layout_hooks(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
         styles = Path("site/styles.css").read_text(encoding="utf-8")
