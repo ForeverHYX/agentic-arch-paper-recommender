@@ -14,14 +14,22 @@ DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1"
 DEFAULT_MODEL = "deepseek-v4-flash"
 
 
-def fallback_tldr(item: dict[str, Any], max_chars: int = 180) -> str:
+def fallback_tldr(item: dict[str, Any], max_chars: int = 520) -> str:
     title = str(item.get("title", "")).strip()
     abstract = str(item.get("abstract", "")).strip()
-    text = f"{title}: {abstract}" if title and abstract else title or abstract
-    text = " ".join(text.split())
-    if len(text) <= max_chars:
-        return text
-    return text[: max_chars - 1].rstrip() + "..."
+    normalized = " ".join(abstract.split())
+    sentences = _abstract_sentences(normalized)
+    problem = sentences[0] if sentences else title or "论文摘要信息不足"
+    method = sentences[1] if len(sentences) > 1 else problem
+    conclusion = sentences[-1] if len(sentences) > 2 else method
+    relevance = _relevance_reason(item)
+    text = (
+        f"研究问题：这篇论文关注 {problem} "
+        f"核心方法：作者的主要做法是 {method} "
+        f"关键结论：摘要显示 {conclusion} "
+        f"推荐理由：{relevance}"
+    )
+    return _truncate(" ".join(text.split()), max_chars=max_chars)
 
 
 def request_tldr(
@@ -36,14 +44,16 @@ def request_tldr(
     body = {
         "model": model,
         "temperature": 0.2,
-        "max_tokens": 120,
+        "max_tokens": 480,
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "You summarize arXiv papers for a computer architecture researcher. "
-                    "Write one concise Simplified Chinese TLDR, at most 45 Chinese characters. "
-                    "Focus on method, system, architecture insight, or evaluation angle."
+                    "你为一名计算机体系结构研究者解读 arXiv 论文。"
+                    "请只使用简体中文写 4 句较长 TLDR，约 180-260 个汉字；"
+                    "必须依次覆盖：研究问题、核心方法、关键结论或实验发现、推荐理由。"
+                    "不要只复述标题，不要逐句翻译摘要，不要粘贴英文原句。"
+                    "必要的系统名、工具名、术语和缩写可以保留英文原名。"
                 ),
             },
             {
@@ -95,9 +105,9 @@ def enrich_payload_with_tldrs(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Enrich recommendation JSON with TLDR summaries.")
-    parser.add_argument("--input", required=True, help="Input recommendation JSON path.")
-    parser.add_argument("--output", required=True, help="Output recommendation JSON path.")
+    parser = argparse.ArgumentParser(description="为推荐 JSON 补充 TLDR 解读。")
+    parser.add_argument("--input", required=True, help="输入推荐 JSON 路径。")
+    parser.add_argument("--output", required=True, help="输出推荐 JSON 路径。")
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL))
     parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL))
     args = parser.parse_args(argv)
@@ -112,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(enriched, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Enriched {len(enriched.get('recommendations', []))} recommendations with TLDRs")
+    print(f"已为 {len(enriched.get('recommendations', []))} 条推荐补充 TLDR")
     return 0
 
 
@@ -130,6 +140,33 @@ def _safe_tldr(
         return tldr or fallback_tldr(item)
     except Exception:
         return fallback_tldr(item)
+
+
+def _abstract_sentences(text: str) -> list[str]:
+    if not text:
+        return []
+    parts = []
+    for part in text.replace("?", ".").replace("!", ".").split("."):
+        cleaned = part.strip(" ;:\n\t")
+        if cleaned:
+            parts.append(cleaned)
+    return parts
+
+
+def _relevance_reason(item: dict[str, Any]) -> str:
+    sections = [str(value) for value in item.get("sections", []) if str(value)]
+    positives = [str(value).split(":", 1)[-1] for value in item.get("positive_matches", []) if str(value)]
+    categories = [str(value) for value in item.get("categories", []) if str(value)]
+    clues = positives[:3] or sections[:2] or categories[:2]
+    if clues:
+        return "它命中 " + "、".join(clues) + " 等兴趣信号，适合进一步判断是否值得精读。"
+    return "它来自当前候选池，适合作为探索性论文快速筛查。"
+
+
+def _truncate(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
 
 
 if __name__ == "__main__":

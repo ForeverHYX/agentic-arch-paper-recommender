@@ -3,7 +3,7 @@ let activePayload = null;
 async function loadRecommendations() {
   const response = await fetch("recommendations.json", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Failed to load recommendations: ${response.status}`);
+    throw new Error(`推荐数据加载失败：${response.status}`);
   }
   return response.json();
 }
@@ -11,7 +11,7 @@ async function loadRecommendations() {
 async function loadStatus() {
   const response = await fetch("status.json", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Failed to load status: ${response.status}`);
+    throw new Error(`运行状态加载失败：${response.status}`);
   }
   return response.json();
 }
@@ -19,7 +19,7 @@ async function loadStatus() {
 function render(payload) {
   activePayload = payload;
   const runDate = document.getElementById("runDate");
-  runDate.textContent = payload.run_date ? `Run date: ${payload.run_date}` : "";
+  runDate.textContent = payload.run_date ? `运行日期：${payload.run_date}` : "";
   renderControls(payload);
   renderFeedbackStatus();
   renderFeedbackInsights(payload.feedback_summary?.metrics || {});
@@ -39,8 +39,8 @@ function renderControls(payload) {
   if (!sectionFilter.dataset.ready) {
     const sectionLabels = payload.section_labels || {};
     const sections = Array.from(new Set((payload.recommendations || []).map((paper) => paper.sections?.[0] || "exploratory")));
-    sectionFilter.innerHTML = '<option value="">All sections</option>' + sections.map((section) => {
-      const label = sectionLabels[section] || "Exploratory";
+    sectionFilter.innerHTML = '<option value="">全部栏目</option>' + sections.map((section) => {
+      const label = sectionLabels[section] || "探索性相关";
       return `<option value="${escapeAttr(section)}">${escapeHtml(label)}</option>`;
     }).join("");
     ["searchInput", "sectionFilter", "minAiScore", "hasCodeFilter", "hasAffiliationFilter", "sortSelect"].forEach((id) => {
@@ -58,7 +58,7 @@ function applyControls() {
   renderSummaryStats({ ...activePayload, recommendations: filtered });
   renderRecommendationGroups(filtered, activePayload.section_labels || {});
   const resultCount = document.getElementById("resultCount");
-  resultCount.textContent = `${filtered.length} / ${(activePayload.recommendations || []).length} papers`;
+  resultCount.textContent = `当前显示 ${filtered.length} / ${(activePayload.recommendations || []).length} 篇`;
   highlightTargetPaper();
 }
 
@@ -66,7 +66,7 @@ function renderRecommendationGroups(recommendations, sectionLabels) {
   const container = document.getElementById("recommendations");
 
   if (!recommendations || recommendations.length === 0) {
-    container.innerHTML = '<p class="empty">No matching papers for this run.</p>';
+    container.innerHTML = '<p class="empty">当前筛选条件下没有匹配论文。</p>';
     renderSectionNav(new Map(), {});
     return;
   }
@@ -80,9 +80,9 @@ function renderRecommendationGroups(recommendations, sectionLabels) {
   renderSectionNav(groups, sectionLabels);
 
   container.innerHTML = Array.from(groups.entries()).map(([section, papers]) => {
-    const label = sectionLabels[section] || "Exploratory but Maybe Relevant";
+    const label = sectionLabels[section] || "探索性但可能相关";
     const items = papers.map(renderPaper).join("");
-    return `<section class="section" id="section-${escapeAttr(section)}"><div class="section-heading"><h2>${escapeHtml(label)}</h2><span>${papers.length} papers</span></div>${items}</section>`;
+    return `<section class="section" id="section-${escapeAttr(section)}"><div class="section-heading"><h2>${escapeHtml(label)}</h2><span>${papers.length} 篇</span></div>${items}</section>`;
   }).join("");
 }
 
@@ -141,10 +141,10 @@ function renderSummaryStats(payload) {
   const codeCount = recommendations.filter((paper) => (Array.isArray(paper.code_urls) && paper.code_urls.length > 0) || paper.code_search_url).length;
   const affiliationCount = recommendations.filter(hasAffiliations).length;
   target.innerHTML = `
-    <div><strong>${recommendations.length}</strong><span>papers</span></div>
-    <div><strong>${sectionCount}</strong><span>sections</span></div>
-    <div><strong>${codeCount}</strong><span>code refs</span></div>
-    <div><strong>${affiliationCount}</strong><span>with units</span></div>
+    <div><strong>${recommendations.length}</strong><span>论文</span></div>
+    <div><strong>${sectionCount}</strong><span>栏目</span></div>
+    <div><strong>${codeCount}</strong><span>代码线索</span></div>
+    <div><strong>${affiliationCount}</strong><span>有单位</span></div>
   `;
 }
 
@@ -155,16 +155,16 @@ function renderFeedbackStatus() {
   const config = window.RECOMMENDER_CONFIG || {};
   if (config.supabaseUrl && config.supabaseAnonKey) {
     target.innerHTML = `
-      <strong>Feedback</strong>
-      <span>Supabase active. Like/dislike clicks will update future runs.</span>
+      <strong>反馈</strong>
+      <span>Supabase 已启用，喜欢/不喜欢会进入后续推荐学习。</span>
     `;
     return;
   }
 
   const count = localFeedbackCount();
   target.innerHTML = `
-    <strong>Feedback</strong>
-    <span>local only. ${count} local click${count === 1 ? "" : "s"} saved on this browser; configure Supabase for daily learning.</span>
+    <strong>反馈</strong>
+    <span>仅本地保存：此浏览器已有 ${count} 条点击；配置 Supabase 后才会自动进入每日学习。</span>
   `;
 }
 
@@ -175,8 +175,8 @@ function renderFeedbackInsights(metrics) {
   const total = Number(metrics.total_events || 0);
   if (!total) {
     target.innerHTML = `
-      <strong>Learning</strong>
-      <span>No persisted feedback yet.</span>
+      <strong>学习画像</strong>
+      <span>暂无可持久读取的反馈。</span>
     `;
     return;
   }
@@ -185,10 +185,10 @@ function renderFeedbackInsights(metrics) {
   const likedTopics = uniqueStrings([...(metrics.top_liked_keywords || []), ...(metrics.top_liked_toolchains || [])]).slice(0, 4);
   const dislikedTopics = uniqueStrings([...(metrics.top_disliked_keywords || []), ...(metrics.top_disliked_toolchains || [])]).slice(0, 4);
   target.innerHTML = `
-    <strong>Learning</strong>
-    <span>${total} feedback events, ${likeRate}% like rate</span>
-    ${likedTopics.length ? `<span>liked: ${escapeHtml(likedTopics.join(", "))}</span>` : ""}
-    ${dislikedTopics.length ? `<span>disliked: ${escapeHtml(dislikedTopics.join(", "))}</span>` : ""}
+    <strong>学习画像</strong>
+    <span>${total} 条反馈，喜欢率 ${likeRate}%</span>
+    ${likedTopics.length ? `<span>偏好：${escapeHtml(likedTopics.join(", "))}</span>` : ""}
+    ${dislikedTopics.length ? `<span>降权：${escapeHtml(dislikedTopics.join(", "))}</span>` : ""}
   `;
 }
 
@@ -198,21 +198,21 @@ function renderSubsystemStatus(status) {
 
   if (!status) {
     target.innerHTML = `
-      <strong>Systems</strong>
-      <span>Status unavailable.</span>
+      <strong>系统</strong>
+      <span>状态暂不可用。</span>
     `;
     return;
   }
 
   const rows = [
     ["LLM", status.llm?.configured, status.llm?.model],
-    ["Email", status.smtp?.configured, ""],
+    ["邮件", status.smtp?.configured, ""],
     ["Supabase", status.supabase?.configured, ""],
-    ["local feedback", status.local_feedback?.configured, ""],
-    ["profile override", status.profile_override?.configured, ""],
+    ["本地反馈", status.local_feedback?.configured, ""],
+    ["画像覆盖", status.profile_override?.configured, ""],
   ];
   target.innerHTML = `
-    <strong>Systems</strong>
+    <strong>系统</strong>
     ${rows.map(([label, configured, detail]) => renderStatusRow(label, configured, detail)).join("")}
   `;
 }
@@ -228,19 +228,19 @@ function renderRunHealth(payload, status) {
   const metrics = payload?.feedback_summary?.metrics || {};
   const persistedEvents = Number(metrics.total_events || 0);
   const supabaseActive = isSupabaseActive(status);
-  const feedbackMode = supabaseActive ? "Supabase active" : "local only";
+  const feedbackMode = supabaseActive ? "Supabase 已启用" : "仅本地保存";
   const learningState = supabaseActive
-    ? `${persistedEvents} persisted event${persistedEvents === 1 ? "" : "s"}`
-    : "not persistent yet";
+    ? `${persistedEvents} 条持久反馈`
+    : "尚未持久化";
   const setup = supabaseActive
     ? ""
-    : "<span>Next setup: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY</span>";
+    : "<span>下一步配置：SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY</span>";
 
   target.innerHTML = `
-    <strong>Run Health</strong>
-    <span>AI: ${judged}/${total} judged, ${summarized}/${total} TLDR</span>
-    <span>Feedback: ${escapeHtml(feedbackMode)}</span>
-    <span>Learning: ${escapeHtml(learningState)}</span>
+    <strong>运行状态</strong>
+    <span>AI：${judged}/${total} 已判断，${summarized}/${total} 有 TLDR</span>
+    <span>反馈：${escapeHtml(feedbackMode)}</span>
+    <span>学习：${escapeHtml(learningState)}</span>
     ${setup}
   `;
 }
@@ -255,18 +255,19 @@ function isSupabaseActive(status) {
 
 function renderStatusRow(label, configured, detail) {
   const state = configured ? "on" : "off";
+  const stateLabel = configured ? "开" : "关";
   const detailText = detail ? ` <em>${escapeHtml(detail)}</em>` : "";
-  return `<span><b class="status-${state}">${state}</b> ${escapeHtml(label)}${detailText}</span>`;
+  return `<span><b class="status-${state}">${stateLabel}</b> ${escapeHtml(label)}${detailText}</span>`;
 }
 
 function renderSectionNav(groups, sectionLabels) {
   const target = document.getElementById("sectionNav");
   if (!groups.size) {
-    target.innerHTML = '<span class="empty-nav">No sections</span>';
+    target.innerHTML = '<span class="empty-nav">暂无栏目</span>';
     return;
   }
   target.innerHTML = Array.from(groups.entries()).map(([section, papers]) => {
-    const label = sectionLabels[section] || "Exploratory";
+    const label = sectionLabels[section] || "探索性相关";
     return `<a href="#section-${escapeAttr(section)}"><span>${escapeHtml(label)}</span><strong>${papers.length}</strong></a>`;
   }).join("");
 }
@@ -286,20 +287,20 @@ function renderPaper(paper) {
   const aiScore = aiJudgement?.score ?? paper.ai_score;
   return `
     <article class="paper" id="paper-${escapeAttr(paper.paper_id)}">
-      <div class="paper-meta"><span>#${paper.rank}</span><span>rule ${paper.score}</span>${aiScore !== undefined ? `<span>AI ${escapeHtml(aiScore)}</span>` : ""}<span>${escapeHtml(categories)}</span></div>
+      <div class="paper-meta"><span>#${paper.rank}</span><span>规则分 ${paper.score}</span>${aiScore !== undefined ? `<span>AI ${escapeHtml(aiScore)}</span>` : ""}<span>${escapeHtml(categories)}</span></div>
       <h3>${escapeHtml(paper.title)}</h3>
       <p class="authors">${escapeHtml(authors)}</p>
       ${renderAffiliationBlock(paper.affiliations)}
-      ${paper.tldr ? `<div class="paper-tldr"><span>AI 总结</span><p>${escapeHtml(paper.tldr)}</p></div>` : ""}
+      ${paper.tldr ? `<div class="paper-tldr"><span>核心解读</span><p>${escapeHtml(paper.tldr)}</p></div>` : ""}
       ${aiJudgement ? `<div class="ai-judgement"><span>AI 判断</span><p>${escapeHtml(aiJudgement.reason || "")}</p></div>` : ""}
       <p class="abstract">${escapeHtml(paper.abstract || "")}</p>
       <div class="actions">
-        <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">Paper</a>
+        <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">arXiv</a>
         <a class="link-button" href="${escapeAttr(pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>
-        ${codeLinks.map((url) => `<a class="link-button" href="${escapeAttr(url)}" target="_blank" rel="noreferrer">Code</a>`).join("")}
-        ${codeSearchUrl ? `<a class="link-button" href="${escapeAttr(codeSearchUrl)}" target="_blank" rel="noreferrer">Code Search</a>` : ""}
-        <a class="feedback-button like" href="${likeUrl}">Like</a>
-        <a class="feedback-button dislike" href="${dislikeUrl}">Dislike</a>
+        ${codeLinks.map((url) => `<a class="link-button" href="${escapeAttr(url)}" target="_blank" rel="noreferrer">代码</a>`).join("")}
+        ${codeSearchUrl ? `<a class="link-button" href="${escapeAttr(codeSearchUrl)}" target="_blank" rel="noreferrer">搜代码</a>` : ""}
+        <a class="feedback-button like" href="${likeUrl}">喜欢</a>
+        <a class="feedback-button dislike" href="${dislikeUrl}">不喜欢</a>
       </div>
     </article>
   `;
@@ -373,6 +374,6 @@ function escapeAttr(value) {
 }
 
 loadRecommendations().then(render).catch((error) => {
-  document.getElementById("runDate").textContent = "Failed to load recommendations";
+  document.getElementById("runDate").textContent = "推荐数据加载失败";
   document.getElementById("recommendations").innerHTML = `<pre class="error">${escapeHtml(error.message)}</pre>`;
 });

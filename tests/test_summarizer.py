@@ -26,16 +26,24 @@ class FakeResponse:
 
 
 class SummarizerTests(unittest.TestCase):
-    def test_fallback_tldr_uses_title_and_abstract(self):
+    def test_fallback_tldr_is_structured_chinese_briefing(self):
         text = fallback_tldr(
             {
                 "title": "Agentic Microarchitecture Exploration",
-                "abstract": "This paper uses LLM agents to search cache replacement policies. More detail.",
+                "abstract": (
+                    "This paper studies how LLM agents can search cache replacement policies. "
+                    "It builds a simulator-guided loop that proposes candidates, evaluates them, "
+                    "and refines the next design. The evaluation reports better miss-rate and IPC."
+                ),
             }
         )
 
-        self.assertIn("Agentic Microarchitecture Exploration", text)
-        self.assertLessEqual(len(text), 180)
+        self.assertIn("研究问题：", text)
+        self.assertIn("核心方法：", text)
+        self.assertIn("关键结论：", text)
+        self.assertIn("推荐理由：", text)
+        self.assertGreaterEqual(len(text), 120)
+        self.assertLessEqual(len(text), 520)
 
     def test_request_tldr_calls_openai_compatible_chat_completion(self):
         seen = {}
@@ -61,6 +69,13 @@ class SummarizerTests(unittest.TestCase):
         self.assertEqual(seen["url"], "https://example.com/v1/chat/completions")
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
+        self.assertGreaterEqual(seen["body"]["max_tokens"], 360)
+        system_prompt = seen["body"]["messages"][0]["content"]
+        self.assertIn("简体中文", system_prompt)
+        self.assertIn("研究问题", system_prompt)
+        self.assertIn("核心方法", system_prompt)
+        self.assertIn("关键结论", system_prompt)
+        self.assertIn("推荐理由", system_prompt)
 
     def test_enrich_payload_with_tldrs_uses_fallback_when_api_key_missing(self):
         payload = {
@@ -76,7 +91,7 @@ class SummarizerTests(unittest.TestCase):
         enriched = enrich_payload_with_tldrs(payload, api_key="")
 
         self.assertIn("tldr", enriched["recommendations"][0])
-        self.assertIn("Agentic Microarchitecture Exploration", enriched["recommendations"][0]["tldr"])
+        self.assertIn("研究问题：", enriched["recommendations"][0]["tldr"])
 
     def test_enrich_payload_with_tldrs_falls_back_on_empty_model_response(self):
         payload = {
@@ -94,7 +109,8 @@ class SummarizerTests(unittest.TestCase):
 
         enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener)
 
-        self.assertIn("Agentic Microarchitecture Exploration", enriched["recommendations"][0]["tldr"])
+        self.assertIn("研究问题：", enriched["recommendations"][0]["tldr"])
+        self.assertIn("核心方法：", enriched["recommendations"][0]["tldr"])
 
     def test_cli_updates_recommendation_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:

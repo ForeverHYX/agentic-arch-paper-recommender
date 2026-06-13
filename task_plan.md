@@ -114,7 +114,7 @@
 - **状态：** in_progress
 
 ### 阶段 4：反馈存储
-- [ ] 创建 Supabase 项目。
+- [x] 创建 Supabase 项目。
 - [x] 设计 `recommendation_runs`、`feedback_events`、`profile_state` 表。
 - [x] 配置 RLS：前端只允许插入反馈，不允许读取、更新、删除敏感数据。
 - [x] 在 GitHub Actions 中使用服务密钥读取反馈。
@@ -138,6 +138,7 @@
 - [x] 每篇论文包含 GitHub Pages 详情、喜欢、不喜欢链接。
 - [x] 添加失败重试和空推荐处理。
 - [x] 增加 TLDR、AI 判断、Paper/PDF/Code/Code Search 直达链接。
+- [x] 将邮件系统文案中文化，并把 TLDR 改为较长的中文结构化核心解读。
 - [x] 在邮件和页面中展示作者单位，供质量判断和后续反馈学习使用。
 - **状态：** in_progress
 
@@ -159,6 +160,7 @@
 - [x] 发布 `status.json`，在 Pages 显示 LLM/邮件/Supabase/反馈 fallback/profile override 启用状态。
 - [x] 验证 GitHub Pages 能加载当天数据。
 - [x] 验证邮件能收到并正确跳转。
+- [x] 验证 Supabase 配置链路已启用：GitHub Variables/Secret 存在，Pages `status.json` 显示 Supabase on，最新 workflow 的反馈读取、历史读取和历史发布步骤成功。
 - [ ] 验证反馈写入 Supabase。
 - [ ] 验证次日或手动重跑时反馈影响排序。
 - **状态：** in_progress

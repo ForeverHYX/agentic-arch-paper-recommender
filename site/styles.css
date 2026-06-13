@@ -107,6 +107,8 @@ h1 {
   align-self: start;
   position: sticky;
   top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -127,10 +129,18 @@ h1 {
 
 .controls {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 14px;
   margin-bottom: 14px;
+}
+
+.sidebar-status-stack {
+  display: grid;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
 }
 
 .filter-row {
@@ -501,6 +511,8 @@ h3 {
 
   .sidebar {
     position: static;
+    max-height: none;
+    overflow-y: visible;
   }
 }
 

@@ -162,6 +162,8 @@
 | `LOCAL_FEEDBACK_JSON` 作为无数据库回灌 | 如果暂时不配置 Supabase，用户可以把 Pages 导出的本地反馈 JSON 放到 GitHub Secret，workflow 会在 Supabase 不可用时加载它并参与推荐学习。 |
 | `PROFILE_OVERRIDE_JSON` 作为无代码画像覆盖 | Pages 设置页编辑并导出与 `config/interests.json` 相同 schema 的 JSON；workflow 会在抓取 arXiv 前验证并使用该 Secret 覆盖默认 profile。 |
 | `status.json` 只暴露非敏感启用状态 | Pages 需要告诉用户 LLM、邮件、Supabase、fallback 和 profile override 是否启用；状态文件只写布尔值和公开模型/base URL，不写任何 Secret 内容。 |
+| TLDR 改为结构化中文核心解读 | 短英文截断式 TLDR 无法看出论文核心思想；新的 TLDR prompt 和 fallback 都要求覆盖研究问题、核心方法、关键结论和推荐理由。 |
+| 左侧栏状态卡片置顶 | 运行状态、反馈持久化和学习画像是每日使用时最需要先看的信息；将这些卡片移动到筛选控件上方，并给 sidebar 设置视口内滚动，避免一直翻到底部才看到状态。 |
 
 ## 初始数据表设想
 ### `feedback_events`
@@ -212,6 +214,7 @@
 | 泛 AI agent 论文会污染结果 | 扩展分类必须经过领域 gate，并对泛 agent 关键词降权。 |
 | 当前环境连接 `github.com:443` 下载上游代码多次超时 | 本地 `git clone` 仍失败，但已通过 GitHub 页面/raw 文件完成上游只读审计。 |
 | Supabase anon key 暴露在 Pages 前端 | 这是 Supabase 前端写入模式的正常形态；必须依赖 RLS 限制匿名用户只能 insert，不能 select/update/delete。若公开页面后出现滥用，再加 edge function、token 或验证码类保护。 |
+| 真实 Supabase 写入探针被审批层拦截 | 未绕过审批限制；当前只确认配置链路、workflow 读取/发布步骤和公开 Pages 状态。真实点击写入 `feedback_events` 仍保留待验证。 |
 
 ## 资源
 - `daily-arXiv-ai-enhanced`: https://github.com/dw-dengwei/daily-arXiv-ai-enhanced

@@ -96,12 +96,12 @@ def write_jsonl(records: list[dict[str, Any]], output_path: str | Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Fetch arXiv Atom records and write paper JSONL.")
-    parser.add_argument("--profile", required=True, help="Interest profile JSON path.")
-    parser.add_argument("--output", required=True, help="Output paper JSONL path.")
-    parser.add_argument("--max-results", type=int, default=200, help="Maximum arXiv records to fetch.")
-    parser.add_argument("--start", type=int, default=0, help="Start offset for arXiv API pagination.")
-    parser.add_argument("--source-file", default=None, help="Read Atom XML from a local file instead of arXiv.")
+    parser = argparse.ArgumentParser(description="抓取 arXiv Atom 记录并写入论文 JSONL。")
+    parser.add_argument("--profile", required=True, help="兴趣画像 JSON 路径。")
+    parser.add_argument("--output", required=True, help="输出论文 JSONL 路径。")
+    parser.add_argument("--max-results", type=int, default=200, help="最多抓取 arXiv 记录数。")
+    parser.add_argument("--start", type=int, default=0, help="arXiv API 分页起点。")
+    parser.add_argument("--source-file", default=None, help="从本地 Atom XML 文件读取，而不是访问 arXiv。")
     args = parser.parse_args(argv)
 
     profile = load_interest_profile(args.profile)
@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
 
     records = parse_atom_feed(feed_text)
     write_jsonl(records, args.output)
-    print(f"Wrote {len(records)} arXiv records to {args.output}")
+    print(f"已写入 {len(records)} 条 arXiv 记录到 {args.output}")
     return 0
 
 

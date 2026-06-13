@@ -1,11 +1,11 @@
 {
   "run_date": "2026-06-12",
-  "profile_name": "Agentic Architecture and Full-stack Co-design",
+  "profile_name": "Agentic 架构与全栈软硬件协同设计",
   "section_labels": {
-    "agentic_architecture": "Agentic Architecture / Auto-DSE",
-    "full_stack_codesign": "Full-stack HW/SW Co-design",
-    "microarchitecture_simulators": "CPU/GPU Microarchitecture and Simulators",
-    "hpc_cross_over": "HPC x Architecture / Compiler / Runtime"
+    "agentic_architecture": "Agentic 架构 / 自动设计空间探索",
+    "full_stack_codesign": "全栈软硬件协同设计",
+    "microarchitecture_simulators": "CPU/GPU 微架构与模拟器",
+    "hpc_cross_over": "HPC x 架构 / 编译器 / 运行时"
   },
   "feedback_summary": {
     "section_weights": {
@@ -37,6 +37,7 @@
         "cs.AR"
       ],
       "score": 36.0,
+      "tldr": "研究问题：这篇论文关注如何用 LLM agent 自动探索微架构设计空间。核心方法：它把候选生成、gem5 周期级仿真和下一轮设计改进串成闭环。关键结论：摘要显示该方法能围绕 cache replacement 与 data prefetcher 生成可评估方案。推荐理由：它直接命中 agentic architecture、Auto-DSE 和 simulator-guided search，是当前画像的核心方向。",
       "sections": [
         "agentic_architecture",
         "microarchitecture_simulators"
@@ -71,6 +72,7 @@
         "cs.AR"
       ],
       "score": 21.0,
+      "tldr": "研究问题：这篇论文关注 RISC-V 自定义加速器如何与编译器和运行时协同设计。核心方法：它把 MLIR、runtime scheduling、workload mapping 与 ISA extension 放在同一优化链路。关键结论：摘要显示全栈协同能让领域专用加速器更贴近 workload。推荐理由：它命中 full-stack HW/SW co-design、compiler architecture co-design 和 domain-specific accelerator。",
       "sections": [
         "full_stack_codesign"
       ],

@@ -118,7 +118,7 @@ def feedback_events_from_json_text(text: str) -> list[FeedbackEvent]:
     else:
         records = data
     if not isinstance(records, list):
-        raise ValueError("Feedback JSON must be an array or an object containing an events array.")
+        raise ValueError("反馈 JSON 必须是数组，或包含 events 数组的对象。")
     return feedback_events_from_records(records)
 
 
@@ -260,10 +260,10 @@ def write_feedback_json(events: list[FeedbackEvent], path: str | Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Fetch Supabase feedback events into a JSON file.")
-    parser.add_argument("--output", required=True, help="Output JSON path.")
-    parser.add_argument("--limit", type=int, default=500, help="Maximum feedback events to fetch.")
-    parser.add_argument("--from-env", default=None, help="Read feedback JSON from this environment variable instead of Supabase.")
+    parser = argparse.ArgumentParser(description="读取 Supabase 反馈事件并写入 JSON 文件。")
+    parser.add_argument("--output", required=True, help="输出 JSON 路径。")
+    parser.add_argument("--limit", type=int, default=500, help="最多读取反馈事件数。")
+    parser.add_argument("--from-env", default=None, help="从指定环境变量读取反馈 JSON，而不是访问 Supabase。")
     args = parser.parse_args(argv)
 
     if args.from_env:
@@ -273,14 +273,14 @@ def main(argv: list[str] | None = None) -> int:
         service_role_key = _required_env("SUPABASE_SERVICE_ROLE_KEY")
         events = fetch_feedback_events(supabase_url, service_role_key, limit=args.limit)
     write_feedback_json(events, args.output)
-    print(f"Wrote {len(events)} feedback events to {args.output}")
+    print(f"已写入 {len(events)} 条反馈事件到 {args.output}")
     return 0
 
 
 def _required_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
+        raise RuntimeError(f"缺少必要环境变量：{name}")
     return value
 
 

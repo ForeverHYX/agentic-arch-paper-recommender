@@ -83,7 +83,7 @@ if (events.length !== 1) throw new Error(`expected one event, got ${events.lengt
 if (events[0].paper_id !== "p1") throw new Error("paper id not stored");
 if (events[0].rating !== "like") throw new Error("rating not stored");
 if (events[0].section !== "arch") throw new Error("section not stored");
-if (!elements.statusDetail.textContent.includes("stored locally")) {
+if (!elements.statusDetail.textContent.includes("本地保存")) {
   throw new Error(`missing local storage status: ${elements.statusDetail.textContent}`);
 }
 """
@@ -106,6 +106,18 @@ if (elements.localFeedbackDownload.download !== "recommender-local-feedback.json
 }
 """
         )
+
+    def test_feedback_page_uses_chinese_copy(self):
+        html = Path("site/feedback.html").read_text(encoding="utf-8")
+        script = Path("site/feedback.js").read_text(encoding="utf-8")
+
+        self.assertIn('lang="zh-CN"', html)
+        self.assertIn("正在记录反馈", html)
+        self.assertIn("下载本地反馈 JSON", html)
+        self.assertIn("返回推荐列表", html)
+        self.assertIn("反馈已记录", script)
+        self.assertIn("反馈已保存到本地", script)
+        self.assertIn("缺少或无效的反馈参数", script)
 
 
 if __name__ == "__main__":

@@ -145,17 +145,17 @@ def publish_recommendation_runs(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Fetch or publish Supabase recommendation history.")
+    parser = argparse.ArgumentParser(description="读取或发布 Supabase 推荐历史。")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    fetch_parser = subparsers.add_parser("fetch", help="Fetch recommendation history into JSON.")
-    fetch_parser.add_argument("--output", required=True, help="Output JSON path.")
-    fetch_parser.add_argument("--limit", type=int, default=1000, help="Maximum rows to fetch.")
+    fetch_parser = subparsers.add_parser("fetch", help="读取推荐历史并写入 JSON。")
+    fetch_parser.add_argument("--output", required=True, help="输出 JSON 路径。")
+    fetch_parser.add_argument("--limit", type=int, default=1000, help="最多读取行数。")
 
-    publish_parser = subparsers.add_parser("publish", help="Publish recommendation JSON to history.")
-    publish_parser.add_argument("--recommendations", required=True, help="Recommendation JSON path.")
-    publish_parser.add_argument("--shown-in-email", action="store_true", help="Mark rows as shown in email.")
-    publish_parser.add_argument("--no-shown-on-page", action="store_true", help="Mark rows as not shown on page.")
+    publish_parser = subparsers.add_parser("publish", help="把推荐 JSON 发布到历史表。")
+    publish_parser.add_argument("--recommendations", required=True, help="推荐 JSON 路径。")
+    publish_parser.add_argument("--shown-in-email", action="store_true", help="标记为已在邮件展示。")
+    publish_parser.add_argument("--no-shown-on-page", action="store_true", help="标记为未在页面展示。")
 
     args = parser.parse_args(argv)
     supabase_url = _required_env("SUPABASE_URL")
@@ -164,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "fetch":
         runs = fetch_recommendation_history(supabase_url, service_role_key, limit=args.limit)
         write_history_json(runs, args.output)
-        print(f"Wrote {len(runs)} recommendation history rows to {args.output}")
+        print(f"已写入 {len(runs)} 条推荐历史到 {args.output}")
         return 0
 
     payload = json.loads(Path(args.recommendations).read_text(encoding="utf-8"))
@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         shown_in_email=args.shown_in_email,
         shown_on_page=not args.no_shown_on_page,
     )
-    print(f"Published {len(payload.get('recommendations', []))} recommendation history rows")
+    print(f"已发布 {len(payload.get('recommendations', []))} 条推荐历史")
     return 0
 
 
@@ -195,7 +195,7 @@ def _run_record(run: RecommendationRun) -> dict[str, Any]:
 def _required_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
+        raise RuntimeError(f"缺少必要环境变量：{name}")
     return value
 
 

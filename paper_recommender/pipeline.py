@@ -181,15 +181,15 @@ def write_recommendations_json(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build recommendation JSON from paper JSONL.")
-    parser.add_argument("--input", required=True, help="Input JSONL paper records.")
-    parser.add_argument("--output", required=True, help="Output recommendation JSON path.")
-    parser.add_argument("--run-date", default=None, help="Run date to store in output.")
-    parser.add_argument("--limit", type=int, default=None, help="Maximum recommendations to emit.")
-    parser.add_argument("--profile", default=None, help="Interest profile JSON path.")
-    parser.add_argument("--feedback", default=None, help="Feedback events JSON path.")
-    parser.add_argument("--history", default=None, help="Recommendation history JSON path.")
-    parser.add_argument("--min-count", type=int, default=0, help="Fill with exploratory core-category papers until this count.")
+    parser = argparse.ArgumentParser(description="从论文 JSONL 生成推荐 JSON。")
+    parser.add_argument("--input", required=True, help="输入论文 JSONL 记录。")
+    parser.add_argument("--output", required=True, help="输出推荐 JSON 路径。")
+    parser.add_argument("--run-date", default=None, help="写入输出的运行日期。")
+    parser.add_argument("--limit", type=int, default=None, help="最多输出推荐数。")
+    parser.add_argument("--profile", default=None, help="兴趣画像 JSON 路径。")
+    parser.add_argument("--feedback", default=None, help="反馈事件 JSON 路径。")
+    parser.add_argument("--history", default=None, help="推荐历史 JSON 路径。")
+    parser.add_argument("--min-count", type=int, default=0, help="用探索性核心分类论文补足到该数量。")
     args = parser.parse_args(argv)
 
     papers = load_papers_jsonl(args.input)
@@ -206,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         history_runs=history_runs,
         min_count=args.min_count,
     )
-    print(f"Wrote {payload['count']} recommendations to {args.output}")
+    print(f"已写入 {payload['count']} 条推荐到 {args.output}")
     return 0
 
 

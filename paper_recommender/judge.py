@@ -24,7 +24,7 @@ def parse_judgement_response(content: str) -> Judgement:
     if not raw.startswith("{"):
         match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
         if not match:
-            raise ValueError("LLM response did not contain a JSON object")
+            raise ValueError("LLM 响应中没有 JSON 对象")
         raw = match.group(0)
     return _normalize_judgement(json.loads(raw))
 
@@ -171,10 +171,10 @@ def enrich_payload_with_judgements(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Judge and rerank recommendation JSON with an LLM.")
-    parser.add_argument("--input", required=True, help="Input recommendation JSON path.")
-    parser.add_argument("--output", required=True, help="Output recommendation JSON path.")
-    parser.add_argument("--limit", type=int, default=15, help="Maximum recommendations after AI judgement.")
+    parser = argparse.ArgumentParser(description="使用 LLM 判断并重排推荐 JSON。")
+    parser.add_argument("--input", required=True, help="输入推荐 JSON 路径。")
+    parser.add_argument("--output", required=True, help="输出推荐 JSON 路径。")
+    parser.add_argument("--limit", type=int, default=15, help="AI 判断后最多保留推荐数。")
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL))
     parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL))
     args = parser.parse_args(argv)
@@ -191,9 +191,9 @@ def main(argv: list[str] | None = None) -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(enriched, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(
-        "Judged "
-        f"{enriched.get('judge_summary', {}).get('candidate_count', 0)} candidates "
-        f"and kept {enriched.get('count', 0)} recommendations"
+        "已判断 "
+        f"{enriched.get('judge_summary', {}).get('candidate_count', 0)} 条候选，"
+        f"保留 {enriched.get('count', 0)} 条推荐"
     )
     return 0
 

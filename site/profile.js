@@ -20,18 +20,18 @@ async function loadProfile() {
   const stored = localStorage.getItem(profileStorageKey);
   if (stored) {
     profileEditor.value = formatProfileText(stored);
-    profileStatus.textContent = "Loaded local profile override.";
+    profileStatus.textContent = "已加载本地画像覆盖。";
     renderProfileExport(profileEditor.value);
     return;
   }
 
   const response = await fetch("interests.json", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Failed to load interests.json: ${response.status}`);
+    throw new Error(`画像文件加载失败：${response.status}`);
   }
   const profile = await response.json();
   profileEditor.value = JSON.stringify(profile, null, 2);
-  profileStatus.textContent = "Loaded published workflow profile.";
+  profileStatus.textContent = "已加载当前 workflow 发布的画像。";
   renderProfileExport(profileEditor.value);
 }
 
@@ -40,12 +40,12 @@ function saveProfileOverride() {
   try {
     text = normalizedProfileText(profileEditor.value);
   } catch {
-    profileStatus.textContent = "Profile JSON is invalid.";
+    profileStatus.textContent = "画像 JSON 无效。";
     return;
   }
   localStorage.setItem(profileStorageKey, text);
   profileEditor.value = text;
-  profileStatus.textContent = "Saved local profile override.";
+  profileStatus.textContent = "已保存本地画像覆盖。";
   renderProfileExport(text);
 }
 
@@ -54,7 +54,7 @@ function renderProfileExport(text) {
   try {
     normalized = normalizedProfileText(text);
   } catch {
-    profileStatus.textContent = "Profile JSON is invalid.";
+    profileStatus.textContent = "画像 JSON 无效。";
     return;
   }
   downloadProfileLink.download = "recommender-profile.json";

@@ -641,5 +641,43 @@
   - `tests/test_docs_contract.py`
   - `progress.md`
 
+## 会话补充：Supabase 配置验证、中文化和长 TLDR
+- **状态：** in_progress
+- 执行的操作：
+  - 按用户要求继续在原 `main` 分支迭代，并注意不把任何密钥明文写入仓库。
+  - 验证 GitHub Variables 中存在 `SUPABASE_URL`、`SUPABASE_ANON_KEY`，GitHub Secrets 中存在 `SUPABASE_SERVICE_ROLE_KEY`；未把密钥值写入文件。
+  - 查询线上 `status.json`，确认 Supabase configured 为 true；查询线上 `config.js`，确认 Pages 已注入公开 Supabase 配置。
+  - 查询 GitHub Actions run `27473671636` job JSON，确认 `Fetch Supabase feedback`、`Fetch Supabase recommendation history`、`Publish Supabase recommendation history` 均成功。
+  - 审批层拒绝了直接 Supabase REST 探针；未绕过该限制，因此真实用户点击写入 `feedback_events` 仍保留待验证。
+  - 将站点首页、反馈页、兴趣画像页、邮件正文、默认兴趣画像显示名、示例推荐数据和主要 Python CLI 日志文案中文化。
+  - 将 TLDR prompt 从“45 字短句”改为 180-260 字左右的中文结构化核心解读，要求覆盖研究问题、核心方法、关键结论和推荐理由。
+  - 将本地 fallback TLDR 从英文截断改为中文结构化摘要，避免 LLM 不可用时继续产出无信息量摘要。
+  - 优化左侧栏：运行状态、反馈状态、学习画像和系统状态移到筛选控件上方；sidebar 设置视口内滚动，避免信息卡片被压到侧栏底部。
+- 创建/修改的文件：
+  - `config/interests.json`
+  - `paper_recommender/*.py`
+  - `site/index.html`
+  - `site/app.js`
+  - `site/styles.css`
+  - `site/feedback.html`
+  - `site/feedback.js`
+  - `site/profile.html`
+  - `site/profile.js`
+  - `site/recommendations.json`
+  - `tests/test_summarizer.py`
+  - `tests/test_emailer.py`
+  - `tests/test_site_contract.py`
+  - `tests/test_feedback_page_contract.py`
+  - `tests/test_profile_page_contract.py`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+| 中文化/TLDR/侧栏焦点测试 | `python3 -m unittest tests.test_summarizer tests.test_emailer tests.test_site_contract tests.test_feedback_page_contract tests.test_profile_page_contract` | 测试通过 | 28 个测试通过 | pass |
+| 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 101 个测试通过 | pass |
+| 前端语法检查 | `node --check site/app.js`、`node --check site/feedback.js`、`node --check site/profile.js` | JS 语法正确 | 通过 | pass |
+| JSON 语法检查 | `python3 -m json.tool config/interests.json`、`python3 -m json.tool site/recommendations.json` | JSON 可解析 | 通过 | pass |
+| diff 密钥扫描 | `git diff | rg ...` | 不出现 Supabase/OpenAI/SMTP 密钥明文 | 无匹配 | pass |
+
 ---
 *每个阶段完成后或遇到错误时更新此文件*

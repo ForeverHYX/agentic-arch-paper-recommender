@@ -113,7 +113,7 @@ def load_interest_profile(path: str | Path = DEFAULT_PROFILE_PATH) -> InterestPr
         if str(item.get("title", "")).strip()
     )
     return InterestProfile(
-        name=str(payload.get("name", "Daily arXiv Recommender")),
+        name=str(payload.get("name", "每日 arXiv 推荐")),
         core_categories=frozenset(str(item) for item in payload.get("core_categories", [])),
         expansion_categories=frozenset(str(item) for item in payload.get("expansion_categories", [])),
         sections=sections,

@@ -1,5 +1,5 @@
 {
-  "name": "Agentic Architecture and Full-stack Co-design",
+  "name": "Agentic 架构与全栈软硬件协同设计",
   "core_categories": ["cs.AR", "cs.PF", "cs.DC", "cs.PL"],
   "expansion_categories": ["cs.AI", "cs.LG"],
   "expansion_accept_score": 4.0,
@@ -48,7 +48,7 @@
   "sections": [
     {
       "id": "agentic_architecture",
-      "label": "Agentic Architecture / Auto-DSE",
+      "label": "Agentic 架构 / 自动设计空间探索",
       "weight": 4.0,
       "keywords": [
         "agentic ai for computer architecture",
@@ -67,7 +67,7 @@
     },
     {
       "id": "full_stack_codesign",
-      "label": "Full-stack HW/SW Co-design",
+      "label": "全栈软硬件协同设计",
       "weight": 3.5,
       "keywords": [
         "software hardware co-design",
@@ -90,7 +90,7 @@
     },
     {
       "id": "microarchitecture_simulators",
-      "label": "CPU/GPU Microarchitecture and Simulators",
+      "label": "CPU/GPU 微架构与模拟器",
       "weight": 3.0,
       "keywords": [
         "microarchitecture",
@@ -115,7 +115,7 @@
     },
     {
       "id": "hpc_cross_over",
-      "label": "HPC x Architecture / Compiler / Runtime",
+      "label": "HPC x 架构 / 编译器 / 运行时",
       "weight": 2.0,
       "keywords": [
         "high performance computing",

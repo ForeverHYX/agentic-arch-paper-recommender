@@ -100,11 +100,23 @@ if (!elements.downloadProfileLink.href.startsWith("data:application/json;charset
 if (elements.downloadProfileLink.download !== "recommender-profile.json") {
   throw new Error(`unexpected download filename: ${elements.downloadProfileLink.download}`);
 }
-if (!elements.profileStatus.textContent.includes("Saved")) {
+if (!elements.profileStatus.textContent.includes("已保存")) {
   throw new Error(`missing saved status: ${elements.profileStatus.textContent}`);
 }
 """
         )
+
+    def test_profile_page_uses_chinese_copy(self):
+        html = Path("site/profile.html").read_text(encoding="utf-8")
+        script = Path("site/profile.js").read_text(encoding="utf-8")
+
+        self.assertIn('lang="zh-CN"', html)
+        self.assertIn("兴趣画像", html)
+        self.assertIn("返回推荐列表", html)
+        self.assertIn("保存本地副本", html)
+        self.assertIn("下载 JSON", html)
+        self.assertIn("已加载本地画像覆盖", script)
+        self.assertIn("画像 JSON 无效", script)
 
 
 if __name__ == "__main__":

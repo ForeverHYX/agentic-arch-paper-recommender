@@ -38,12 +38,12 @@ def write_status_json(output_path: str | Path, payload: dict[str, Any] | None = 
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Write non-secret Pages deployment status JSON.")
-    parser.add_argument("--output", required=True, help="Output status JSON path.")
+    parser = argparse.ArgumentParser(description="写入不含密钥的 Pages 部署状态 JSON。")
+    parser.add_argument("--output", required=True, help="输出状态 JSON 路径。")
     args = parser.parse_args(argv)
 
     write_status_json(args.output)
-    print(f"Wrote deployment status to {args.output}")
+    print(f"已写入部署状态：{args.output}")
     return 0
 
 

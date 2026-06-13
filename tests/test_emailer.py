@@ -7,7 +7,7 @@ class EmailerTests(unittest.TestCase):
     def test_render_email_groups_recommendations_and_includes_feedback_links(self):
         payload = {
             "run_date": "2026-06-12",
-            "section_labels": {"agentic_architecture": "Agentic Architecture / Auto-DSE"},
+            "section_labels": {"agentic_architecture": "Agentic Architecture / 自动设计空间探索"},
             "feedback_summary": {
                 "metrics": {
                     "total_events": 3,
@@ -51,7 +51,7 @@ class EmailerTests(unittest.TestCase):
         )
 
         self.assertIn("2026-06-12", html)
-        self.assertIn("Agentic Architecture / Auto-DSE", html)
+        self.assertIn("Agentic Architecture / 自动设计空间探索", html)
         self.assertIn("Agentic AI-Driven Microarchitecture Exploration", html)
         self.assertIn("University of Architecture", html)
         self.assertIn("National HPC Lab", html)
@@ -64,17 +64,19 @@ class EmailerTests(unittest.TestCase):
         self.assertIn("https://arxiv.org/abs/2604.03312", html)
         self.assertIn("https://arxiv.org/pdf/2604.03312", html)
         self.assertIn("https://github.com/example/arch-agent", html)
-        self.assertIn("Code Search", html)
+        self.assertIn("搜代码", html)
         self.assertIn("https://github.com/search?q=Agentic+Architecture+Exploration", html)
-        self.assertIn("Feedback: 3 events", html)
-        self.assertIn("67% like rate", html)
-        self.assertIn("liked: gem5, mlir", html)
-        self.assertIn("disliked: browser", html)
+        self.assertIn("反馈：3 条", html)
+        self.assertIn("喜欢率 67%", html)
+        self.assertIn("偏好：gem5, mlir", html)
+        self.assertIn("降权：browser", html)
+        self.assertIn(">喜欢</a>", html)
+        self.assertIn(">不喜欢</a>", html)
 
     def test_render_email_uses_payload_section_labels(self):
         payload = {
             "run_date": "2026-06-12",
-            "section_labels": {"quantum_control": "Quantum Control"},
+            "section_labels": {"quantum_control": "量子控制"},
             "recommendations": [
                 {
                     "rank": 1,
@@ -94,7 +96,7 @@ class EmailerTests(unittest.TestCase):
             feedback_base_url="https://foreverhyx.github.io/agentic-arch-paper-recommender/feedback.html",
         )
 
-        self.assertIn("<h2>Quantum Control</h2>", html)
+        self.assertIn("<h2>量子控制</h2>", html)
 
 
 if __name__ == "__main__":

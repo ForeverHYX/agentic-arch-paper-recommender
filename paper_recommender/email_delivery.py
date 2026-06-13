@@ -76,20 +76,20 @@ def send_email_message_with_retries(
                 sleep_func(float(attempt))
     if last_error is not None:
         raise last_error
-    raise RuntimeError("Email delivery failed without an exception")
+    raise RuntimeError("邮件发送失败，但底层库没有返回具体异常")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Send recommendation digest email.")
-    parser.add_argument("--recommendations", required=True, help="Recommendation JSON payload.")
-    parser.add_argument("--subject", default=None, help="Email subject override.")
-    parser.add_argument("--max-attempts", type=int, default=3, help="Maximum SMTP delivery attempts.")
-    parser.add_argument("--send-empty", action="store_true", help="Send email even when there are no recommendations.")
+    parser = argparse.ArgumentParser(description="发送推荐摘要邮件。")
+    parser.add_argument("--recommendations", required=True, help="推荐 JSON payload。")
+    parser.add_argument("--subject", default=None, help="邮件主题覆盖值。")
+    parser.add_argument("--max-attempts", type=int, default=3, help="SMTP 最大发送尝试次数。")
+    parser.add_argument("--send-empty", action="store_true", help="即使没有推荐论文也发送邮件。")
     args = parser.parse_args(argv)
 
     payload = json.loads(Path(args.recommendations).read_text(encoding="utf-8"))
     if not should_send_digest(payload, send_empty=args.send_empty):
-        print("Skipped email digest because there are no recommendations")
+        print("跳过邮件发送：今天没有推荐论文")
         return 0
 
     site_base_url = _required_env("SITE_BASE_URL")
@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sender = _required_env("EMAIL_SENDER")
     receiver = _required_env("EMAIL_RECEIVER")
-    subject = args.subject or f"Daily arXiv Recommendations - {payload.get('run_date', '')}"
+    subject = args.subject or f"每日 arXiv 推荐 - {payload.get('run_date', '')}"
     message = build_email_message(subject=subject, sender=sender, receiver=receiver, html=html)
 
     smtp_host = _required_env("SMTP_HOST")
@@ -115,14 +115,14 @@ def main(argv: list[str] | None = None) -> int:
         use_ssl=use_ssl,
         attempts=args.max_attempts,
     )
-    print(f"Sent recommendation digest to {receiver} after {attempts_used} attempt(s)")
+    print(f"已向 {receiver} 发送推荐邮件，尝试次数：{attempts_used}")
     return 0
 
 
 def _required_env(name: str) -> str:
     value = os.environ.get(name)
     if not value:
-        raise RuntimeError(f"Missing required environment variable: {name}")
+        raise RuntimeError(f"缺少必要环境变量：{name}")
     return value
 
 

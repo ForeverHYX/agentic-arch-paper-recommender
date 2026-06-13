@@ -1,28 +1,28 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Interest Profile</title>
+    <title>兴趣画像</title>
     <link rel="stylesheet" href="styles.css?v=20260612-profile-settings">
   </head>
   <body>
     <main class="profile-settings">
       <header class="profile-header">
         <div>
-          <p class="eyebrow">Personal profile</p>
-          <h1>Interest Profile</h1>
-          <p id="profileStatus">Loading profile...</p>
+          <p class="eyebrow">个人推荐画像</p>
+          <h1>兴趣画像</h1>
+          <p id="profileStatus">正在加载画像...</p>
         </div>
-        <a class="link-button" href="index.html">Back</a>
+        <a class="link-button" href="index.html">返回推荐列表</a>
       </header>
       <section class="profile-panel">
         <textarea id="profileEditor" class="profile-editor" spellcheck="false"></textarea>
         <div class="profile-actions">
-          <button id="saveProfileButton" class="link-button" type="button">Save Local Copy</button>
-          <a id="downloadProfileLink" class="link-button">Download JSON</a>
+          <button id="saveProfileButton" class="link-button" type="button">保存本地副本</button>
+          <a id="downloadProfileLink" class="link-button">下载 JSON</a>
         </div>
-        <p class="profile-note">To use this profile in daily runs, put the downloaded JSON content into the GitHub Secret <code>PROFILE_OVERRIDE_JSON</code> and rerun the workflow.</p>
+        <p class="profile-note">要让每日 workflow 使用这份画像，请把下载的 JSON 内容放入 GitHub Secret <code>PROFILE_OVERRIDE_JSON</code>，然后重新运行 workflow。</p>
       </section>
     </main>
     <script src="profile.js?v=20260612-profile-settings"></script>

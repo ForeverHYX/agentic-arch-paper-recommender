@@ -8,7 +8,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 
-FALLBACK_SECTION = "Exploratory but Maybe Relevant"
+FALLBACK_SECTION = "探索性但可能相关"
 
 
 def render_email_html(
@@ -30,11 +30,11 @@ def render_email_html(
         )
         sections_html.append(f"<h2>{section_label}</h2>\n<ol>{items_html}</ol>")
 
-    body = "\n".join(sections_html) or "<p>No matching papers today.</p>"
+    body = "\n".join(sections_html) or "<p>今天没有匹配论文。</p>"
     return f"""<!doctype html>
 <html>
   <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.5;">
-    <h1>Daily arXiv Recommendations - {run_date}</h1>
+    <h1>每日 arXiv 推荐 - {run_date}</h1>
     {feedback_html}
     {body}
   </body>
@@ -75,8 +75,8 @@ def _render_recommendation_item(
     primary_section = str((item.get("sections") or [""])[0])
     like_url = _feedback_url(feedback_base_url, paper_id, "like", primary_section)
     dislike_url = _feedback_url(feedback_base_url, paper_id, "dislike", primary_section)
-    code_links = " ".join(f'<a href="{escape(url)}">Code</a>' for url in code_urls)
-    code_search_link = f'<a href="{escape(code_search_url)}">Code Search</a>' if code_search_url else ""
+    code_links = " ".join(f'<a href="{escape(url)}">代码</a>' for url in code_urls)
+    code_search_link = f'<a href="{escape(code_search_url)}">搜代码</a>' if code_search_url else ""
     code_section = " ".join(part for part in [code_links, code_search_link] if part)
 
     return f"""
@@ -84,19 +84,19 @@ def _render_recommendation_item(
         <h3 style="margin-bottom: 4px;"><a href="{escape(page_url)}">{title}</a></h3>
         <div style="color: #555;">{authors}</div>
         {f'<div style="color: #555;"><strong>单位:</strong> {affiliations}</div>' if affiliations else ''}
-        <div style="color: #777;">score: {score}</div>
-        {f'<p><strong>AI 总结:</strong> {tldr}</p>' if tldr else ''}
+        <div style="color: #777;">规则分：{score}</div>
+        {f'<p><strong>核心解读:</strong> {tldr}</p>' if tldr else ''}
         {f'<p><strong>AI 判断:</strong> {ai_score} - {ai_reason}</p>' if ai_reason else ''}
         <p>{abstract}</p>
         <p>
-          <a href="{escape(paper_url)}">Paper</a>
+          <a href="{escape(paper_url)}">arXiv</a>
           &nbsp;|&nbsp;
           <a href="{escape(pdf_url)}">PDF</a>
           {f'&nbsp;|&nbsp;{code_section}' if code_section else ''}
           &nbsp;|&nbsp;
-          <a href="{escape(like_url)}">Like</a>
+          <a href="{escape(like_url)}">喜欢</a>
           &nbsp;|&nbsp;
-          <a href="{escape(dislike_url)}">Dislike</a>
+          <a href="{escape(dislike_url)}">不喜欢</a>
         </p>
       </li>
     """
@@ -116,13 +116,13 @@ def _render_feedback_metrics(metrics: dict[str, Any]) -> str:
     )[:4]
     topic_parts = []
     if liked_topics:
-        topic_parts.append(f"liked: {escape(', '.join(liked_topics))}")
+        topic_parts.append(f"偏好：{escape(', '.join(liked_topics))}")
     if disliked_topics:
-        topic_parts.append(f"disliked: {escape(', '.join(disliked_topics))}")
+        topic_parts.append(f"降权：{escape(', '.join(disliked_topics))}")
     topics = f"<br>{' | '.join(topic_parts)}" if topic_parts else ""
     return (
         '<p style="color: #555; border-left: 4px solid #0f766e; padding-left: 10px;">'
-        f"<strong>Feedback: {total} events</strong>, {like_rate}% like rate"
+        f"<strong>反馈：{total} 条</strong>，喜欢率 {like_rate}%"
         f"{topics}</p>"
     )
 

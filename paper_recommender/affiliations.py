@@ -99,10 +99,10 @@ def enrich_payload_with_affiliations(
 
 
 def main(argv: list[str] | None = None, fetcher: Callable[[str], bytes] = fetch_arxiv_source) -> int:
-    parser = argparse.ArgumentParser(description="Enrich recommendation JSON with author affiliations from arXiv sources.")
-    parser.add_argument("--input", required=True, help="Input recommendation JSON path.")
-    parser.add_argument("--output", required=True, help="Output recommendation JSON path.")
-    parser.add_argument("--max-items", type=int, default=15, help="Maximum papers to query from arXiv e-print.")
+    parser = argparse.ArgumentParser(description="从 arXiv source 为推荐 JSON 补充作者单位。")
+    parser.add_argument("--input", required=True, help="输入推荐 JSON 路径。")
+    parser.add_argument("--output", required=True, help="输出推荐 JSON 路径。")
+    parser.add_argument("--max-items", type=int, default=15, help="最多查询 arXiv e-print 的论文数。")
     args = parser.parse_args(argv)
 
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
@@ -112,9 +112,8 @@ def main(argv: list[str] | None = None, fetcher: Callable[[str], bytes] = fetch_
     output_path.write_text(json.dumps(enriched, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     summary = enriched["affiliation_summary"]
     print(
-        "Enriched "
-        f"{summary['enriched_count']} of {summary['attempted_count']} recommendations "
-        "with affiliations"
+        f"已为 {summary['attempted_count']} 条推荐中的 "
+        f"{summary['enriched_count']} 条补充作者单位"
     )
     return 0
 

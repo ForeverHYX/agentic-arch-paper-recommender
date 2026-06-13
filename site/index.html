@@ -1,63 +1,65 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Daily arXiv Recommender</title>
+    <title>每日 arXiv 推荐</title>
     <link rel="stylesheet" href="styles.css?v=20260612-feedback-metrics">
   </head>
   <body>
     <header class="topbar">
       <div class="hero-copy">
-        <p class="eyebrow">Personal arXiv radar</p>
-        <h1>Daily arXiv Recommender</h1>
-        <p id="runDate">Loading...</p>
+        <p class="eyebrow">个人论文雷达</p>
+        <h1>每日 arXiv 推荐</h1>
+        <p id="runDate">正在加载...</p>
       </div>
       <div id="summaryStats" class="summary-stats" aria-live="polite"></div>
     </header>
     <main class="layout">
-      <aside class="sidebar" aria-label="Recommendation sections">
-        <div class="sidebar-title">Filters</div>
+      <aside class="sidebar" aria-label="推荐筛选与运行状态">
+        <div class="sidebar-status-stack">
+          <div id="runHealth" class="run-health" aria-live="polite"></div>
+          <div id="feedbackStatus" class="feedback-status" aria-live="polite"></div>
+          <div id="feedbackInsights" class="feedback-insights" aria-live="polite"></div>
+          <div id="subsystemStatus" class="subsystem-status" aria-live="polite"></div>
+          <div id="resultCount" class="result-count" aria-live="polite"></div>
+        </div>
+        <div class="sidebar-title">筛选</div>
         <div class="controls">
           <label class="filter-row">
-            <span>Search</span>
+            <span>搜索</span>
             <input id="searchInput" type="search" autocomplete="off">
           </label>
           <label class="filter-row">
-            <span>Section</span>
+            <span>栏目</span>
             <select id="sectionFilter"></select>
           </label>
           <label class="filter-row">
-            <span>Min AI</span>
+            <span>最低 AI 分</span>
             <input id="minAiScore" type="number" min="0" max="10" step="1">
           </label>
           <label class="filter-row">
-            <span>Sort</span>
+            <span>排序</span>
             <select id="sortSelect">
-              <option value="rank">Rank</option>
-              <option value="ai">AI score</option>
-              <option value="rule">Rule score</option>
-              <option value="title">Title</option>
+              <option value="rank">推荐顺序</option>
+              <option value="ai">AI 分</option>
+              <option value="rule">规则分</option>
+              <option value="title">标题</option>
             </select>
           </label>
           <label class="check-row">
             <input id="hasCodeFilter" type="checkbox">
-            <span>Code repo</span>
+            <span>有代码仓库</span>
           </label>
           <label class="check-row">
             <input id="hasAffiliationFilter" type="checkbox">
-            <span>Affiliation</span>
+            <span>有作者单位</span>
           </label>
-          <div id="feedbackStatus" class="feedback-status" aria-live="polite"></div>
-          <div id="feedbackInsights" class="feedback-insights" aria-live="polite"></div>
-          <div id="subsystemStatus" class="subsystem-status" aria-live="polite"></div>
-          <div id="runHealth" class="run-health" aria-live="polite"></div>
-          <div id="resultCount" class="result-count" aria-live="polite"></div>
         </div>
-        <div class="sidebar-title">Sections</div>
+        <div class="sidebar-title">栏目</div>
         <nav id="sectionNav" class="section-nav"></nav>
-        <div class="sidebar-title">Profile</div>
-        <a class="profile-link" href="profile.html">Edit interest profile</a>
+        <div class="sidebar-title">画像</div>
+        <a class="profile-link" href="profile.html">编辑兴趣画像</a>
       </aside>
       <section id="recommendations" class="paper-list" aria-live="polite"></section>
     </main>

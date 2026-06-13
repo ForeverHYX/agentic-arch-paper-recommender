@@ -7,13 +7,13 @@ const detailEl = document.getElementById("statusDetail");
 const localFeedbackKey = "recommender_local_feedback_events";
 
 recordFeedback().catch((error) => {
-  titleEl.textContent = "Feedback was not recorded";
+  titleEl.textContent = "反馈未记录";
   detailEl.textContent = error.message;
 });
 
 async function recordFeedback() {
   if (!paperId || !["like", "dislike"].includes(rating)) {
-    throw new Error("Missing or invalid feedback parameters.");
+    throw new Error("缺少或无效的反馈参数。");
   }
 
   const config = window.RECOMMENDER_CONFIG || {};
@@ -32,8 +32,8 @@ async function recordFeedback() {
       created_at: new Date().toISOString(),
     });
     renderLocalFeedbackExport();
-    titleEl.textContent = "Feedback captured locally";
-    detailEl.textContent = "This feedback was stored locally in this browser. Export it below if you want to preserve it before configuring Supabase.";
+    titleEl.textContent = "反馈已保存到本地";
+    detailEl.textContent = "这条反馈已本地保存在当前浏览器。配置 Supabase 前，可以在下方导出 JSON 作为临时回灌。";
     return;
   }
 
@@ -63,8 +63,8 @@ async function recordFeedback() {
     throw new Error(`Supabase rejected feedback: ${response.status}`);
   }
 
-  titleEl.textContent = "Feedback recorded";
-  detailEl.textContent = `Recorded ${rating} for ${paperId}.`;
+  titleEl.textContent = "反馈已记录";
+  detailEl.textContent = `已为 ${paperId} 记录“${rating === "like" ? "喜欢" : "不喜欢"}”。`;
 }
 
 async function findPaperMetadata(targetPaperId) {

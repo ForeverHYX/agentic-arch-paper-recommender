@@ -63,23 +63,25 @@ __BODY__
         if result.returncode != 0:
             self.fail(result.stderr or result.stdout)
 
-    def test_recommendation_page_renders_tldr_and_external_links(self):
+    def test_recommendation_page_renders_tldr_and_chinese_actions(self):
         script = Path("site/app.js").read_text(encoding="utf-8")
 
         self.assertIn("paper.tldr", script)
-        self.assertIn("AI 总结", script)
+        self.assertIn("核心解读", script)
         self.assertIn("paper.ai_judgement", script)
         self.assertIn("AI 判断", script)
         self.assertIn("paper.affiliations", script)
-        self.assertIn("单位", script)
+        self.assertIn("作者单位", script)
         self.assertIn("paper.url", script)
         self.assertIn("paper.pdf_url", script)
         self.assertIn("paper.code_urls", script)
         self.assertIn("paper.code_search_url", script)
-        self.assertIn("Paper", script)
+        self.assertIn("arXiv", script)
         self.assertIn("PDF", script)
-        self.assertIn("Code", script)
-        self.assertIn("Code Search", script)
+        self.assertIn("代码", script)
+        self.assertIn("搜代码", script)
+        self.assertIn("喜欢", script)
+        self.assertIn("不喜欢", script)
 
     def test_recommendation_cards_always_render_affiliation_status(self):
         self.run_app_script(
@@ -158,11 +160,11 @@ context.renderRunHealth({
 });
 
 const html = elements.runHealth.innerHTML;
-if (!html.includes("Run Health")) throw new Error(`missing heading: ${html}`);
-if (!html.includes("2/3 judged")) throw new Error(`missing judgement coverage: ${html}`);
-if (!html.includes("2/3 TLDR")) throw new Error(`missing TLDR coverage: ${html}`);
-if (!html.includes("local only")) throw new Error(`missing local feedback mode: ${html}`);
-if (!html.includes("not persistent yet")) throw new Error(`missing learning warning: ${html}`);
+if (!html.includes("运行状态")) throw new Error(`missing heading: ${html}`);
+if (!html.includes("2/3 已判断")) throw new Error(`missing judgement coverage: ${html}`);
+if (!html.includes("2/3 有 TLDR")) throw new Error(`missing TLDR coverage: ${html}`);
+if (!html.includes("仅本地保存")) throw new Error(`missing local feedback mode: ${html}`);
+if (!html.includes("尚未持久化")) throw new Error(`missing learning warning: ${html}`);
 if (!html.includes("SUPABASE_URL")) throw new Error(`missing Supabase URL setup: ${html}`);
 if (!html.includes("SUPABASE_ANON_KEY")) throw new Error(`missing Supabase anon setup: ${html}`);
 if (!html.includes("SUPABASE_SERVICE_ROLE_KEY")) throw new Error(`missing service role setup: ${html}`);
@@ -188,10 +190,10 @@ context.renderRunHealth({
 });
 
 const html = elements.runHealth.innerHTML;
-if (!html.includes("2/2 judged")) throw new Error(`missing judgement coverage: ${html}`);
-if (!html.includes("2/2 TLDR")) throw new Error(`missing TLDR coverage: ${html}`);
-if (!html.includes("Supabase active")) throw new Error(`missing Supabase active mode: ${html}`);
-if (!html.includes("5 persisted events")) throw new Error(`missing persisted feedback count: ${html}`);
+if (!html.includes("2/2 已判断")) throw new Error(`missing judgement coverage: ${html}`);
+if (!html.includes("2/2 有 TLDR")) throw new Error(`missing TLDR coverage: ${html}`);
+if (!html.includes("Supabase 已启用")) throw new Error(`missing Supabase active mode: ${html}`);
+if (!html.includes("5 条持久反馈")) throw new Error(`missing persisted feedback count: ${html}`);
 if (html.includes("SUPABASE_SERVICE_ROLE_KEY")) throw new Error(`unexpected setup prompt: ${html}`);
 """
         )
@@ -208,7 +210,7 @@ context.renderSummaryStats({
 });
 
 const html = elements.summaryStats.innerHTML;
-if (!html.includes("<strong>1</strong><span>with units</span>")) {
+if (!html.includes("<strong>1</strong><span>有单位</span>")) {
   throw new Error(`affiliation coverage stat missing: ${html}`);
 }
 """
@@ -219,7 +221,7 @@ if (!html.includes("<strong>1</strong><span>with units</span>")) {
             """
 context.renderFeedbackStatus();
 let html = elements.feedbackStatus.innerHTML;
-if (!html.includes("local only")) {
+if (!html.includes("仅本地保存")) {
   throw new Error(`missing local-only status: ${html}`);
 }
 
@@ -229,7 +231,7 @@ context.window.RECOMMENDER_CONFIG = {
 };
 context.renderFeedbackStatus();
 html = elements.feedbackStatus.innerHTML;
-if (!html.includes("Supabase active")) {
+if (!html.includes("Supabase 已启用")) {
   throw new Error(`missing Supabase status: ${html}`);
 }
 """
@@ -250,10 +252,10 @@ context.renderFeedbackInsights({
 });
 
 const html = elements.feedbackInsights.innerHTML;
-if (!html.includes("3 feedback events")) {
+if (!html.includes("3 条反馈")) {
   throw new Error(`missing feedback count: ${html}`);
 }
-if (!html.includes("67% like rate")) {
+if (!html.includes("喜欢率 67%")) {
   throw new Error(`missing like rate: ${html}`);
 }
 if (!html.includes("gem5")) {
@@ -279,9 +281,9 @@ context.renderSubsystemStatus({
 const html = elements.subsystemStatus.innerHTML;
 if (!html.includes("LLM")) throw new Error(`missing LLM status: ${html}`);
 if (!html.includes("deepseek-v4-flash")) throw new Error(`missing model: ${html}`);
-if (!html.includes("Email")) throw new Error(`missing Email status: ${html}`);
+if (!html.includes("邮件")) throw new Error(`missing Email status: ${html}`);
 if (!html.includes("Supabase")) throw new Error(`missing Supabase status: ${html}`);
-if (!html.includes("local feedback")) throw new Error(`missing local feedback status: ${html}`);
+if (!html.includes("本地反馈")) throw new Error(`missing local feedback status: ${html}`);
 """
         )
 
@@ -312,6 +314,19 @@ if (!target.scrolled) {
         styles = Path("site/styles.css").read_text(encoding="utf-8")
         script = Path("site/app.js").read_text(encoding="utf-8")
 
+        self.assertIn('lang="zh-CN"', html)
+        self.assertIn("每日 arXiv 推荐", html)
+        self.assertIn("筛选", html)
+        self.assertIn("搜索", html)
+        self.assertIn("栏目", html)
+        self.assertIn("最低 AI 分", html)
+        self.assertIn("排序", html)
+        self.assertIn("有代码仓库", html)
+        self.assertIn("有作者单位", html)
+        self.assertIn("编辑兴趣画像", html)
+        self.assertLess(html.index('id="runHealth"'), html.index('id="searchInput"'))
+        self.assertLess(html.index('id="feedbackStatus"'), html.index('id="searchInput"'))
+        self.assertIn('class="sidebar-status-stack"', html)
         self.assertIn('id="summaryStats"', html)
         self.assertIn('id="sectionNav"', html)
         self.assertIn('id="searchInput"', html)
@@ -338,6 +353,9 @@ if (!target.scrolled) {
         self.assertIn(".paper-tldr", styles)
         self.assertIn(".ai-judgement", styles)
         self.assertIn(".controls", styles)
+        self.assertIn(".sidebar-status-stack", styles)
+        self.assertIn("max-height: calc(100vh - 32px)", styles)
+        self.assertIn("overflow-y: auto", styles)
         self.assertIn(".filter-row", styles)
         self.assertIn(".link-button", styles)
         self.assertIn(".section-nav", styles)
