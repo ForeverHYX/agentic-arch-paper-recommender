@@ -133,6 +133,37 @@ class SummarizerTests(unittest.TestCase):
         self.assertIn("研究问题：", enriched["recommendations"][0]["tldr"])
         self.assertIn("核心方法：", enriched["recommendations"][0]["tldr"])
 
+    def test_enrich_payload_with_tldrs_retries_short_model_response(self):
+        payload = {
+            "recommendations": [
+                {
+                    "paper_id": "p1",
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies.",
+                }
+            ]
+        }
+        long_tldr = (
+            "研究问题：这篇论文关注如何让 LLM agent 结合体系结构模拟器搜索微架构设计空间，"
+            "目标是在缓存和分支预测等部件上减少人工试错成本。核心方法：系统把候选设计生成、"
+            "仿真评估和反馈修正串成闭环，用性能计数器和规则约束指导下一轮候选。关键结论："
+            "摘要显示该流程能在典型 benchmark 上改善 IPC 和 miss-rate，但仍需核对实验规模。"
+            "推荐理由：它同时命中 agentic 架构探索和模拟器驱动优化，适合优先略读方法与实验。"
+        )
+        calls = []
+
+        def opener(request, timeout=None):
+            calls.append(json.loads(request.data.decode("utf-8")))
+            if len(calls) == 1:
+                return FakeResponse({"choices": [{"message": {"content": "一句话总结。"}}]})
+            return FakeResponse({"choices": [{"message": {"content": long_tldr}}]})
+
+        enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener, require_api=True)
+
+        self.assertEqual(enriched["recommendations"][0]["tldr"], long_tldr)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("上一次输出过短", calls[1]["messages"][0]["content"])
+
     def test_enrich_payload_with_tldrs_requires_api_without_leaking_key(self):
         payload = {
             "recommendations": [

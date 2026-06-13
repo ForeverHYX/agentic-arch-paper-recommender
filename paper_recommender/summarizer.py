@@ -15,6 +15,7 @@ from paper_recommender.llm_errors import LLMProviderError, format_llm_error
 DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1"
 DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_USER_AGENT = "agentic-arch-paper-recommender/1.0"
+TLDR_MAX_ATTEMPTS = 3
 SECTION_LABELS = {
     "agentic_architecture": "Agentic 架构与自动设计空间探索",
     "full_stack_codesign": "全栈软硬件协同设计",
@@ -42,8 +43,29 @@ def request_tldr(
     model: str = DEFAULT_MODEL,
     opener: Callable[[Request], Any] = urlopen,
     timeout: int = 180,
+    retry_short_output: bool = False,
+    previous_tldr: str = "",
 ) -> str:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
+    system_prompt = (
+        "你为计算机体系结构研究者写简体中文 TLDR。"
+        "只输出最终答案，不要解释。"
+        "写 4 句，总计 180-260 个汉字，覆盖研究问题、核心方法、关键结论或实验发现、推荐理由。"
+        "如果摘要没有给出实验结论，可以明确说明摘要未披露实验结果。"
+        "不要逐句翻译摘要；系统名、工具名和缩写可以保留英文。"
+    )
+    if retry_short_output:
+        system_prompt += (
+            "上一次输出过短或中文内容不足，这次必须重写为 4 个完整中文句子，"
+            "每句 45-70 个汉字，总计不要少于 160 个汉字。不要使用列表、标题或 Markdown。"
+        )
+    user_prompt = (
+        f"Title: {item.get('title', '')}\n"
+        f"Abstract: {item.get('abstract', '')}\n"
+        f"Categories: {', '.join(str(value) for value in item.get('categories', []))}"
+    )
+    if previous_tldr:
+        user_prompt += f"\nPrevious short TLDR to replace: {_truncate(previous_tldr, 180)}"
     body = {
         "model": model,
         "temperature": 0.2,
@@ -51,20 +73,11 @@ def request_tldr(
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "你为计算机体系结构研究者写简体中文 TLDR。"
-                    "只输出最终答案，不要解释。"
-                    "写 4 句，总计 180-260 个汉字，覆盖研究问题、核心方法、关键结论或实验发现、推荐理由。"
-                    "不要逐句翻译摘要；系统名、工具名和缩写可以保留英文。"
-                ),
+                "content": system_prompt,
             },
             {
                 "role": "user",
-                "content": (
-                    f"Title: {item.get('title', '')}\n"
-                    f"Abstract: {item.get('abstract', '')}\n"
-                    f"Categories: {', '.join(str(value) for value in item.get('categories', []))}"
-                ),
+                "content": user_prompt,
             },
         ],
     }
@@ -157,11 +170,24 @@ def _safe_tldr(
                 )
             )
         return fallback_tldr(item)
+    last_quality_error: ValueError | None = None
     try:
-        tldr = request_tldr(item, api_key=api_key, base_url=base_url, model=model, opener=opener)
-        if _is_usable_tldr(tldr):
-            return tldr
-        raise ValueError("模型返回的 TLDR 过短或不是中文")
+        previous_tldr = ""
+        for attempt in range(TLDR_MAX_ATTEMPTS):
+            tldr = request_tldr(
+                item,
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                opener=opener,
+                retry_short_output=attempt > 0,
+                previous_tldr=previous_tldr,
+            )
+            if _is_usable_tldr(tldr):
+                return tldr
+            previous_tldr = tldr
+            last_quality_error = _tldr_quality_error(tldr)
+        raise last_quality_error or ValueError("模型返回的 TLDR 过短或不是中文")
     except Exception as exc:
         if require_api:
             raise LLMProviderError(format_llm_error(exc, base_url=base_url, model=model, api_key=api_key)) from exc
@@ -174,6 +200,12 @@ def _is_usable_tldr(text: str) -> bool:
         return False
     chinese_chars = sum(1 for char in normalized if "\u4e00" <= char <= "\u9fff")
     return chinese_chars >= 40
+
+
+def _tldr_quality_error(text: str) -> ValueError:
+    normalized = " ".join(str(text).split())
+    chinese_chars = sum(1 for char in normalized if "\u4e00" <= char <= "\u9fff")
+    return ValueError(f"模型返回的 TLDR 过短或不是中文：chars={len(normalized)}, chinese_chars={chinese_chars}")
 
 
 def _topic_hint(item: dict[str, Any]) -> str:
