@@ -48,12 +48,21 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(judgement["reason"], "贴合自动架构探索。")
         self.assertEqual(judgement["decision"], "keep")
 
-    def test_parse_judgement_response_reports_preview_when_json_is_missing(self):
+    def test_parse_judgement_response_accepts_plain_text_model_judgement(self):
+        judgement = parse_judgement_response(
+            "Score: 8.5\nDecision: keep\nReason: It directly studies simulator-guided architecture exploration."
+        )
+
+        self.assertEqual(judgement["score"], 8.5)
+        self.assertEqual(judgement["decision"], "keep")
+        self.assertIn("simulator-guided", judgement["reason"])
+
+    def test_parse_judgement_response_reports_preview_when_score_is_missing(self):
         with self.assertRaises(ValueError) as context:
-            parse_judgement_response("score 8 because it discusses architecture exploration")
+            parse_judgement_response("This is relevant because it discusses architecture exploration.")
 
         self.assertIn("LLM 响应中没有 JSON 对象", str(context.exception))
-        self.assertIn("score 8", str(context.exception))
+        self.assertIn("This is relevant", str(context.exception))
 
     def test_fallback_judgement_uses_rule_score_when_model_is_unavailable(self):
         judgement = fallback_judgement({"score": 7.0, "sections": ["agentic_architecture"]})
@@ -103,7 +112,7 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
-        self.assertEqual(seen["body"]["response_format"], {"type": "json_object"})
+        self.assertNotIn("response_format", seen["body"])
         self.assertIn("Agentic Microarchitecture Exploration", seen["body"]["messages"][1]["content"])
         self.assertIn("University of Architecture", seen["body"]["messages"][1]["content"])
         self.assertIn("Affiliations", seen["body"]["messages"][1]["content"])

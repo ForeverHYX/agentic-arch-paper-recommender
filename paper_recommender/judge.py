@@ -25,8 +25,7 @@ def parse_judgement_response(content: str) -> Judgement:
     if not raw.startswith("{"):
         match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
         if not match:
-            preview = " ".join(raw.split())[:160]
-            raise ValueError(f"LLM 响应中没有 JSON 对象：{preview}")
+            return _parse_plain_text_judgement(raw)
         raw = match.group(0)
     return _normalize_judgement(json.loads(raw))
 
@@ -64,7 +63,6 @@ def request_judgement(
         "model": model,
         "temperature": 0.1,
         "max_tokens": 220,
-        "response_format": {"type": "json_object"},
         "messages": [
             {
                 "role": "system",
@@ -255,6 +253,32 @@ def _normalize_judgement(value: dict[str, Any]) -> Judgement:
     if not reason:
         reason = "模型未返回原因，使用分数排序。"
     return {"score": score, "reason": reason, "decision": decision}
+
+
+def _parse_plain_text_judgement(raw: str) -> Judgement:
+    text = " ".join(str(raw).split())
+    score_match = re.search(
+        r"(?:score|分数|评分|相关性)[^\d]{0,20}([0-9]+(?:\.[0-9]+)?)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not score_match:
+        preview = text[:160]
+        raise ValueError(f"LLM 响应中没有 JSON 对象或可解析分数：{preview}")
+    score = _float_value(score_match.group(1), 0.0)
+    lowered = text.lower()
+    if re.search(r"\b(drop|reject|discard)\b|丢弃|不保留|不推荐|无关", lowered):
+        decision = "drop"
+    elif re.search(r"\b(keep|accept|retain)\b|保留|推荐|相关", lowered):
+        decision = "keep"
+    else:
+        decision = "keep" if score >= 4.0 else "drop"
+    reason = re.sub(
+        r"(?i)\b(score|decision|reason)\b\s*[:：]?",
+        "",
+        text,
+    ).strip(" -;；：:")
+    return _normalize_judgement({"score": score, "reason": reason or text, "decision": decision})
 
 
 def _ranking_key(item: dict[str, Any]) -> tuple[float, float, str]:
