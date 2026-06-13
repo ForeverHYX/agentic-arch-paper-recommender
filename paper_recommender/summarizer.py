@@ -41,7 +41,7 @@ def request_tldr(
     base_url: str = DEFAULT_BASE_URL,
     model: str = DEFAULT_MODEL,
     opener: Callable[[Request], Any] = urlopen,
-    timeout: int = 45,
+    timeout: int = 180,
 ) -> str:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
     body = {

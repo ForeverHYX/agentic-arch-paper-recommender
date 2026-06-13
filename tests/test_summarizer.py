@@ -62,11 +62,12 @@ class SummarizerTests(unittest.TestCase):
     def test_request_tldr_calls_openai_compatible_chat_completion(self):
         seen = {}
 
-        def opener(request):
+        def opener(request, timeout=None):
             seen["url"] = request.full_url
             seen["body"] = json.loads(request.data.decode("utf-8"))
             seen["authorization"] = request.headers["Authorization"]
             seen["user_agent"] = request.get_header("User-agent")
+            seen["timeout"] = timeout
             return FakeResponse({"choices": [{"message": {"content": "一句话总结。"}}]})
 
         tldr = request_tldr(
@@ -84,6 +85,7 @@ class SummarizerTests(unittest.TestCase):
         self.assertEqual(seen["url"], "https://example.com/v1/chat/completions")
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
+        self.assertGreaterEqual(seen["timeout"], 180)
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
         self.assertGreaterEqual(seen["body"]["max_tokens"], 8192)
         self.assertLessEqual(seen["body"]["max_tokens"], 9000)
