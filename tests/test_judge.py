@@ -121,7 +121,8 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
-        self.assertLessEqual(seen["body"]["max_tokens"], 256)
+        self.assertGreaterEqual(seen["body"]["max_tokens"], 1024)
+        self.assertLessEqual(seen["body"]["max_tokens"], 1536)
         self.assertNotIn("response_format", seen["body"])
         self.assertIn("reason 使用简体中文", seen["body"]["messages"][0]["content"])
         self.assertIn("80 个汉字以内", seen["body"]["messages"][0]["content"])
@@ -160,6 +161,37 @@ class JudgeTests(unittest.TestCase):
         message = str(context.exception)
         self.assertIn("LLM 返回空 judgement 内容", message)
         self.assertIn("finish_reason=length", message)
+        self.assertIn("reasoning_content", message)
+
+    def test_request_judgement_rejects_reasoning_content_without_final_answer(self):
+        def opener(request):
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "finish_reason": "length",
+                            "message": {
+                                "role": "assistant",
+                                "content": "",
+                                "reasoning_content": "Score: 9. Decision: keep. This is hidden reasoning, not the final JSON.",
+                            },
+                        }
+                    ]
+                }
+            )
+
+        with self.assertRaises(ValueError) as context:
+            request_judgement(
+                {
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies with gem5.",
+                },
+                api_key="secret",
+                opener=opener,
+            )
+
+        message = str(context.exception)
+        self.assertIn("LLM 返回空 judgement 内容", message)
         self.assertIn("reasoning_content", message)
 
     def test_request_judgement_includes_learned_feedback_profile(self):

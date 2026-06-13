@@ -65,7 +65,7 @@ def request_judgement(
     body = {
         "model": model,
         "temperature": 0.1,
-        "max_tokens": 220,
+        "max_tokens": 1024,
         "messages": [
             {
                 "role": "system",
@@ -321,23 +321,25 @@ def _chat_completion_content(payload: dict[str, Any]) -> str:
         raise ValueError("LLM 响应 choice 格式无效")
     message = choice.get("message")
     if isinstance(message, dict):
-        for key in ("content", "reasoning_content", "reasoning"):
-            content = _content_text(message.get(key))
-            if content:
-                return content
+        content = _content_text(message.get("content"))
+        if content:
+            return content
     content = _content_text(choice.get("text"))
     if content:
         return content
     finish_reason = str(choice.get("finish_reason", ""))
     choice_keys = ", ".join(sorted(str(key) for key in choice.keys()))
     message_keys = ""
+    reasoning_chars = 0
     if isinstance(message, dict):
         message_keys = ", ".join(sorted(str(key) for key in message.keys()))
+        reasoning_chars = len(_content_text(message.get("reasoning_content") or message.get("reasoning")))
     raise ValueError(
         "LLM 返回空 judgement 内容："
         f"finish_reason={finish_reason or 'unknown'}; "
         f"choice_keys={choice_keys or 'none'}; "
-        f"message_keys={message_keys or 'none'}"
+        f"message_keys={message_keys or 'none'}; "
+        f"reasoning_chars={reasoning_chars}"
     )
 
 

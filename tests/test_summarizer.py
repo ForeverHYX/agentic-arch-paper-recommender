@@ -85,9 +85,12 @@ class SummarizerTests(unittest.TestCase):
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
-        self.assertGreaterEqual(seen["body"]["max_tokens"], 360)
+        self.assertGreaterEqual(seen["body"]["max_tokens"], 8192)
+        self.assertLessEqual(seen["body"]["max_tokens"], 9000)
         system_prompt = seen["body"]["messages"][0]["content"]
         self.assertIn("简体中文", system_prompt)
+        self.assertIn("只输出最终答案", system_prompt)
+        self.assertIn("不要解释", system_prompt)
         self.assertIn("研究问题", system_prompt)
         self.assertIn("核心方法", system_prompt)
         self.assertIn("关键结论", system_prompt)
