@@ -25,7 +25,8 @@ def parse_judgement_response(content: str) -> Judgement:
     if not raw.startswith("{"):
         match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
         if not match:
-            raise ValueError("LLM 响应中没有 JSON 对象")
+            preview = " ".join(raw.split())[:160]
+            raise ValueError(f"LLM 响应中没有 JSON 对象：{preview}")
         raw = match.group(0)
     return _normalize_judgement(json.loads(raw))
 
@@ -63,6 +64,7 @@ def request_judgement(
         "model": model,
         "temperature": 0.1,
         "max_tokens": 220,
+        "response_format": {"type": "json_object"},
         "messages": [
             {
                 "role": "system",

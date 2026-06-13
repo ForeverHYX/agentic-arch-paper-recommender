@@ -3,6 +3,12 @@ from pathlib import Path
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_daily_workflow_runs_at_noon_china_time(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn('- cron: "0 4 * * *"', workflow)
+        self.assertNotIn('- cron: "30 22 * * *"', workflow)
+
     def test_daily_workflow_fetches_real_arxiv_records_before_recommendation_build(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 
