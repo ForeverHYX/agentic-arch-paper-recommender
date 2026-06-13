@@ -121,6 +121,7 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
+        self.assertEqual(seen["body"]["thinking"], {"type": "disabled"})
         self.assertGreaterEqual(seen["body"]["max_tokens"], 4096)
         self.assertLessEqual(seen["body"]["max_tokens"], 5000)
         self.assertNotIn("response_format", seen["body"])

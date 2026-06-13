@@ -66,6 +66,7 @@ def request_judgement(
         "model": model,
         "temperature": 0.1,
         "max_tokens": 4096,
+        "thinking": {"type": "disabled"},
         "messages": [
             {
                 "role": "system",

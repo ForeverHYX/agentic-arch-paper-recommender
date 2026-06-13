@@ -87,6 +87,7 @@ class SummarizerTests(unittest.TestCase):
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertGreaterEqual(seen["timeout"], 180)
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
+        self.assertEqual(seen["body"]["thinking"], {"type": "disabled"})
         self.assertGreaterEqual(seen["body"]["max_tokens"], 8192)
         self.assertLessEqual(seen["body"]["max_tokens"], 9000)
         system_prompt = seen["body"]["messages"][0]["content"]

@@ -70,6 +70,7 @@ def request_tldr(
         "model": model,
         "temperature": 0.2,
         "max_tokens": 8192,
+        "thinking": {"type": "disabled"},
         "messages": [
             {
                 "role": "system",
