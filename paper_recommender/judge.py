@@ -62,7 +62,7 @@ def request_judgement(
     body = {
         "model": model,
         "temperature": 0.1,
-        "max_tokens": 220,
+        "max_tokens": 768,
         "messages": [
             {
                 "role": "system",
@@ -114,7 +114,7 @@ def request_judgement(
         response_context = opener(request)
     with response_context as response:
         payload = json.loads(response.read().decode("utf-8"))
-    content = payload["choices"][0]["message"]["content"]
+    content = _chat_completion_content(payload)
     return parse_judgement_response(content)
 
 
@@ -279,6 +279,49 @@ def _parse_plain_text_judgement(raw: str) -> Judgement:
         text,
     ).strip(" -;；：:")
     return _normalize_judgement({"score": score, "reason": reason or text, "decision": decision})
+
+
+def _chat_completion_content(payload: dict[str, Any]) -> str:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("LLM 响应缺少 choices")
+    choice = choices[0]
+    if not isinstance(choice, dict):
+        raise ValueError("LLM 响应 choice 格式无效")
+    message = choice.get("message")
+    if isinstance(message, dict):
+        for key in ("content", "reasoning_content", "reasoning"):
+            content = _content_text(message.get(key))
+            if content:
+                return content
+    content = _content_text(choice.get("text"))
+    if content:
+        return content
+    finish_reason = str(choice.get("finish_reason", ""))
+    choice_keys = ", ".join(sorted(str(key) for key in choice.keys()))
+    message_keys = ""
+    if isinstance(message, dict):
+        message_keys = ", ".join(sorted(str(key) for key in message.keys()))
+    raise ValueError(
+        "LLM 返回空 judgement 内容："
+        f"finish_reason={finish_reason or 'unknown'}; "
+        f"choice_keys={choice_keys or 'none'}; "
+        f"message_keys={message_keys or 'none'}"
+    )
+
+
+def _content_text(value: Any) -> str:
+    if isinstance(value, str):
+        return " ".join(value.split())
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            if isinstance(item, dict):
+                parts.append(str(item.get("text") or item.get("content") or ""))
+            else:
+                parts.append(str(item))
+        return " ".join(" ".join(parts).split())
+    return ""
 
 
 def _ranking_key(item: dict[str, Any]) -> tuple[float, float, str]:

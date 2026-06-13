@@ -112,10 +112,44 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
+        self.assertGreaterEqual(seen["body"]["max_tokens"], 512)
         self.assertNotIn("response_format", seen["body"])
         self.assertIn("Agentic Microarchitecture Exploration", seen["body"]["messages"][1]["content"])
         self.assertIn("University of Architecture", seen["body"]["messages"][1]["content"])
         self.assertIn("Affiliations", seen["body"]["messages"][1]["content"])
+
+    def test_request_judgement_reports_empty_content_metadata(self):
+        def opener(request):
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "finish_reason": "length",
+                            "message": {
+                                "role": "assistant",
+                                "content": "",
+                                "reasoning_content": "",
+                            },
+                        }
+                    ],
+                    "usage": {"completion_tokens": 220},
+                }
+            )
+
+        with self.assertRaises(ValueError) as context:
+            request_judgement(
+                {
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies with gem5.",
+                },
+                api_key="secret",
+                opener=opener,
+            )
+
+        message = str(context.exception)
+        self.assertIn("LLM 返回空 judgement 内容", message)
+        self.assertIn("finish_reason=length", message)
+        self.assertIn("reasoning_content", message)
 
     def test_request_judgement_includes_learned_feedback_profile(self):
         seen = {}
