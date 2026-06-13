@@ -69,6 +69,15 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}", workflow)
         self.assertIn("OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}", workflow)
 
+    def test_daily_workflow_requires_api_when_llm_key_is_configured(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn('REQUIRE_API=""', workflow)
+        self.assertIn('if [ "$HAS_LLM" = "true" ]; then', workflow)
+        self.assertIn('REQUIRE_API="--require-api"', workflow)
+        self.assertIn("--limit 15 $REQUIRE_API", workflow)
+        self.assertIn("--output site/recommendations.json $REQUIRE_API", workflow)
+
     def test_daily_workflow_publishes_subsystem_status_without_secret_values(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 

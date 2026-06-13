@@ -93,10 +93,14 @@ jobs:
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}
         run: |
+          REQUIRE_API=""
+          if [ "$HAS_LLM" = "true" ]; then
+            REQUIRE_API="--require-api"
+          fi
           python -m paper_recommender.judge \
             --input site/recommendations.json \
             --output site/recommendations.json \
-            --limit 15
+            --limit 15 $REQUIRE_API
 
       - name: Enrich author affiliations
         run: |
@@ -111,9 +115,13 @@ jobs:
           OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}
         run: |
+          REQUIRE_API=""
+          if [ "$HAS_LLM" = "true" ]; then
+            REQUIRE_API="--require-api"
+          fi
           python -m paper_recommender.summarizer \
             --input site/recommendations.json \
-            --output site/recommendations.json
+            --output site/recommendations.json $REQUIRE_API
 
       - name: Inject public feedback config
         run: |

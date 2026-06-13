@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 
 from paper_recommender.summarizer import (
     enrich_payload_with_tldrs,
@@ -25,6 +26,17 @@ class FakeResponse:
         return json.dumps(self.payload).encode("utf-8")
 
 
+class FakeErrorBody:
+    def __init__(self, text):
+        self.text = text
+
+    def read(self):
+        return self.text.encode("utf-8")
+
+    def close(self):
+        pass
+
+
 class SummarizerTests(unittest.TestCase):
     def test_fallback_tldr_is_structured_chinese_briefing(self):
         text = fallback_tldr(
@@ -44,6 +56,8 @@ class SummarizerTests(unittest.TestCase):
         self.assertIn("推荐理由：", text)
         self.assertGreaterEqual(len(text), 120)
         self.assertLessEqual(len(text), 520)
+        self.assertNotIn("This paper studies", text)
+        self.assertNotIn("LLM agents can search", text)
 
     def test_request_tldr_calls_openai_compatible_chat_completion(self):
         seen = {}
@@ -111,6 +125,62 @@ class SummarizerTests(unittest.TestCase):
 
         self.assertIn("研究问题：", enriched["recommendations"][0]["tldr"])
         self.assertIn("核心方法：", enriched["recommendations"][0]["tldr"])
+
+    def test_enrich_payload_with_tldrs_requires_api_without_leaking_key(self):
+        payload = {
+            "recommendations": [
+                {
+                    "paper_id": "p1",
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies.",
+                }
+            ]
+        }
+
+        def opener(request):
+            raise HTTPError(
+                request.full_url,
+                401,
+                "Unauthorized",
+                hdrs=None,
+                fp=FakeErrorBody('{"error":"invalid api key unit-test-secret"}'),
+            )
+
+        with self.assertRaises(RuntimeError) as context:
+            enrich_payload_with_tldrs(
+                payload,
+                api_key="unit-test-secret",
+                base_url="https://opencode.ai/zen/go/v1",
+                model="deepseek-v4-flash",
+                opener=opener,
+                require_api=True,
+            )
+
+        message = str(context.exception)
+        self.assertIn("HTTP 401", message)
+        self.assertIn("opencode.ai/zen/go/v1", message)
+        self.assertIn("deepseek-v4-flash", message)
+        self.assertIn("invalid api key", message)
+        self.assertNotIn("unit-test-secret", message)
+
+    def test_enrich_payload_with_tldrs_requires_api_rejects_short_model_response(self):
+        payload = {
+            "recommendations": [
+                {
+                    "paper_id": "p1",
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies.",
+                }
+            ]
+        }
+
+        def opener(request):
+            return FakeResponse({"choices": [{"message": {"content": "一句话总结。"}}]})
+
+        with self.assertRaises(RuntimeError) as context:
+            enrich_payload_with_tldrs(payload, api_key="secret", opener=opener, require_api=True)
+
+        self.assertIn("TLDR 过短", str(context.exception))
 
     def test_cli_updates_recommendation_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:

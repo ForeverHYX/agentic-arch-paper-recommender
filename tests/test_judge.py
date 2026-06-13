@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 
 from paper_recommender.judge import (
     enrich_payload_with_judgements,
@@ -24,6 +25,17 @@ class FakeResponse:
 
     def read(self):
         return json.dumps(self.payload).encode("utf-8")
+
+
+class FakeErrorBody:
+    def __init__(self, text):
+        self.text = text
+
+    def read(self):
+        return self.text.encode("utf-8")
+
+    def close(self):
+        pass
 
 
 class JudgeTests(unittest.TestCase):
@@ -289,6 +301,45 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(enriched["count"], 1)
         self.assertEqual([item["paper_id"] for item in enriched["recommendations"]], ["keep"])
         self.assertEqual(enriched["judge_summary"]["dropped_count"], 1)
+
+    def test_enrich_payload_with_judgements_requires_api_without_leaking_key(self):
+        payload = {
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "paper_id": "p1",
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies.",
+                    "score": 5.0,
+                }
+            ]
+        }
+
+        def opener(request):
+            raise HTTPError(
+                request.full_url,
+                401,
+                "Unauthorized",
+                hdrs=None,
+                fp=FakeErrorBody('{"error":"invalid api key unit-test-secret"}'),
+            )
+
+        with self.assertRaises(RuntimeError) as context:
+            enrich_payload_with_judgements(
+                payload,
+                api_key="unit-test-secret",
+                base_url="https://opencode.ai/zen/go/v1",
+                model="deepseek-v4-flash",
+                opener=opener,
+                require_api=True,
+            )
+
+        message = str(context.exception)
+        self.assertIn("HTTP 401", message)
+        self.assertIn("opencode.ai/zen/go/v1", message)
+        self.assertIn("deepseek-v4-flash", message)
+        self.assertIn("invalid api key", message)
+        self.assertNotIn("unit-test-secret", message)
 
     def test_cli_updates_recommendation_json_with_fallback_judgement(self):
         with tempfile.TemporaryDirectory() as tmpdir:

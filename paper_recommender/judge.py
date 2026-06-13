@@ -10,6 +10,7 @@ import re
 from typing import Any, Callable
 from urllib.request import Request, urlopen
 
+from paper_recommender.llm_errors import LLMProviderError, format_llm_error
 from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL
 
 
@@ -123,6 +124,7 @@ def enrich_payload_with_judgements(
     base_url: str = DEFAULT_BASE_URL,
     model: str = DEFAULT_MODEL,
     opener: Callable[[Request], Any] = urlopen,
+    require_api: bool = False,
 ) -> dict[str, Any]:
     profile_name = str(payload.get("profile_name", ""))
     section_labels = payload.get("section_labels") or {}
@@ -145,6 +147,7 @@ def enrich_payload_with_judgements(
                 base_url=base_url,
                 model=model,
                 opener=opener,
+                require_api=require_api,
             )
         updated["ai_judgement"] = judgement
         updated["ai_score"] = judgement["score"]
@@ -177,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=15, help="AI 判断后最多保留推荐数。")
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL))
     parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL))
+    parser.add_argument("--require-api", action="store_true", help="API 已配置时调用失败则退出，不使用规则兜底。")
     args = parser.parse_args(argv)
 
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
@@ -186,6 +190,7 @@ def main(argv: list[str] | None = None) -> int:
         limit=args.limit,
         base_url=args.base_url,
         model=args.model,
+        require_api=args.require_api,
     )
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,8 +213,17 @@ def _safe_judgement(
     base_url: str,
     model: str,
     opener: Callable[[Request], Any],
+    require_api: bool = False,
 ) -> Judgement:
     if not api_key:
+        if require_api:
+            raise LLMProviderError(
+                format_llm_error(
+                    RuntimeError("OPENAI_API_KEY is not configured"),
+                    base_url=base_url,
+                    model=model,
+                )
+            )
         return fallback_judgement(item)
     try:
         return request_judgement(
@@ -223,7 +237,9 @@ def _safe_judgement(
             model=model,
             opener=opener,
         )
-    except Exception:
+    except Exception as exc:
+        if require_api:
+            raise LLMProviderError(format_llm_error(exc, base_url=base_url, model=model, api_key=api_key)) from exc
         return fallback_judgement(item)
 
 

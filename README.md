@@ -98,7 +98,7 @@ OPENAI_API_KEY=... python3 -m paper_recommender.summarizer \
   --output site/recommendations.json
 ```
 
-The default OpenAI-compatible endpoint is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. The judge uses the model to add `ai_judgement` and `ai_score`, rerank candidates by AI relevance, and truncate the final digest to 15 papers. If the API key is missing or a request fails, the judge falls back to the rule score and the summarizer falls back to a local title/abstract TLDR so the daily workflow still completes.
+The default OpenAI-compatible provider is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. The judge uses the model to add `ai_judgement` and `ai_score`, rerank candidates by AI relevance, and truncate the final digest to 15 papers. If no API key is configured, local/offline runs can still use rule-score and Chinese fallback text. In GitHub Actions, once `OPENAI_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback TLDRs as if the API worked.
 
 `--min-count` fills with exploratory papers. Core arXiv categories are preferred first; if there still are not enough candidates, clean expansion-category papers without negative/noise matches are added as exploratory items.
 
@@ -116,7 +116,7 @@ GitHub Actions reads the OpenAI-compatible provider configuration from:
 - GitHub Variable: `OPENAI_BASE_URL`, optional, defaults to `https://opencode.ai/zen/go/v1`
 - GitHub Variable: `OPENAI_MODEL`, optional, defaults to `deepseek-v4-flash`
 
-OpenCode documents OpenCode Go API keys under its provider docs and documents custom OpenAI-compatible providers with a configurable `baseURL`. This repository keeps the same shape at the workflow level: the API key stays secret, while base URL and model can be changed without code edits.
+OpenCode Go's official docs list `deepseek-v4-flash` with model ID `deepseek-v4-flash` and endpoint `https://opencode.ai/zen/go/v1/chat/completions`. Configure this repository with the base URL only, without the final `/chat/completions`, because the Python client appends that path. Keep the API key in a GitHub Secret only; do not put it in repository files, Pages config, or GitHub Variables.
 
 The daily pipeline uses the LLM twice:
 
