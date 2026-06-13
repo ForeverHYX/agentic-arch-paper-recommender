@@ -11,7 +11,7 @@ from typing import Any, Callable
 from urllib.request import Request, urlopen
 
 from paper_recommender.llm_errors import LLMProviderError, format_llm_error
-from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL
+from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_USER_AGENT
 
 
 Judgement = dict[str, Any]
@@ -104,6 +104,7 @@ def request_judgement(
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": DEFAULT_USER_AGENT,
         },
         method="POST",
     )

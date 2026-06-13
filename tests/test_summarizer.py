@@ -66,6 +66,7 @@ class SummarizerTests(unittest.TestCase):
             seen["url"] = request.full_url
             seen["body"] = json.loads(request.data.decode("utf-8"))
             seen["authorization"] = request.headers["Authorization"]
+            seen["user_agent"] = request.get_header("User-agent")
             return FakeResponse({"choices": [{"message": {"content": "一句话总结。"}}]})
 
         tldr = request_tldr(
@@ -82,6 +83,7 @@ class SummarizerTests(unittest.TestCase):
         self.assertEqual(tldr, "一句话总结。")
         self.assertEqual(seen["url"], "https://example.com/v1/chat/completions")
         self.assertEqual(seen["authorization"], "Bearer secret")
+        self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
         self.assertGreaterEqual(seen["body"]["max_tokens"], 360)
         system_prompt = seen["body"]["messages"][0]["content"]

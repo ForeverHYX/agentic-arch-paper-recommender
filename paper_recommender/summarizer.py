@@ -14,6 +14,7 @@ from paper_recommender.llm_errors import LLMProviderError, format_llm_error
 
 DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1"
 DEFAULT_MODEL = "deepseek-v4-flash"
+DEFAULT_USER_AGENT = "agentic-arch-paper-recommender/1.0"
 SECTION_LABELS = {
     "agentic_architecture": "Agentic 架构与自动设计空间探索",
     "full_stack_codesign": "全栈软硬件协同设计",
@@ -75,6 +76,7 @@ def request_tldr(
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": DEFAULT_USER_AGENT,
         },
         method="POST",
     )

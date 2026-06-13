@@ -62,6 +62,7 @@ class JudgeTests(unittest.TestCase):
             seen["url"] = request.full_url
             seen["body"] = json.loads(request.data.decode("utf-8"))
             seen["authorization"] = request.headers["Authorization"]
+            seen["user_agent"] = request.get_header("User-agent")
             return FakeResponse(
                 {
                     "choices": [
@@ -93,6 +94,7 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(judgement["decision"], "keep")
         self.assertEqual(seen["url"], "https://example.com/v1/chat/completions")
         self.assertEqual(seen["authorization"], "Bearer secret")
+        self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
         self.assertIn("Agentic Microarchitecture Exploration", seen["body"]["messages"][1]["content"])
         self.assertIn("University of Architecture", seen["body"]["messages"][1]["content"])
