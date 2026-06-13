@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>兴趣画像</title>
-    <link rel="stylesheet" href="styles.css?v=20260612-profile-settings">
+    <link rel="stylesheet" href="styles.css?v=20260614-llm-ui">
   </head>
   <body>
     <main class="profile-settings">
@@ -17,6 +17,10 @@
         <a class="link-button" href="index.html">返回推荐列表</a>
       </header>
       <section class="profile-panel">
+        <section id="profileSummary" class="profile-summary" aria-live="polite">
+          <h2>核心规则</h2>
+          <p>正在生成中文规则摘要...</p>
+        </section>
         <textarea id="profileEditor" class="profile-editor" spellcheck="false"></textarea>
         <div class="profile-actions">
           <button id="saveProfileButton" class="link-button" type="button">保存本地副本</button>
@@ -25,6 +29,6 @@
         <p class="profile-note">要让每日 workflow 使用这份画像，请把下载的 JSON 内容放入 GitHub Secret <code>PROFILE_OVERRIDE_JSON</code>，然后重新运行 workflow。</p>
       </section>
     </main>
-    <script src="profile.js?v=20260612-profile-settings"></script>
+    <script src="profile.js?v=20260614-llm-ui"></script>
   </body>
 </html>

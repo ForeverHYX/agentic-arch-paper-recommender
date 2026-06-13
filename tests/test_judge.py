@@ -64,6 +64,15 @@ class JudgeTests(unittest.TestCase):
         self.assertIn("LLM 响应中没有 JSON 对象", str(context.exception))
         self.assertIn("This is relevant", str(context.exception))
 
+    def test_parse_judgement_response_recovers_truncated_json_with_score_and_reason(self):
+        judgement = parse_judgement_response(
+            '{"score": 8.5, "reason": "高度贴合自动架构探索，但需要结合论文实验继续确认'
+        )
+
+        self.assertEqual(judgement["score"], 8.5)
+        self.assertEqual(judgement["decision"], "keep")
+        self.assertIn("高度贴合自动架构探索", judgement["reason"])
+
     def test_fallback_judgement_uses_rule_score_when_model_is_unavailable(self):
         judgement = fallback_judgement({"score": 7.0, "sections": ["agentic_architecture"]})
 
@@ -112,8 +121,10 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
-        self.assertGreaterEqual(seen["body"]["max_tokens"], 512)
+        self.assertLessEqual(seen["body"]["max_tokens"], 256)
         self.assertNotIn("response_format", seen["body"])
+        self.assertIn("reason 使用简体中文", seen["body"]["messages"][0]["content"])
+        self.assertIn("80 个汉字以内", seen["body"]["messages"][0]["content"])
         self.assertIn("Agentic Microarchitecture Exploration", seen["body"]["messages"][1]["content"])
         self.assertIn("University of Architecture", seen["body"]["messages"][1]["content"])
         self.assertIn("Affiliations", seen["body"]["messages"][1]["content"])

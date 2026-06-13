@@ -135,14 +135,26 @@ if (!withoutAffiliations.includes("作者单位")) {
     def test_index_busts_app_cache_for_affiliation_ui(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
-        self.assertIn("app.js?v=20260612-run-health", html)
+        self.assertIn("app.js?v=20260614-llm-ui", html)
 
     def test_index_contains_run_health_placeholder_and_cache_bust(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
         self.assertIn('id="runHealth"', html)
         self.assertIn('class="run-health"', html)
-        self.assertIn("app.js?v=20260612-run-health", html)
+        self.assertIn('id="statusDetails"', html)
+        self.assertIn("反馈与系统细节", html)
+        self.assertIn("app.js?v=20260614-llm-ui", html)
+
+    def test_sidebar_keeps_secondary_status_in_collapsible_details(self):
+        html = Path("site/index.html").read_text(encoding="utf-8")
+        styles = Path("site/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('<details id="statusDetails" class="sidebar-details">', html)
+        self.assertLess(html.index('id="runHealth"'), html.index('id="statusDetails"'))
+        self.assertLess(html.index('id="statusDetails"'), html.index('id="searchInput"'))
+        self.assertIn(".sidebar-details", styles)
+        self.assertIn(".sidebar-details summary", styles)
 
     def test_reader_shows_run_health_for_local_feedback_mode(self):
         self.run_app_script(

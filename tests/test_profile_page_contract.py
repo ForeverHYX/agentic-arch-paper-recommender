@@ -14,7 +14,7 @@ const storage = {};
 
 function element(id) {
   if (!elements[id]) {
-    elements[id] = { textContent: "", value: "", href: "", download: "", addEventListener() {} };
+    elements[id] = { textContent: "", innerHTML: "", value: "", href: "", download: "", addEventListener() {} };
   }
   return elements[id];
 }
@@ -70,12 +70,14 @@ __BODY__
         script = Path("site/profile.js").read_text(encoding="utf-8")
 
         self.assertIn('id="profileEditor"', html)
+        self.assertIn('id="profileSummary"', html)
         self.assertIn('id="saveProfileButton"', html)
         self.assertIn('id="downloadProfileLink"', html)
         self.assertIn("PROFILE_OVERRIDE_JSON", html)
         self.assertIn("loadProfile", script)
         self.assertIn("saveProfileOverride", script)
         self.assertIn("renderProfileExport", script)
+        self.assertIn("renderProfileSummary", script)
 
     def test_profile_page_saves_and_exports_valid_json(self):
         self.run_profile_script(
@@ -103,6 +105,38 @@ if (elements.downloadProfileLink.download !== "recommender-profile.json") {
 if (!elements.profileStatus.textContent.includes("已保存")) {
   throw new Error(`missing saved status: ${elements.profileStatus.textContent}`);
 }
+if (!elements.profileSummary.innerHTML.includes("核心规则")) {
+  throw new Error(`profile summary was not refreshed: ${elements.profileSummary.innerHTML}`);
+}
+"""
+        )
+
+    def test_profile_page_renders_chinese_core_rule_summary(self):
+        self.run_profile_script(
+            """
+context.renderProfileSummary({
+  name: "Agentic 架构与全栈软硬件协同设计",
+  core_categories: ["cs.AR", "cs.PF"],
+  expansion_categories: ["cs.AI"],
+  sections: [
+    {
+      id: "agentic_architecture",
+      label: "Agentic Architecture / Auto-DSE",
+      weight: 4,
+      keywords: ["automated architecture discovery", "simulator-guided search"],
+    },
+  ],
+  negative_rules: [
+    { id: "generic-ai-agent-noise", penalty: 6, keywords: ["web task"] },
+  ],
+});
+
+const html = elements.profileSummary.innerHTML;
+if (!html.includes("核心规则")) throw new Error(`missing core heading: ${html}`);
+if (!html.includes("计算机体系结构")) throw new Error(`missing Chinese category label: ${html}`);
+if (!html.includes("自动架构设计")) throw new Error(`missing Chinese section summary: ${html}`);
+if (html.includes("core_categories")) throw new Error(`raw JSON key leaked into summary: ${html}`);
+if (html.includes("automated architecture discovery")) throw new Error(`raw keyword leaked into summary: ${html}`);
 """
         )
 
@@ -112,6 +146,7 @@ if (!elements.profileStatus.textContent.includes("已保存")) {
 
         self.assertIn('lang="zh-CN"', html)
         self.assertIn("兴趣画像", html)
+        self.assertIn("核心规则", html)
         self.assertIn("返回推荐列表", html)
         self.assertIn("保存本地副本", html)
         self.assertIn("下载 JSON", html)

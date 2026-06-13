@@ -196,6 +196,30 @@ h1 {
   line-height: 1.45;
 }
 
+.sidebar-details {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.sidebar-details summary {
+  min-height: 34px;
+  padding: 8px 10px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  list-style-position: inside;
+}
+
+.sidebar-details .feedback-status,
+.sidebar-details .feedback-insights,
+.sidebar-details .subsystem-status {
+  border-width: 1px 0 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 .feedback-status strong,
 .feedback-insights strong,
 .subsystem-status strong,
@@ -270,6 +294,61 @@ h1 {
 .profile-panel {
   display: grid;
   gap: 12px;
+}
+
+.profile-summary {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 16px;
+}
+
+.profile-summary h2 {
+  margin-bottom: 8px;
+}
+
+.profile-summary-lede {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.profile-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profile-rule-grid div,
+.profile-section-summary article {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 11px;
+}
+
+.profile-rule-grid strong,
+.profile-section-summary strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.profile-rule-grid span,
+.profile-section-summary span,
+.profile-section-summary p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.profile-section-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.profile-section-summary p {
+  margin: 6px 0 0;
 }
 
 .profile-editor {
@@ -506,6 +585,11 @@ h3 {
   }
 
   .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-rule-grid,
+  .profile-section-summary {
     grid-template-columns: 1fr;
   }
 

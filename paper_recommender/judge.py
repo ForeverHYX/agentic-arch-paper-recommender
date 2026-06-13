@@ -27,7 +27,10 @@ def parse_judgement_response(content: str) -> Judgement:
         if not match:
             return _parse_plain_text_judgement(raw)
         raw = match.group(0)
-    return _normalize_judgement(json.loads(raw))
+    try:
+        return _normalize_judgement(json.loads(raw))
+    except json.JSONDecodeError:
+        return _parse_partial_json_judgement(raw)
 
 
 def fallback_judgement(item: dict[str, Any]) -> Judgement:
@@ -62,21 +65,20 @@ def request_judgement(
     body = {
         "model": model,
         "temperature": 0.1,
-        "max_tokens": 768,
+        "max_tokens": 220,
         "messages": [
             {
                 "role": "system",
                 "content": (
-                    "You are judging arXiv paper relevance for a computer architecture researcher. "
-                    "The user's main interests are agentic computer architecture design, automated "
-                    "architecture design-space exploration, full-stack hardware/software co-design, "
-                    "CPU/GPU microarchitecture, architecture simulators, and intersections with HPC, "
-                    "compilers, runtimes, and performance portability. Penalize generic AI agents, "
-                    "web/RAG benchmarks, software architecture, and unrelated ML papers. "
-                    "Use author affiliations as a weak quality/context signal when present, but do not "
-                    "drop a paper solely because affiliations are missing. Use decision=drop only when "
-                    "the paper is clearly unrelated, generic, or too low quality for this profile. "
-                    "Return only JSON with keys score, reason, decision. score is 0-10; decision is keep or drop."
+                    "你正在为一名计算机体系结构研究者判断 arXiv 论文相关性。"
+                    "核心兴趣包括 agentic computer architecture design、自动架构设计空间探索、"
+                    "全栈软硬件协同设计、CPU/GPU 微架构、体系结构模拟器，以及与 HPC、编译器、"
+                    "运行时和性能可移植性的交叉方向。降低泛 AI agent、Web/RAG benchmark、"
+                    "软件架构和无关机器学习论文的分数。作者单位只能作为弱质量信号，不能因为缺失单位就丢弃。"
+                    "仅在论文明显无关、过泛或质量过低时使用 decision=drop。"
+                    "只返回一行 JSON，不要 Markdown，不要解释。"
+                    "JSON keys 必须是 score, reason, decision；score 是 0-10；"
+                    "decision 只能是 keep 或 drop；reason 使用简体中文，80 个汉字以内。"
                 ),
             },
             {
@@ -279,6 +281,35 @@ def _parse_plain_text_judgement(raw: str) -> Judgement:
         text,
     ).strip(" -;；：:")
     return _normalize_judgement({"score": score, "reason": reason or text, "decision": decision})
+
+
+def _parse_partial_json_judgement(raw: str) -> Judgement:
+    score = _json_number_field(raw, "score")
+    if score is None:
+        return _parse_plain_text_judgement(raw)
+    reason = _json_string_field(raw, "reason") or "模型返回了可解析分数，但说明文本不完整。"
+    decision = _json_string_field(raw, "decision").lower()
+    if decision not in {"keep", "drop"}:
+        decision = "keep" if score >= 4.0 else "drop"
+    return _normalize_judgement({"score": score, "reason": reason, "decision": decision})
+
+
+def _json_number_field(raw: str, field: str) -> float | None:
+    match = re.search(rf'"{re.escape(field)}"\s*:\s*([0-9]+(?:\.[0-9]+)?)', raw)
+    if not match:
+        return None
+    return _float_value(match.group(1), 0.0)
+
+
+def _json_string_field(raw: str, field: str) -> str:
+    match = re.search(rf'"{re.escape(field)}"\s*:\s*"((?:\\.|[^"\\])*)', raw, flags=re.DOTALL)
+    if not match:
+        return ""
+    value = match.group(1)
+    try:
+        return str(json.loads(f'"{value}"'))
+    except json.JSONDecodeError:
+        return value.replace(r"\"", '"').replace(r"\\", "\\").strip()
 
 
 def _chat_completion_content(payload: dict[str, Any]) -> str:

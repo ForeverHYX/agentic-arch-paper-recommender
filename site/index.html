@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>每日 arXiv 推荐</title>
-    <link rel="stylesheet" href="styles.css?v=20260612-feedback-metrics">
+    <link rel="stylesheet" href="styles.css?v=20260614-llm-ui">
   </head>
   <body>
     <header class="topbar">
@@ -19,9 +19,12 @@
       <aside class="sidebar" aria-label="推荐筛选与运行状态">
         <div class="sidebar-status-stack">
           <div id="runHealth" class="run-health" aria-live="polite"></div>
-          <div id="feedbackStatus" class="feedback-status" aria-live="polite"></div>
-          <div id="feedbackInsights" class="feedback-insights" aria-live="polite"></div>
-          <div id="subsystemStatus" class="subsystem-status" aria-live="polite"></div>
+          <details id="statusDetails" class="sidebar-details">
+            <summary>反馈与系统细节</summary>
+            <div id="feedbackStatus" class="feedback-status" aria-live="polite"></div>
+            <div id="feedbackInsights" class="feedback-insights" aria-live="polite"></div>
+            <div id="subsystemStatus" class="subsystem-status" aria-live="polite"></div>
+          </details>
           <div id="resultCount" class="result-count" aria-live="polite"></div>
         </div>
         <div class="sidebar-title">筛选</div>
@@ -63,7 +66,7 @@
       </aside>
       <section id="recommendations" class="paper-list" aria-live="polite"></section>
     </main>
-    <script src="config.js?v=20260612-feedback-metrics"></script>
-    <script src="app.js?v=20260612-run-health"></script>
+    <script src="config.js?v=20260614-llm-ui"></script>
+    <script src="app.js?v=20260614-llm-ui"></script>
   </body>
 </html>
