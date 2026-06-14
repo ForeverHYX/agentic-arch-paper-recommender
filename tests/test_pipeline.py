@@ -322,6 +322,51 @@ class PipelineTests(unittest.TestCase):
         )
         self.assertEqual(payload["section_labels"]["exploration"], "Exploration / AI+体系结构探索")
 
+    def test_exploration_requires_ai_ml_and_systems_signals(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI", "cs.LG"}),
+            sections=(SectionRule("arch", "Architecture", 3.0, ("cache replacement",)),),
+        )
+        good = paper_from_record(
+            {
+                "paper_id": "gpu-llm-serving",
+                "title": "Characterizing Software Aging in GPU-Based LLM Serving Systems",
+                "abstract": "We study GPU memory behavior and inference serving performance for LLM systems.",
+                "authors": [],
+                "categories": ["cs.AI"],
+            }
+        )
+        runtime_only = paper_from_record(
+            {
+                "paper_id": "runtime-only",
+                "title": "Runtime Enforcement of Hybrid System Properties",
+                "abstract": "A runtime monitor checks hybrid system specifications.",
+                "authors": [],
+                "categories": ["cs.AI"],
+            }
+        )
+        ml_only = paper_from_record(
+            {
+                "paper_id": "ml-only",
+                "title": "Sparse Attention for Language Models",
+                "abstract": "A machine learning method improves attention quality.",
+                "authors": [],
+                "categories": ["cs.LG"],
+            }
+        )
+
+        payload = recommendation_payload(
+            [good, runtime_only, ml_only],
+            "2026-06-14",
+            exploration_count=5,
+            profile=profile,
+        )
+
+        self.assertEqual([item["paper_id"] for item in payload["recommendations"]], ["gpu-llm-serving"])
+        self.assertEqual(payload["recommendations"][0]["sections"], ["exploration"])
+
 
 if __name__ == "__main__":
     unittest.main()

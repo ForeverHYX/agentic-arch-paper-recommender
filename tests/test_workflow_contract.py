@@ -19,7 +19,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--profile output/interests.json", workflow)
         self.assertIn("--limit 45", workflow)
         self.assertIn("--min-count 45", workflow)
-        self.assertIn("--exploration-count 12", workflow)
+        self.assertIn("--exploration-count 30", workflow)
         self.assertNotIn("--input examples/sample_papers.jsonl", workflow)
 
     def test_daily_workflow_allows_profile_override_secret(self):

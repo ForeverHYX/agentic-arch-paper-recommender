@@ -30,25 +30,48 @@ from paper_recommender.history import RecommendationRun, history_counts, load_hi
 EXPLORATION_SECTION = "exploration"
 EXPLORATION_LABEL = "Exploration / AI+体系结构探索"
 EXPLORATION_CATEGORIES = frozenset({"cs.AI", "cs.LG", "cs.AR", "cs.PF", "cs.DC", "cs.PL"})
-EXPLORATION_KEYWORDS = (
+EXPLORATION_AI_ML_KEYWORDS = (
+    "ai model",
+    "attention",
+    "deep learning",
+    "foundation model",
+    "inference",
+    "language model",
+    "llm",
+    "machine learning",
+    "neural network",
+    "quantization",
+    "training",
+    "transformer",
+)
+EXPLORATION_SYSTEMS_KEYWORDS = (
     "accelerator",
-    "gpu",
-    "hardware-aware",
-    "hardware aware",
-    "ml compiler",
-    "machine learning systems",
-    "systems for machine learning",
-    "performance model",
-    "runtime",
-    "compiler",
-    "inference serving",
-    "training system",
-    "tensor",
-    "systolic",
-    "fpga",
     "asic",
-    "memory hierarchy",
+    "compiler",
+    "consumer gpu",
+    "energy efficient",
+    "fpga",
+    "fp8",
+    "gpu",
+    "hardware",
+    "hardware aware",
+    "hardware-aware",
+    "inference serving",
     "interconnect",
+    "int8",
+    "bitwidth",
+    "low-bit",
+    "machine learning systems",
+    "memory hierarchy",
+    "ml compiler",
+    "performance model",
+    "quantization",
+    "runtime",
+    "serving system",
+    "systolic",
+    "systems for machine learning",
+    "tensor",
+    "training system",
 )
 
 
@@ -528,11 +551,16 @@ def _matching_exploration_keywords(paper: Paper) -> tuple[str, ...]:
                 paper.abstract,
                 " ".join(paper.authors),
                 " ".join(paper.affiliations),
-                " ".join(paper.categories),
             ]
         )
     )
-    return tuple(keyword for keyword in EXPLORATION_KEYWORDS if _keyword_matches_text(text, keyword))
+    ai_matches = tuple(keyword for keyword in EXPLORATION_AI_ML_KEYWORDS if _keyword_matches_text(text, keyword))
+    systems_matches = tuple(
+        keyword for keyword in EXPLORATION_SYSTEMS_KEYWORDS if _keyword_matches_text(text, keyword)
+    )
+    if not ai_matches or not systems_matches:
+        return ()
+    return ai_matches + systems_matches
 
 
 def _normalize_for_matching(value: str) -> str:

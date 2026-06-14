@@ -282,6 +282,41 @@ class JudgeTests(unittest.TestCase):
         self.assertIn("Positive seed for automated architecture discovery", prompt)
         self.assertIn("automated architecture discovery", prompt)
 
+    def test_request_judgement_includes_exploration_guidance(self):
+        seen = {}
+
+        def opener(request):
+            seen["body"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"score": 7, "reason": "适合作为探索论文。", "decision": "keep"}'
+                            }
+                        }
+                    ]
+                }
+            )
+
+        request_judgement(
+            {
+                "title": "GPU-Based LLM Serving Systems",
+                "abstract": "A systems paper studies GPU memory behavior for LLM inference serving.",
+                "score": 1.0,
+                "sections": ["exploration"],
+            },
+            api_key="secret",
+            section_labels={"exploration": "Exploration / AI+体系结构探索"},
+            opener=opener,
+        )
+
+        system_prompt = seen["body"]["messages"][0]["content"]
+        user_prompt = seen["body"]["messages"][1]["content"]
+        self.assertIn("exploration", system_prompt)
+        self.assertIn("不要按核心画像过严丢弃", system_prompt)
+        self.assertIn("Exploration / AI+体系结构探索", user_prompt)
+
     def test_enrich_payload_with_judgements_reranks_and_limits_by_ai_score(self):
         payload = {
             "profile_name": "Agentic Architecture",
