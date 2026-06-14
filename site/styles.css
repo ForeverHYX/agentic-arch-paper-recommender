@@ -1,15 +1,19 @@
 :root {
   color-scheme: light;
-  --bg: #f4f6f8;
-  --panel: #ffffff;
-  --panel-soft: #eef6f3;
-  --text: #1d252d;
-  --muted: #647282;
-  --line: #d7dee6;
-  --accent: #0f766e;
-  --accent-strong: #0b5f59;
+  --bg: #e8f1fb;
+  --panel: rgba(255, 255, 255, 0.76);
+  --panel-solid: #ffffff;
+  --panel-soft: #eef6ff;
+  --text: #1f2937;
+  --muted: #65758b;
+  --line: rgba(83, 101, 128, 0.22);
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --teal: #0f766e;
+  --teal-strong: #0b5f59;
   --warn: #a24710;
   --danger: #a13535;
+  --shadow: 0 16px 42px rgba(73, 92, 138, 0.13);
 }
 
 * {
@@ -237,15 +241,16 @@ h1 {
 
 .summary-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(78px, 1fr));
+  grid-template-columns: repeat(5, minmax(72px, 1fr));
   gap: 10px;
-  min-width: min(420px, 100%);
+  min-width: min(520px, 100%);
 }
 
 .summary-stats div {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fafbfc;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: inset 0 1px 8px rgba(255, 255, 255, 0.42);
   padding: 12px 14px;
 }
 
@@ -277,6 +282,9 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
   padding: 14px;
 }
 
@@ -326,7 +334,7 @@ h1 {
   min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.86);
   color: var(--text);
   padding: 7px 9px;
   font: inherit;
@@ -355,7 +363,7 @@ h1 {
 .run-health {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcfd;
+  background: rgba(255, 255, 255, 0.62);
   padding: 10px 11px;
   font-size: 12px;
   line-height: 1.45;
@@ -414,7 +422,7 @@ h1 {
 }
 
 .status-on {
-  color: var(--accent-strong);
+  color: var(--teal-strong);
 }
 
 .status-off {
@@ -435,7 +443,7 @@ h1 {
   border-radius: 8px;
   padding: 10px 11px;
   color: var(--text);
-  background: #f8fafb;
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .section-nav strong {
@@ -603,6 +611,9 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
   padding: 18px;
   margin-bottom: 12px;
 }
@@ -645,7 +656,7 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 3px 8px;
-  background: #fbfcfd;
+  background: rgba(255, 255, 255, 0.56);
 }
 
 .repo-meta {
@@ -661,7 +672,7 @@ h2 {
   border-radius: 999px;
   padding: 3px 8px;
   background: #eefaf7;
-  color: #0f5f56;
+  color: var(--teal-strong);
   font-weight: 800;
 }
 
@@ -692,9 +703,9 @@ h3 {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 10px;
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--teal);
   border-radius: 4px;
-  background: #f8fafb;
+  background: rgba(255, 255, 255, 0.58);
   margin: -4px 0 12px;
   padding: 9px 11px;
   font-size: 13px;
@@ -811,7 +822,7 @@ h3 {
 }
 
 .feedback-button.like {
-  color: var(--accent-strong);
+  color: var(--teal-strong);
 }
 
 .feedback-button.dislike {
@@ -872,6 +883,34 @@ h3 {
 }
 
 @media (max-width: 820px) {
+  .site-header {
+    top: 8px;
+    margin: 10px 0 22px;
+  }
+
+  .nav-island-body {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .reader-tabs {
+    justify-content: flex-start;
+  }
+
+  .reader-overview {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .article-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-sidebar {
+    order: -1;
+  }
+
   .topbar {
     align-items: stretch;
     flex-direction: column;
@@ -883,7 +922,8 @@ h3 {
 
   .profile-rule-grid,
   .profile-section-summary,
-  .profile-review-grid {
+  .profile-review-grid,
+  .profile-system-grid {
     grid-template-columns: 1fr;
   }
 
@@ -900,7 +940,13 @@ h3 {
   }
 
   .summary-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+  }
+
+  .reader-tab {
+    min-height: 34px;
+    padding: 6px 10px;
   }
 
   .paper {

@@ -216,7 +216,7 @@ if (!withoutAffiliations.includes("作者单位")) {
     def test_index_busts_app_cache_for_affiliation_ui(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
-        self.assertIn("app.js?v=20260614-inline-feedback", html)
+        self.assertIn("app.js?v=20260614-reader-tabs", html)
 
     def test_index_contains_run_health_placeholder_and_cache_bust(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -225,7 +225,7 @@ if (!withoutAffiliations.includes("作者单位")) {
         self.assertIn('class="run-health"', html)
         self.assertIn('id="statusDetails"', html)
         self.assertIn("反馈与系统细节", html)
-        self.assertIn("app.js?v=20260614-inline-feedback", html)
+        self.assertIn("app.js?v=20260614-reader-tabs", html)
 
     def test_sidebar_keeps_secondary_status_in_collapsible_details(self):
         html = Path("site/index.html").read_text(encoding="utf-8")

@@ -740,5 +740,38 @@
 | JSON 语法检查 | `python3 -m json.tool config/interests.json`、`python3 -m json.tool site/recommendations.json` | JSON 可解析 | 通过 | pass |
 | 旧 Supabase schema 兼容 | `python3 -m unittest tests.test_feedback tests.test_favorites_archive tests.test_site_contract tests.test_feedback_page_contract` | 新列未应用时服务端读取旧列不失败，repo feedback 可退回旧字段并由归档从 `repo:owner/name` 推导 URL | 通过 | pass |
 
+## 会话补充：前端 reader UI 分栏、类型选项卡和关键词筛选
+- **状态：** complete
+- 执行的操作：
+  - 参考 `https://foreverhyx.top/articles` 的 Homepage articles 页面结构，给 Pages reader 增加浮动灵动岛导航。
+  - 顶部新增类型选项卡：全部、论文、仓库、画像与系统。
+  - 推荐阅读区改成左侧论文/仓库列表、右侧筛选栏的 articles 风格布局。
+  - 右侧筛选栏保留搜索、栏目、最低 AI 分、排序、代码仓库和作者单位过滤。
+  - 右侧新增两类关键词筛选：类型关键词 `paper` / `repository`，以及从栏目、类别、仓库语言/topics、原始论文链接和内容文本中提取的内容关键词。
+  - 用户画像、运行状态、反馈学习状态和系统状态移动到单独的“画像与系统”选项卡。
+  - 每个可验证切片均已 commit 并 push 到 `origin/main`：`191f740`、`fc79a0e`、`a2dc089`、`3a49fe1`。
+  - 本地浏览器检查桌面和移动视口，确认灵动岛、左右分栏、关键词筛选、画像与系统 tab 和移动堆叠布局正常。
+- 创建/修改的文件：
+  - `docs/superpowers/specs/2026-06-14-reader-ui-tabs-design.md`
+  - `docs/superpowers/plans/2026-06-14-reader-ui-tabs.md`
+  - `site/index.html`
+  - `site/app.js`
+  - `site/styles.css`
+  - `tests/test_site_contract.py`
+  - `progress.md`
+
+| reader UI layout RED 测试 | `python3 -m unittest tests.test_site_contract.SiteContractTests.test_index_uses_reader_tabs_and_keyword_filter_layout` | 旧页面缺少灵动岛、reader tabs、关键词筛选 hooks 时失败 | 缺少 `class="nav-island"` | expected-fail |
+| reader UI layout 测试 | `python3 -m unittest tests.test_site_contract.SiteContractTests.test_index_uses_reader_tabs_and_keyword_filter_layout` | 新布局 hooks 存在 | 通过 | pass |
+| 类型 tab RED 测试 | `python3 -m unittest tests.test_site_contract.SiteContractTests.test_reader_type_tabs_filter_and_profile_panel` | `setActiveTab` 不存在时失败 | `TypeError: context.setActiveTab is not a function` | expected-fail |
+| 类型 tab 测试 | `python3 -m unittest tests.test_site_contract.SiteContractTests.test_reader_type_tabs_filter_and_profile_panel` | 论文/仓库 tab 正确过滤，画像 tab 隐藏推荐区 | 通过 | pass |
+| 关键词筛选 RED 测试 | `python3 -m unittest tests.test_site_contract.SiteContractTests.test_reader_keyword_filters_match_repository_and_paper_content` | `toggleKeywordFilter` 不存在时失败 | `TypeError: context.toggleKeywordFilter is not a function` | expected-fail |
+| 关键词筛选测试 | `python3 -m unittest tests.test_site_contract.SiteContractTests.test_reader_keyword_filters_match_repository_and_paper_content` | `gem5` 命中仓库/topic，`branch predictor` 命中论文内容 | 通过 | pass |
+| Site contract | `python3 -m unittest tests.test_site_contract` | 推荐页契约测试通过 | 24 个测试通过 | pass |
+| Profile page contract | `python3 -m unittest tests.test_profile_page_contract` | 画像页契约测试通过 | 5 个测试通过 | pass |
+| 全量测试 | `python3 -m unittest discover -s tests` | 全仓库测试通过 | 157 个测试通过 | pass |
+| 桌面浏览器检查 | `python3 -m http.server 8000 --directory site` + `agent-browser` 1440x1000 screenshot | 灵动岛、左侧列表、右侧筛选和关键词 chips 无重叠 | 已用临时截图目检通过 | pass |
+| 交互浏览器检查 | `agent-browser click` 画像 tab、`gem5` keyword chip | 画像与系统 tab 独立展示；`gem5` 关键词把当前示例筛为 1/2 | 通过 | pass |
+| 移动浏览器检查 | `agent-browser` 390x844 screenshot | 灵动岛置顶，筛选面板先于列表堆叠，长文本/chips 自动换行无重叠 | 已用临时截图目检通过 | pass |
+
 ---
 *每个阶段完成后或遇到错误时更新此文件*
