@@ -2,6 +2,10 @@ let activePayload = null;
 
 const localFeedbackKey = "recommender_local_feedback_events";
 const feedbackUiStateKey = "recommender_feedback_ui_state";
+const uiState = {
+  activeTab: "all",
+  selectedKeywords: new Set(),
+};
 
 async function loadRecommendations() {
   const response = await fetch("recommendations.json", { cache: "no-store" });
@@ -53,11 +57,45 @@ function renderControls(payload) {
     });
     sectionFilter.dataset.ready = "true";
   }
+  bindReaderTabs();
+  updateTabPanels();
   const recommendations = document.getElementById("recommendations");
   if (recommendations && !recommendations.dataset.feedbackReady) {
     recommendations.addEventListener("click", handleFeedbackClick);
     recommendations.dataset.feedbackReady = "true";
   }
+}
+
+function bindReaderTabs() {
+  const tabs = document.querySelectorAll?.("#readerTabs [data-tab]") || [];
+  tabs.forEach((tab) => {
+    if (tab.dataset.ready) return;
+    tab.addEventListener("click", () => setActiveTab(tab.dataset.tab || "all"));
+    tab.dataset.ready = "true";
+  });
+}
+
+function setActiveTab(tab) {
+  uiState.activeTab = ["all", "paper", "repository", "profile"].includes(tab) ? tab : "all";
+  updateTabPanels();
+  applyControls();
+}
+
+function updateTabPanels() {
+  const recommendationWorkspace = document.getElementById("recommendationWorkspace");
+  const profileSystemWorkspace = document.getElementById("profileSystemWorkspace");
+  const showProfile = uiState.activeTab === "profile";
+  recommendationWorkspace?.classList.toggle?.("is-hidden", showProfile);
+  recommendationWorkspace?.classList.toggle?.("is-active", !showProfile);
+  profileSystemWorkspace?.classList.toggle?.("is-hidden", !showProfile);
+  profileSystemWorkspace?.classList.toggle?.("is-active", showProfile);
+
+  const tabs = document.querySelectorAll?.("#readerTabs [data-tab]") || [];
+  tabs.forEach((tab) => {
+    const active = (tab.dataset.tab || "all") === uiState.activeTab;
+    tab.classList.toggle?.("is-active", active);
+    tab.setAttribute?.("aria-selected", active ? "true" : "false");
+  });
 }
 
 function applyControls() {
@@ -111,6 +149,7 @@ function filteredRecommendations(recommendations, filters) {
   const filtered = recommendations.filter((paper) => {
     const section = paper.sections?.[0] || "exploratory";
     if (hiddenPaperIds.has(String(paper.paper_id || ""))) return false;
+    if (!typeMatchesActiveTab(paper)) return false;
     if (filters.section && section !== filters.section) return false;
     if (filters.hasCode && !(Array.isArray(paper.code_urls) && paper.code_urls.length > 0)) return false;
     if (filters.hasAffiliation && !(Array.isArray(paper.affiliations) && paper.affiliations.length > 0)) return false;
@@ -119,6 +158,12 @@ function filteredRecommendations(recommendations, filters) {
     return true;
   });
   return filtered.sort((left, right) => sortPapers(left, right, filters.sort));
+}
+
+function typeMatchesActiveTab(paper) {
+  if (uiState.activeTab === "paper") return !isRepositoryItem(paper);
+  if (uiState.activeTab === "repository") return isRepositoryItem(paper);
+  return true;
 }
 
 function sortPapers(left, right, mode) {

@@ -25,6 +25,20 @@ function element(id) {
       addEventListener() {},
       classList: {
         add(name) { classes.add(name); },
+        remove(name) { classes.delete(name); },
+        toggle(name, force) {
+          if (force === undefined) {
+            if (classes.has(name)) {
+              classes.delete(name);
+              return false;
+            }
+            classes.add(name);
+            return true;
+          }
+          if (force) classes.add(name);
+          else classes.delete(name);
+          return Boolean(force);
+        },
         contains(name) { return classes.has(name); },
       },
       scrollIntoView() {
@@ -244,6 +258,60 @@ if (!withoutAffiliations.includes("作者单位")) {
         self.assertIn(".nav-island", styles)
         self.assertIn(".article-grid", styles)
         self.assertIn(".keyword-chip", styles)
+
+    def test_reader_type_tabs_filter_and_profile_panel(self):
+        self.run_app_script(
+            """
+const payload = {
+  run_date: "2026-06-14",
+  recommendations: [
+    {
+      paper_id: "2606.00001",
+      rank: 1,
+      score: 8,
+      title: "Branch Predictor Design",
+      abstract: "Microarchitecture paper.",
+      sections: ["microarchitecture_simulators"],
+    },
+    {
+      paper_id: "repo:example/arch-agent",
+      item_type: "repository",
+      rank: 2,
+      score: 7,
+      title: "Arch Agent Repository",
+      abstract: "Repository for architecture agents.",
+      repository_url: "https://github.com/example/arch-agent",
+      sections: ["agentic_architecture"],
+    },
+  ],
+  section_labels: {
+    microarchitecture_simulators: "微架构与模拟器",
+    agentic_architecture: "Agentic 架构",
+  },
+};
+
+context.render(payload);
+context.setActiveTab("paper");
+let filtered = context.filteredRecommendations(payload.recommendations, context.collectFilterState());
+if (filtered.length !== 1 || filtered[0].item_type === "repository") {
+  throw new Error(`paper tab failed: ${filtered.map((item) => item.paper_id).join(",")}`);
+}
+
+context.setActiveTab("repository");
+filtered = context.filteredRecommendations(payload.recommendations, context.collectFilterState());
+if (filtered.length !== 1 || filtered[0].item_type !== "repository") {
+  throw new Error(`repository tab failed: ${filtered.map((item) => item.paper_id).join(",")}`);
+}
+
+context.setActiveTab("profile");
+if (!elements.profileSystemWorkspace.classList.contains("is-active")) {
+  throw new Error("profile tab inactive");
+}
+if (!elements.recommendationWorkspace.classList.contains("is-hidden")) {
+  throw new Error("recommendations still visible");
+}
+"""
+        )
 
     def test_reader_shows_run_health_for_local_feedback_mode(self):
         self.run_app_script(
