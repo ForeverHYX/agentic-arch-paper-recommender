@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>每日 arXiv 推荐</title>
-    <link rel="stylesheet" href="styles.css?v=20260614-llm-ui">
+    <link rel="stylesheet" href="styles.css?v=20260614-inline-feedback">
   </head>
   <body>
     <header class="topbar">
@@ -66,7 +66,8 @@
       </aside>
       <section id="recommendations" class="paper-list" aria-live="polite"></section>
     </main>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script src="config.js?v=20260614-llm-ui"></script>
-    <script src="app.js?v=20260614-llm-ui"></script>
+    <script src="app.js?v=20260614-inline-feedback"></script>
   </body>
 </html>

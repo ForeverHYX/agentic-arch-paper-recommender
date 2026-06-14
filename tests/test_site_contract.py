@@ -11,6 +11,7 @@ const fs = require("fs");
 const vm = require("vm");
 const script = fs.readFileSync("site/app.js", "utf8");
 const elements = {};
+const storage = {};
 
 function element(id) {
   if (!elements[id]) {
@@ -43,7 +44,12 @@ const context = {
     json: async () => ({ recommendations: [], section_labels: {} }),
   }),
   localStorage: {
-    getItem() { return null; },
+    getItem(key) {
+      return Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null;
+    },
+    setItem(key, value) {
+      storage[key] = String(value);
+    },
   },
   encodeURIComponent,
   URLSearchParams,
@@ -82,6 +88,67 @@ __BODY__
         self.assertIn("搜代码", script)
         self.assertIn("喜欢", script)
         self.assertIn("不喜欢", script)
+
+    def test_recommendation_cards_use_inline_feedback_buttons(self):
+        script = Path("site/app.js").read_text(encoding="utf-8")
+
+        self.assertIn("recordInlineFeedback", script)
+        self.assertIn("data-feedback-rating", script)
+        self.assertNotIn('class="feedback-button like" href="${likeUrl}"', script)
+        self.assertNotIn('class="feedback-button dislike" href="${dislikeUrl}"', script)
+
+    def test_inline_like_marks_card_with_star(self):
+        self.run_app_script(
+            """
+const payload = {
+  run_date: "2026-06-14",
+  recommendations: [{
+    rank: 1,
+    score: 7,
+    paper_id: "2606.00001",
+    title: "Agentic Architecture Exploration",
+    abstract: "Architecture design space exploration.",
+    authors: ["A. Architect"],
+    affiliations: [],
+    categories: ["cs.AR"],
+    sections: ["agentic_architecture"],
+  }],
+  section_labels: { agentic_architecture: "Agentic 架构" },
+};
+context.render(payload);
+context.markFeedbackState("2606.00001", "like");
+const html = context.renderPaper(payload.recommendations[0]);
+if (!html.includes("paper-favorite-star")) throw new Error(`star missing: ${html}`);
+if (!html.includes("已喜欢")) throw new Error(`liked label missing: ${html}`);
+"""
+        )
+
+    def test_inline_dislike_hides_today_recommendation(self):
+        self.run_app_script(
+            """
+const payload = {
+  run_date: "2026-06-14",
+  recommendations: [
+    { paper_id: "hide-me", rank: 1, score: 7, title: "Hide", abstract: "", sections: ["arch"] },
+    { paper_id: "keep-me", rank: 2, score: 6, title: "Keep", abstract: "", sections: ["arch"] },
+  ],
+  section_labels: { arch: "架构" },
+};
+context.render(payload);
+context.markFeedbackState("hide-me", "dislike");
+const filtered = context.filteredRecommendations(payload.recommendations, {
+  query: "",
+  section: "",
+  minAiScore: 0,
+  hasCode: false,
+  hasAffiliation: false,
+  sort: "rank",
+});
+if (filtered.length !== 1 || filtered[0].paper_id !== "keep-me") {
+  throw new Error(`hidden paper still visible: ${filtered.map((paper) => paper.paper_id).join(",")}`);
+}
+"""
+        )
 
     def test_recommendation_cards_always_render_affiliation_status(self):
         self.run_app_script(
@@ -135,7 +202,7 @@ if (!withoutAffiliations.includes("作者单位")) {
     def test_index_busts_app_cache_for_affiliation_ui(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
-        self.assertIn("app.js?v=20260614-llm-ui", html)
+        self.assertIn("app.js?v=20260614-inline-feedback", html)
 
     def test_index_contains_run_health_placeholder_and_cache_bust(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -144,7 +211,7 @@ if (!withoutAffiliations.includes("作者单位")) {
         self.assertIn('class="run-health"', html)
         self.assertIn('id="statusDetails"', html)
         self.assertIn("反馈与系统细节", html)
-        self.assertIn("app.js?v=20260614-llm-ui", html)
+        self.assertIn("app.js?v=20260614-inline-feedback", html)
 
     def test_sidebar_keeps_secondary_status_in_collapsible_details(self):
         html = Path("site/index.html").read_text(encoding="utf-8")

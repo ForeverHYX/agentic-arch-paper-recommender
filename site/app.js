@@ -1,5 +1,8 @@
 let activePayload = null;
 
+const localFeedbackKey = "recommender_local_feedback_events";
+const feedbackUiStateKey = "recommender_feedback_ui_state";
+
 async function loadRecommendations() {
   const response = await fetch("recommendations.json", { cache: "no-store" });
   if (!response.ok) {
@@ -50,6 +53,11 @@ function renderControls(payload) {
     });
     sectionFilter.dataset.ready = "true";
   }
+  const recommendations = document.getElementById("recommendations");
+  if (recommendations && !recommendations.dataset.feedbackReady) {
+    recommendations.addEventListener("click", handleFeedbackClick);
+    recommendations.dataset.feedbackReady = "true";
+  }
 }
 
 function applyControls() {
@@ -99,8 +107,10 @@ function collectFilterState() {
 
 function filteredRecommendations(recommendations, filters) {
   const minAiScore = Number.isFinite(filters.minAiScore) ? filters.minAiScore : 0;
+  const hiddenPaperIds = hiddenPaperIdsForRun();
   const filtered = recommendations.filter((paper) => {
     const section = paper.sections?.[0] || "exploratory";
+    if (hiddenPaperIds.has(String(paper.paper_id || ""))) return false;
     if (filters.section && section !== filters.section) return false;
     if (filters.hasCode && !(Array.isArray(paper.code_urls) && paper.code_urls.length > 0)) return false;
     if (filters.hasAffiliation && !(Array.isArray(paper.affiliations) && paper.affiliations.length > 0)) return false;
@@ -273,10 +283,7 @@ function renderSectionNav(groups, sectionLabels) {
 }
 
 function renderPaper(paper) {
-  const feedbackBase = "feedback.html";
   const section = paper.sections?.[0] || "";
-  const likeUrl = `${feedbackBase}?paper_id=${encodeURIComponent(paper.paper_id)}&rating=like&source=page&section=${encodeURIComponent(section)}`;
-  const dislikeUrl = `${feedbackBase}?paper_id=${encodeURIComponent(paper.paper_id)}&rating=dislike&source=page&section=${encodeURIComponent(section)}`;
   const authors = Array.isArray(paper.authors) ? paper.authors.join(", ") : "";
   const categories = Array.isArray(paper.categories) ? paper.categories.join(", ") : "";
   const paperUrl = paper.url || `https://arxiv.org/abs/${encodeURIComponent(paper.paper_id)}`;
@@ -285,8 +292,11 @@ function renderPaper(paper) {
   const codeSearchUrl = paper.code_search_url || githubSearchUrl(paper);
   const aiJudgement = paper.ai_judgement || null;
   const aiScore = aiJudgement?.score ?? paper.ai_score;
+  const feedbackState = feedbackStateFor(paper.paper_id);
+  const liked = feedbackState === "like";
   return `
-    <article class="paper" id="paper-${escapeAttr(paper.paper_id)}">
+    <article class="paper${liked ? " is-liked" : ""}" id="paper-${escapeAttr(paper.paper_id)}" data-paper-id="${escapeAttr(paper.paper_id)}">
+      ${liked ? '<div class="paper-favorite-star" aria-label="已喜欢" title="已喜欢">★</div>' : ""}
       <div class="paper-meta"><span>#${paper.rank}</span><span>规则分 ${paper.score}</span>${aiScore !== undefined ? `<span>AI ${escapeHtml(aiScore)}</span>` : ""}<span>${escapeHtml(categories)}</span></div>
       <h3>${escapeHtml(paper.title)}</h3>
       <p class="authors">${escapeHtml(authors)}</p>
@@ -299,11 +309,161 @@ function renderPaper(paper) {
         <a class="link-button" href="${escapeAttr(pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>
         ${codeLinks.map((url) => `<a class="link-button" href="${escapeAttr(url)}" target="_blank" rel="noreferrer">代码</a>`).join("")}
         ${codeSearchUrl ? `<a class="link-button" href="${escapeAttr(codeSearchUrl)}" target="_blank" rel="noreferrer">搜代码</a>` : ""}
-        <a class="feedback-button like" href="${likeUrl}">喜欢</a>
-        <a class="feedback-button dislike" href="${dislikeUrl}">不喜欢</a>
+        <button class="feedback-button like" type="button" data-paper-id="${escapeAttr(paper.paper_id)}" data-feedback-rating="like" data-section="${escapeAttr(section)}">${liked ? "已喜欢" : "喜欢"}</button>
+        <button class="feedback-button dislike" type="button" data-paper-id="${escapeAttr(paper.paper_id)}" data-feedback-rating="dislike" data-section="${escapeAttr(section)}">不喜欢</button>
       </div>
     </article>
   `;
+}
+
+async function handleFeedbackClick(event) {
+  const button = event.target?.closest?.(".feedback-button");
+  if (!button) return;
+  const paperId = button.dataset.paperId || "";
+  const rating = button.dataset.feedbackRating || "";
+  if (!paperId || !["like", "dislike"].includes(rating)) return;
+  event.preventDefault();
+  button.disabled = true;
+  try {
+    const result = await recordInlineFeedback(paperId, rating);
+    markFeedbackState(paperId, rating);
+    applyControls();
+    const actionText = rating === "like" ? "已标记喜欢" : "已移出今日推荐";
+    showToast(`${actionText}，${result.remote ? "反馈已记录" : "反馈已本地保存"}`);
+  } catch (error) {
+    showToast(error.message || "反馈记录失败", "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function recordInlineFeedback(paperId, rating) {
+  const paper = findActivePaper(paperId);
+  if (!paper) {
+    throw new Error("未找到这篇论文，无法记录反馈。");
+  }
+  const event = buildFeedbackEvent(paper, rating);
+  try {
+    await postFeedbackEvent(event);
+    return { remote: true };
+  } catch (error) {
+    storeLocalFeedback(event);
+    return { remote: false, error };
+  }
+}
+
+function buildFeedbackEvent(paper, rating) {
+  const sections = Array.isArray(paper.sections) ? paper.sections : [];
+  return {
+    paper_id: String(paper.paper_id || ""),
+    rating,
+    source: "page",
+    section: String(sections[0] || ""),
+    title: String(paper.title || ""),
+    abstract: String(paper.abstract || ""),
+    authors: stringList(paper.authors),
+    affiliations: stringList(paper.affiliations),
+    categories: stringList(paper.categories),
+    created_at: new Date().toISOString(),
+  };
+}
+
+async function postFeedbackEvent(event) {
+  const config = window.RECOMMENDER_CONFIG || {};
+  if (!config.supabaseUrl || !config.supabaseAnonKey) {
+    throw new Error("Supabase 未配置，使用本地反馈队列。");
+  }
+  const response = await fetch(`${config.supabaseUrl.replace(/\/$/, "")}/rest/v1/feedback_events`, {
+    method: "POST",
+    headers: {
+      apikey: config.supabaseAnonKey,
+      Authorization: `Bearer ${config.supabaseAnonKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({
+      paper_id: event.paper_id,
+      rating: event.rating,
+      source: event.source,
+      section: event.section || null,
+      title: event.title,
+      abstract: event.abstract,
+      authors: event.authors,
+      affiliations: event.affiliations,
+      categories: event.categories,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Supabase rejected feedback: ${response.status}`);
+  }
+}
+
+function storeLocalFeedback(event) {
+  const existing = readJsonArray(localFeedbackKey);
+  existing.push(event);
+  localStorage.setItem(localFeedbackKey, JSON.stringify(existing));
+}
+
+function markFeedbackState(paperId, rating) {
+  const runDate = currentRunDate();
+  const state = readFeedbackUiState();
+  state.likes[runDate] = state.likes[runDate] || [];
+  state.hidden[runDate] = state.hidden[runDate] || [];
+  state.likes[runDate] = state.likes[runDate].filter((value) => value !== paperId);
+  state.hidden[runDate] = state.hidden[runDate].filter((value) => value !== paperId);
+  if (rating === "like") {
+    state.likes[runDate].push(paperId);
+  }
+  if (rating === "dislike") {
+    state.hidden[runDate].push(paperId);
+  }
+  localStorage.setItem(feedbackUiStateKey, JSON.stringify(state));
+}
+
+function feedbackStateFor(paperId) {
+  const runDate = currentRunDate();
+  const state = readFeedbackUiState();
+  if ((state.likes[runDate] || []).includes(String(paperId || ""))) return "like";
+  if ((state.hidden[runDate] || []).includes(String(paperId || ""))) return "dislike";
+  return "";
+}
+
+function hiddenPaperIdsForRun() {
+  const state = readFeedbackUiState();
+  return new Set(state.hidden[currentRunDate()] || []);
+}
+
+function readFeedbackUiState() {
+  try {
+    const state = JSON.parse(localStorage.getItem(feedbackUiStateKey) || "{}");
+    return {
+      likes: state && typeof state.likes === "object" && !Array.isArray(state.likes) ? state.likes : {},
+      hidden: state && typeof state.hidden === "object" && !Array.isArray(state.hidden) ? state.hidden : {},
+    };
+  } catch {
+    return { likes: {}, hidden: {} };
+  }
+}
+
+function currentRunDate() {
+  return String(activePayload?.run_date || "unknown");
+}
+
+function findActivePaper(paperId) {
+  const targetId = String(paperId || "");
+  return (activePayload?.recommendations || []).find((paper) => String(paper.paper_id || "") === targetId) || null;
+}
+
+function showToast(message, kind = "info") {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.hidden = false;
+  toast.className = `toast${kind === "error" ? " is-error" : ""}`;
+  window.clearTimeout?.(showToast.timer);
+  showToast.timer = window.setTimeout?.(() => {
+    toast.hidden = true;
+  }, 2600);
 }
 
 function highlightTargetPaper() {
@@ -347,11 +507,15 @@ function uniqueStrings(values) {
 }
 
 function localFeedbackCount() {
+  return readJsonArray(localFeedbackKey).length;
+}
+
+function readJsonArray(key) {
   try {
-    const events = JSON.parse(localStorage.getItem("recommender_local_feedback_events") || "[]");
-    return Array.isArray(events) ? events.length : 0;
+    const events = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(events) ? events : [];
   } catch {
-    return 0;
+    return [];
   }
 }
 
