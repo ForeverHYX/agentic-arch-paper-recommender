@@ -77,6 +77,26 @@ class AffiliationsTests(unittest.TestCase):
         self.assertEqual(enriched["recommendations"][0]["affiliations"], ["Alfred Wegener Institute"])
         self.assertEqual(enriched["affiliation_summary"]["enriched_count"], 1)
 
+    def test_enrich_payload_with_affiliations_skips_repository_items(self):
+        payload = {
+            "recommendations": [
+                {
+                    "paper_id": "repo:example/arch-agent",
+                    "item_type": "repository",
+                    "title": "example/arch-agent",
+                    "affiliations": [],
+                }
+            ]
+        }
+
+        def fetcher(paper_id):
+            raise AssertionError(f"repository item should not fetch arXiv source: {paper_id}")
+
+        enriched = enrich_payload_with_affiliations(payload, fetcher=fetcher)
+
+        self.assertEqual(enriched["recommendations"][0]["affiliations"], [])
+        self.assertEqual(enriched["affiliation_summary"]["attempted_count"], 0)
+
     def test_cli_updates_recommendation_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "recommendations.json"

@@ -483,6 +483,23 @@ h2 {
   background: #fbfcfd;
 }
 
+.repo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -2px 0 10px;
+  font-size: 12px;
+}
+
+.repo-meta span {
+  border: 1px solid #bbd7d2;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #eefaf7;
+  color: #0f5f56;
+  font-weight: 800;
+}
+
 h3 {
   margin: 0 0 8px;
   font-size: 18px;
@@ -580,6 +597,29 @@ h3 {
   margin: 12px 0 14px;
   color: #334155;
   line-height: 1.58;
+}
+
+.paper-links {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  margin: 12px 0 14px;
+  font-size: 13px;
+}
+
+.paper-links strong {
+  color: var(--text);
+}
+
+.paper-links div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.paper-links a {
+  color: var(--accent-strong);
+  overflow-wrap: anywhere;
 }
 
 .actions {

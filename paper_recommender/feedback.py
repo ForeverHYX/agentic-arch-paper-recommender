@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 from typing import Any, Callable
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -241,16 +242,24 @@ class FeedbackEvent:
     rating: str
     section: str
     source: str = "page"
+    item_type: str = "paper"
     title: str = ""
     abstract: str = ""
     authors: tuple[str, ...] = ()
     affiliations: tuple[str, ...] = ()
     categories: tuple[str, ...] = ()
+    repository_url: str = ""
+    paper_links: tuple[dict[str, str], ...] = ()
 
     def __post_init__(self) -> None:
+        item_type = str(self.item_type or "paper").strip().lower()
+        if item_type not in {"paper", "repository"}:
+            item_type = "paper"
+        object.__setattr__(self, "item_type", item_type)
         object.__setattr__(self, "authors", tuple(self.authors))
         object.__setattr__(self, "affiliations", tuple(self.affiliations))
         object.__setattr__(self, "categories", tuple(self.categories))
+        object.__setattr__(self, "paper_links", tuple(_paper_links(self.paper_links)))
 
 
 def feedback_events_from_records(records: list[dict[str, Any]]) -> list[FeedbackEvent]:
@@ -268,11 +277,14 @@ def feedback_events_from_records(records: list[dict[str, Any]]) -> list[Feedback
                 rating=rating,
                 section=section,
                 source=source,
+                item_type=_item_type(record.get("item_type")),
                 title=str(record.get("title", "")).strip(),
                 abstract=str(record.get("abstract", "")).strip(),
                 authors=tuple(_string_list(record.get("authors", []))),
                 affiliations=tuple(_string_list(record.get("affiliations", []))),
                 categories=tuple(_string_list(record.get("categories", []))),
+                repository_url=str(record.get("repository_url", "")).strip(),
+                paper_links=tuple(_paper_links(record.get("paper_links", []))),
             )
         )
     return events
@@ -385,10 +397,28 @@ def fetch_feedback_events(
     limit: int = 500,
     opener: Callable[[Request], Any] = urlopen,
 ) -> list[FeedbackEvent]:
+    select = "paper_id,rating,section,source,item_type,title,abstract,authors,affiliations,categories,repository_url,paper_links"
+    legacy_select = "paper_id,rating,section,source,title,abstract,authors,affiliations,categories"
+    try:
+        records = _fetch_feedback_records(supabase_url, service_role_key, select, limit=limit, opener=opener)
+    except HTTPError as exc:
+        if exc.code != 400:
+            raise
+        records = _fetch_feedback_records(supabase_url, service_role_key, legacy_select, limit=limit, opener=opener)
+    return feedback_events_from_records(records)
+
+
+def _fetch_feedback_records(
+    supabase_url: str,
+    service_role_key: str,
+    select: str,
+    limit: int,
+    opener: Callable[[Request], Any],
+) -> list[dict[str, Any]]:
     base_url = supabase_url.rstrip("/")
     query = urlencode(
         {
-            "select": "paper_id,rating,section,source,title,abstract,authors,affiliations,categories",
+            "select": select,
             "order": "created_at.desc",
             "limit": str(limit),
         }
@@ -403,7 +433,7 @@ def fetch_feedback_events(
     )
     with opener(request) as response:
         records = json.loads(response.read().decode("utf-8"))
-    return feedback_events_from_records(records)
+    return records if isinstance(records, list) else []
 
 
 def write_feedback_json(events: list[FeedbackEvent], path: str | Path) -> None:
@@ -415,11 +445,14 @@ def write_feedback_json(events: list[FeedbackEvent], path: str | Path) -> None:
             "rating": event.rating,
             "section": event.section,
             "source": event.source,
+            "item_type": event.item_type,
             "title": event.title,
             "abstract": event.abstract,
             "authors": list(event.authors),
             "affiliations": list(event.affiliations),
             "categories": list(event.categories),
+            "repository_url": event.repository_url,
+            "paper_links": list(event.paper_links),
         }
         for event in events
     ]
@@ -457,6 +490,30 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
+
+
+def _item_type(value: Any) -> str:
+    text = str(value or "paper").strip().lower()
+    return text if text in {"paper", "repository"} else "paper"
+
+
+def _paper_links(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    links: list[dict[str, str]] = []
+    seen = set()
+    for item in value:
+        if isinstance(item, dict):
+            url = str(item.get("url", "")).strip()
+            label = str(item.get("label", "Paper")).strip() or "Paper"
+        else:
+            url = str(item).strip()
+            label = "Paper"
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        links.append({"label": label, "url": url})
+    return links
 
 
 def _tokens(text: str) -> list[str]:

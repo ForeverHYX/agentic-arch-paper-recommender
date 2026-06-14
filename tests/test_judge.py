@@ -317,6 +317,48 @@ class JudgeTests(unittest.TestCase):
         self.assertIn("不要按核心画像过严丢弃", system_prompt)
         self.assertIn("Exploration / AI+体系结构探索", user_prompt)
 
+    def test_request_judgement_includes_repository_guidance(self):
+        seen = {}
+
+        def opener(request):
+            seen["body"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"score": 8, "reason": "仓库实现与体系结构探索相关。", "decision": "keep"}'
+                            }
+                        }
+                    ]
+                }
+            )
+
+        request_judgement(
+            {
+                "item_type": "repository",
+                "title": "example/arch-agent",
+                "abstract": "Hardware design agent for gem5 microarchitecture exploration.",
+                "score": 6.0,
+                "repository_url": "https://github.com/example/arch-agent",
+                "repository_stars_today": 87,
+                "repository_stars": 1300,
+                "repository_topics": ["gem5", "microarchitecture"],
+                "paper_links": [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}],
+            },
+            api_key="secret",
+            opener=opener,
+        )
+
+        system_prompt = seen["body"]["messages"][0]["content"]
+        user_prompt = seen["body"]["messages"][1]["content"]
+        self.assertIn("GitHub 仓库", system_prompt)
+        self.assertIn("仓库核心内容", system_prompt)
+        self.assertIn("Repository URL: https://github.com/example/arch-agent", user_prompt)
+        self.assertIn("Stars today: 87", user_prompt)
+        self.assertIn("Topics: gem5, microarchitecture", user_prompt)
+        self.assertIn("Original paper links: arXiv https://arxiv.org/abs/2606.00001", user_prompt)
+
     def test_enrich_payload_with_judgements_reranks_and_limits_by_ai_score(self):
         payload = {
             "profile_name": "Agentic Architecture",

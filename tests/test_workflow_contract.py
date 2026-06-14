@@ -15,12 +15,24 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m paper_recommender.arxiv_source", workflow)
         self.assertIn("--output output/papers.jsonl", workflow)
         self.assertIn("--max-results 500", workflow)
-        self.assertIn("--input output/papers.jsonl", workflow)
+        self.assertIn("python -m paper_recommender.github_trending", workflow)
+        self.assertIn("--output output/github_repos.jsonl", workflow)
+        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", workflow)
+        self.assertIn("cat output/papers.jsonl output/github_repos.jsonl > output/candidates.jsonl", workflow)
+        self.assertIn("--input output/candidates.jsonl", workflow)
         self.assertIn("--profile output/interests.json", workflow)
         self.assertIn("--limit 45", workflow)
         self.assertIn("--min-count 45", workflow)
         self.assertIn("--exploration-count 30", workflow)
         self.assertNotIn("--input examples/sample_papers.jsonl", workflow)
+        self.assertLess(
+            workflow.index("python -m paper_recommender.arxiv_source"),
+            workflow.index("python -m paper_recommender.github_trending"),
+        )
+        self.assertLess(
+            workflow.index("python -m paper_recommender.github_trending"),
+            workflow.index("python -m paper_recommender.pipeline"),
+        )
 
     def test_daily_workflow_allows_profile_override_secret(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")

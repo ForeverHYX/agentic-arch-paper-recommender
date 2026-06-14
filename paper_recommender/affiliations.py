@@ -64,7 +64,7 @@ def enrich_payload_with_affiliations(
     for item in payload.get("recommendations", []):
         updated = dict(item)
         current = _string_list(updated.get("affiliations", []))
-        if current or attempted >= max_items:
+        if current or _is_repository_item(updated) or attempted >= max_items:
             updated["affiliations"] = current
             recommendations.append(updated)
             continue
@@ -231,6 +231,10 @@ def _string_list(value: Any) -> list[str]:
 def _clean_paper_id(paper_id: str) -> str:
     clean = paper_id.rstrip("/").split("/")[-1]
     return re.sub(r"v\d+$", "", clean)
+
+
+def _is_repository_item(item: dict[str, Any]) -> bool:
+    return str(item.get("item_type", "")).strip().lower() == "repository"
 
 
 def _dedupe(values) -> list[str]:

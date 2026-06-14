@@ -679,5 +679,66 @@
 | JSON 语法检查 | `python3 -m json.tool config/interests.json`、`python3 -m json.tool site/recommendations.json` | JSON 可解析 | 通过 | pass |
 | diff 密钥扫描 | `git diff | rg ...` | 不出现 Supabase/OpenAI/SMTP 密钥明文 | 无匹配 | pass |
 
+## 会话补充：GitHub Trending 仓库推荐设计审计
+- **状态：** in_progress
+- 执行的操作：
+  - 恢复 `task_plan.md`、`progress.md`、`findings.md` 上下文并确认当前工作树干净。
+  - 审计现有推荐链路：`recommendations.json` 由 pipeline 生成，之后经过 LLM judge、作者单位补全、TLDR、profile review、邮件、Pages、Supabase 反馈和收藏导出。
+  - 确认新功能还没有实现文件，当前只有论文中的 Code Search 和喜欢论文 PDF 收藏。
+  - 拟定接入方式：新增 GitHub Trending 数据源，转换成同一推荐 item schema，并用 `item_type=repository` 扩展页面、邮件、反馈 schema 和收藏导出。
+- 创建/修改的文件：
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+
+## 会话补充：GitHub Trending 仓库推荐实现
+- **状态：** complete
+- 执行的操作：
+  - 新增 `paper_recommender.github_trending`：解析 GitHub Trending daily HTML，读取 GitHub REST repo/readme 元数据，抽取 arXiv/OpenReview/DOI 原始论文链接，并按现有兴趣画像过滤相关仓库。
+  - 扩展推荐 item schema：`item_type=repository`、`source=github_trending`、`repository_url`、`repository_stars_today`、总 star/fork、language、topics、homepage、paper links。
+  - 调整 domain classifier：仓库项不要求 arXiv category gate，改用关键词/负面规则 gate，并用 `stars_today` 增加排序分。
+  - 调整 LLM judge/TLDR：prompt 支持 GitHub 仓库，中文摘要覆盖仓库核心内容、趋势和原始论文线索。
+  - 调整 Pages 和邮件：仓库卡片展示 GitHub 仓库标签、今日新增 star、总 star、语言/topics 和原始论文链接，仍使用同一喜欢/不喜欢流程。
+  - 扩展反馈和 Supabase schema：反馈事件保留 item type、repository URL 和 paper links。
+  - 调整收藏仓库导出：liked paper 继续归档 PDF/metadata；liked repository 写 metadata 并通过 git submodule 链接上游仓库。
+  - 调整 workflow：arXiv 抓取后抓取 GitHub Trending 仓库，合并 JSONL 后进入同一 pipeline。
+- 创建/修改的文件：
+  - `.github/workflows/daily.yml`
+  - `README.md`
+  - `paper_recommender/domain.py`
+  - `paper_recommender/pipeline.py`
+  - `paper_recommender/github_trending.py`
+  - `paper_recommender/judge.py`
+  - `paper_recommender/summarizer.py`
+  - `paper_recommender/affiliations.py`
+  - `paper_recommender/emailer.py`
+  - `paper_recommender/feedback.py`
+  - `paper_recommender/favorites_archive.py`
+  - `site/app.js`
+  - `site/feedback.js`
+  - `site/styles.css`
+  - `supabase/schema.sql`
+  - `tests/test_github_trending.py`
+  - `tests/test_pipeline.py`
+  - `tests/test_summarizer.py`
+  - `tests/test_emailer.py`
+  - `tests/test_site_contract.py`
+  - `tests/test_feedback.py`
+  - `tests/test_feedback_page_contract.py`
+  - `tests/test_favorites_archive.py`
+  - `tests/test_supabase_schema.py`
+  - `tests/test_workflow_contract.py`
+  - `tests/test_affiliations.py`
+  - `tests/test_judge.py`
+
+| GitHub Trending RED 测试 | `python3 -m unittest tests.test_github_trending tests.test_pipeline tests.test_summarizer tests.test_emailer tests.test_site_contract tests.test_feedback tests.test_feedback_page_contract tests.test_favorites_archive tests.test_supabase_schema tests.test_workflow_contract` | 缺少 GitHub source、repository schema、UI/邮件/反馈/submodule/workflow 支持时失败 | import/字段/断言失败 | expected-fail |
+| GitHub Trending 目标测试 | `python3 -m unittest tests.test_github_trending tests.test_pipeline tests.test_summarizer tests.test_emailer tests.test_site_contract tests.test_feedback tests.test_feedback_page_contract tests.test_favorites_archive tests.test_supabase_schema tests.test_workflow_contract tests.test_affiliations tests.test_judge` | 测试通过 | 110 个测试通过 | pass |
+| 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 154 个测试通过 | pass |
+| 真实 GitHub Trending smoke test | `python3 -m paper_recommender.github_trending --profile config/interests.json --output /tmp/github_repos.jsonl --limit 3` | 能抓取并输出相关仓库候选或优雅写空 | 输出 1 个候选：`LMCache/LMCache` | pass |
+| GitHub repo pipeline smoke test | `pipeline -> judge -> summarizer` 使用 `/tmp/github_repos.jsonl` | repo item 保留趋势、AI 判断和中文 TLDR | `repo:LMCache/LMCache` 保留，`item_type=repository`，`repository_stars_today=238` | pass |
+| 前端语法检查 | `node --check site/app.js`、`node --check site/feedback.js`、`node --check site/profile.js` | JS 语法正确 | 通过 | pass |
+| JSON 语法检查 | `python3 -m json.tool config/interests.json`、`python3 -m json.tool site/recommendations.json` | JSON 可解析 | 通过 | pass |
+| 旧 Supabase schema 兼容 | `python3 -m unittest tests.test_feedback tests.test_favorites_archive tests.test_site_contract tests.test_feedback_page_contract` | 新列未应用时服务端读取旧列不失败，repo feedback 可退回旧字段并由归档从 `repo:owner/name` 推导 URL | 通过 | pass |
+
 ---
 *每个阶段完成后或遇到错误时更新此文件*

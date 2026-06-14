@@ -1,6 +1,6 @@
 # Daily arXiv Recommender
 
-Configurable daily arXiv recommender with GitHub Pages publishing, email digests, and feedback hooks.
+Configurable daily arXiv and GitHub Trending recommender with GitHub Pages publishing, email digests, and feedback hooks.
 
 The target deployment model is serverless:
 
@@ -9,7 +9,7 @@ The target deployment model is serverless:
 - Supabase stores feedback events.
 - Email delivery is handled from GitHub Actions through SMTP.
 
-This repository is self-contained, with selected design cues from `daily-arXiv-ai-enhanced` and `zotero-arxiv-daily`: GitHub Actions scheduling, GitHub Pages reading, optional email delivery, LLM summaries, affiliation/code links, and a no-server personalization loop.
+This repository is self-contained, with selected design cues from `daily-arXiv-ai-enhanced` and `zotero-arxiv-daily`: GitHub Actions scheduling, GitHub Pages reading, optional email delivery, LLM summaries, affiliation/code/repository links, and a no-server personalization loop.
 
 ## Interest Profile
 
@@ -50,6 +50,17 @@ python3 -m paper_recommender.arxiv_source \
   --max-results 500
 ```
 
+Fetch GitHub Trending daily repositories and convert relevant ones into the same JSONL candidate shape:
+
+```bash
+python3 -m paper_recommender.github_trending \
+  --profile config/interests.json \
+  --output output/github_repos.jsonl \
+  --limit 30
+```
+
+The GitHub source uses `https://github.com/trending?since=daily` for the daily star-growth signal, then uses the GitHub REST API to enrich each candidate with topics, total stars, forks, homepage, pushed time, and README text. Set `GITHUB_TOKEN` when running locally if you want a higher API rate limit. The workflow merges `output/papers.jsonl` and `output/github_repos.jsonl` before building `recommendations.json`.
+
 Validate a profile override from an environment variable:
 
 ```bash
@@ -63,7 +74,7 @@ Build recommendations from JSONL:
 
 ```bash
 python3 -m paper_recommender.pipeline \
-  --input output/papers.jsonl \
+  --input output/candidates.jsonl \
   --profile config/interests.json \
   --feedback examples/sample_feedback.json \
   --history examples/sample_history.json \
@@ -98,11 +109,13 @@ OPENAI_API_KEY=... python3 -m paper_recommender.summarizer \
   --output site/recommendations.json
 ```
 
-The default OpenAI-compatible provider is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. The judge uses the model to add `ai_judgement` and `ai_score`, rerank candidates by AI relevance, and truncate the final digest to 15 papers. If no API key is configured, local/offline runs can still use rule-score and Chinese fallback text. In GitHub Actions, once `OPENAI_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback TLDRs as if the API worked.
+The default OpenAI-compatible provider is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. The judge uses the model to add `ai_judgement` and `ai_score`, rerank candidates by AI relevance, and truncate the final digest to 15 items. It understands both arXiv papers and GitHub repository items. If no API key is configured, local/offline runs can still use rule-score and Chinese fallback text. In GitHub Actions, once `OPENAI_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback TLDRs as if the API worked.
 
 `--min-count` fills with exploratory papers. Core arXiv categories are preferred first; if there still are not enough candidates, clean expansion-category papers without negative/noise matches are added as exploratory items.
 
-Each recommendation includes author affiliations when the source provides them, direct `Paper`, `PDF`, explicit `Code` links when found, and a `Code Search` GitHub repository search URL based on the paper title. arXiv Atom often omits affiliations, so the workflow also tries to download the final papers' arXiv source bundles and parse common LaTeX affiliation macros. Missing affiliations are stored as an empty list rather than guessed.
+Each paper recommendation includes author affiliations when the source provides them, direct `Paper`, `PDF`, explicit `Code` links when found, and a `Code Search` GitHub repository search URL based on the paper title. arXiv Atom often omits affiliations, so the workflow also tries to download the final papers' arXiv source bundles and parse common LaTeX affiliation macros. Missing affiliations are stored as an empty list rather than guessed.
+
+Each GitHub repository recommendation uses `item_type: "repository"` in `recommendations.json`. It includes the upstream repository URL, total stars, forks, `repository_stars_today`, language, topics, homepage, README-derived summary text, and any original paper links parsed from README/metadata such as arXiv, OpenReview, or DOI URLs. Pages and email render repository cards in the same sectioned recommendation flow as papers, with GitHub links, trend metadata, original paper links, AI judgement, TLDR, and like/dislike controls.
 
 The GitHub Pages reader includes local controls for search, section filtering, minimum AI score, explicit code repository availability, affiliation availability, and rank/AI/rule/title sorting. These controls run entirely in the browser against `recommendations.json`.
 
@@ -155,6 +168,9 @@ Feedback records include paper metadata when available:
 - `authors`
 - `affiliations`
 - `categories`
+- `item_type`
+- `repository_url`
+- `paper_links`
 
 The daily pipeline converts likes and dislikes into lightweight learning signals:
 
@@ -198,3 +214,7 @@ python3 -m paper_recommender.email_delivery \
 ```
 
 Use `--send-empty` only if you explicitly want an email even when there are no matching papers.
+
+## Favorites Archive
+
+When `SUPABASE_*`, `LIKED_PAPERS_REPO`, and `LIKED_PAPERS_REPO_TOKEN` are configured, the daily workflow can export liked recommendations into the public favorites repository. Liked arXiv papers continue to write metadata and download PDFs when possible. Liked GitHub repositories write metadata and add the upstream repository as a git submodule under `repositories/<owner-repo>`, so the favorites archive links directly to the original repo instead of copying code.

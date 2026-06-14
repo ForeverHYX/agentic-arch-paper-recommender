@@ -57,6 +57,15 @@ jobs:
             --output output/papers.jsonl \
             --max-results 500
 
+      - name: Fetch GitHub trending repositories
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -m paper_recommender.github_trending \
+            --profile output/interests.json \
+            --output output/github_repos.jsonl \
+            --limit 30
+
       - name: Fetch Supabase feedback
         if: env.HAS_SUPABASE == 'true'
         env:
@@ -77,10 +86,13 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python -m paper_recommender.history fetch --output output/history.json --limit 1000
 
+      - name: Merge recommendation sources
+        run: cat output/papers.jsonl output/github_repos.jsonl > output/candidates.jsonl
+
       - name: Build recommendation payload
         run: |
           python -m paper_recommender.pipeline \
-            --input output/papers.jsonl \
+            --input output/candidates.jsonl \
             --profile output/interests.json \
             --feedback output/feedback.json \
             --history output/history.json \

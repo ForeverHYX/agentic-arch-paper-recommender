@@ -59,6 +59,22 @@ class SummarizerTests(unittest.TestCase):
         self.assertNotIn("This paper studies", text)
         self.assertNotIn("LLM agents can search", text)
 
+    def test_fallback_tldr_handles_repository_items(self):
+        text = fallback_tldr(
+            {
+                "item_type": "repository",
+                "title": "example/arch-agent",
+                "abstract": "Hardware design agent for gem5 microarchitecture exploration.",
+                "repository_stars_today": 87,
+                "paper_links": [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}],
+            }
+        )
+
+        self.assertIn("仓库", text)
+        self.assertIn("今日新增 star", text)
+        self.assertIn("原始论文", text)
+        self.assertIn("研究问题：", text)
+
     def test_request_tldr_calls_openai_compatible_chat_completion(self):
         seen = {}
 
@@ -98,6 +114,36 @@ class SummarizerTests(unittest.TestCase):
         self.assertIn("核心方法", system_prompt)
         self.assertIn("关键结论", system_prompt)
         self.assertIn("推荐理由", system_prompt)
+
+    def test_request_tldr_includes_repository_context_for_repo_items(self):
+        seen = {}
+
+        def opener(request, timeout=None):
+            seen["body"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse({"choices": [{"message": {"content": "这是一个足够长的中文仓库总结，说明它实现了什么、为何相关、趋势如何以及对应论文线索。"}}]})
+
+        request_tldr(
+            {
+                "item_type": "repository",
+                "title": "example/arch-agent",
+                "abstract": "Hardware design agent for gem5 microarchitecture exploration.",
+                "repository_stars_today": 87,
+                "repository_stars": 1300,
+                "repository_language": "Python",
+                "repository_topics": ["gem5", "microarchitecture"],
+                "paper_links": [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}],
+            },
+            api_key="secret",
+            opener=opener,
+        )
+
+        system_prompt = seen["body"]["messages"][0]["content"]
+        user_prompt = seen["body"]["messages"][1]["content"]
+        self.assertIn("仓库", system_prompt)
+        self.assertIn("核心内容", system_prompt)
+        self.assertIn("Stars today: 87", user_prompt)
+        self.assertIn("Topics: gem5, microarchitecture", user_prompt)
+        self.assertIn("Original paper links: arXiv https://arxiv.org/abs/2606.00001", user_prompt)
 
     def test_enrich_payload_with_tldrs_uses_fallback_when_api_key_missing(self):
         payload = {

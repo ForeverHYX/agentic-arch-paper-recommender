@@ -4,6 +4,7 @@
 create table if not exists public.feedback_events (
   id uuid primary key default gen_random_uuid(),
   paper_id text not null,
+  item_type text not null default 'paper' check (item_type in ('paper', 'repository')),
   rating text not null check (rating in ('like', 'dislike')),
   source text not null default 'page' check (source in ('page', 'email')),
   section text,
@@ -12,6 +13,8 @@ create table if not exists public.feedback_events (
   authors jsonb not null default '[]'::jsonb,
   affiliations jsonb not null default '[]'::jsonb,
   categories jsonb not null default '[]'::jsonb,
+  repository_url text,
+  paper_links jsonb not null default '[]'::jsonb,
   user_agent text,
   created_at timestamptz not null default now()
 );

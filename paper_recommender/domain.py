@@ -23,6 +23,18 @@ class Paper:
     pdf_url: str = ""
     code_urls: list[str] = field(default_factory=list)
     code_search_url: str = ""
+    item_type: str = "paper"
+    source: str = "arxiv"
+    repository_url: str = ""
+    repository_full_name: str = ""
+    repository_stars: int = 0
+    repository_forks: int = 0
+    repository_stars_today: int = 0
+    repository_language: str = ""
+    repository_topics: list[str] = field(default_factory=list)
+    repository_pushed_at: str = ""
+    repository_homepage: str = ""
+    paper_links: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -144,6 +156,13 @@ def classify_paper(paper: Paper, profile: InterestProfile | None = None) -> Clas
             negative_matches.append(rule.id)
             score -= rule.penalty
 
+    content_score = score
+    if paper.item_type == "repository" and content_score > 0:
+        trend_bonus = _repository_trend_bonus(paper.repository_stars_today)
+        if trend_bonus:
+            score += trend_bonus
+            positive_matches.append(f"github_trending:{paper.repository_stars_today}-stars-today")
+
     categories = set(paper.categories)
     in_core_category = bool(categories & resolved_profile.core_categories)
     in_expansion_category = bool(categories & resolved_profile.expansion_categories)
@@ -152,7 +171,9 @@ def classify_paper(paper: Paper, profile: InterestProfile | None = None) -> Clas
     )
 
     accepted = False
-    if score > 0 and in_core_category:
+    if paper.item_type == "repository":
+        accepted = content_score >= resolved_profile.expansion_accept_score and content_score > 0
+    elif score > 0 and in_core_category:
         accepted = True
     elif score >= resolved_profile.expansion_accept_score and in_expansion_category and score > 0:
         accepted = True
@@ -184,6 +205,10 @@ def _paper_text(paper: Paper) -> str:
                 " ".join(paper.authors),
                 " ".join(paper.affiliations),
                 " ".join(paper.categories),
+                paper.repository_full_name,
+                paper.repository_language,
+                " ".join(paper.repository_topics),
+                " ".join(str(link.get("url", "")) for link in paper.paper_links),
             ]
         )
     )
@@ -218,3 +243,9 @@ def _keyword_matches(text: str, keyword: str) -> bool:
 
 def _needs_word_boundary(keyword: str) -> bool:
     return bool(re.fullmatch(r"[a-z0-9][a-z0-9.+#-]{0,4}", keyword))
+
+
+def _repository_trend_bonus(stars_today: int) -> float:
+    if stars_today <= 0:
+        return 0.0
+    return min(3.0, stars_today / 50.0)

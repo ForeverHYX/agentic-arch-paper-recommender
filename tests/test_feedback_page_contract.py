@@ -72,6 +72,9 @@ __BODY__
         self.assertIn("authors: paperMetadata.authors", script)
         self.assertIn("affiliations: paperMetadata.affiliations", script)
         self.assertIn("categories: paperMetadata.categories", script)
+        self.assertIn("item_type: paperMetadata.item_type", script)
+        self.assertIn("repository_url: paperMetadata.repository_url", script)
+        self.assertIn("paper_links: paperMetadata.paper_links", script)
 
     def test_feedback_page_stores_local_fallback_when_supabase_is_not_configured(self):
         self.run_feedback_script(

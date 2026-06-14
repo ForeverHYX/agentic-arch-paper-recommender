@@ -25,6 +25,8 @@ SECTION_LABELS = {
 
 
 def fallback_tldr(item: dict[str, Any], max_chars: int = 520) -> str:
+    if _is_repository_item(item):
+        return _fallback_repository_tldr(item, max_chars=max_chars)
     topic = _topic_hint(item)
     relevance = _relevance_reason(item)
     text = (
@@ -47,23 +49,13 @@ def request_tldr(
     previous_tldr: str = "",
 ) -> str:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
-    system_prompt = (
-        "你为计算机体系结构研究者写简体中文 TLDR。"
-        "只输出最终答案，不要解释。"
-        "写 4 句，总计 180-260 个汉字，覆盖研究问题、核心方法、关键结论或实验发现、推荐理由。"
-        "如果摘要没有给出实验结论，可以明确说明摘要未披露实验结果。"
-        "不要逐句翻译摘要；系统名、工具名和缩写可以保留英文。"
-    )
+    system_prompt = _system_prompt_for_item(item)
     if retry_short_output:
         system_prompt += (
             "上一次输出过短或中文内容不足，这次必须重写为 4 个完整中文句子，"
             "每句 45-70 个汉字，总计不要少于 160 个汉字。不要使用列表、标题或 Markdown。"
         )
-    user_prompt = (
-        f"Title: {item.get('title', '')}\n"
-        f"Abstract: {item.get('abstract', '')}\n"
-        f"Categories: {', '.join(str(value) for value in item.get('categories', []))}"
-    )
+    user_prompt = _user_prompt_for_item(item)
     if previous_tldr:
         user_prompt += f"\nPrevious short TLDR to replace: {_truncate(previous_tldr, 180)}"
     body = {
@@ -230,6 +222,78 @@ def _relevance_reason(item: dict[str, Any]) -> str:
     if categories:
         return "它属于 " + "、".join(categories[:2]) + " 分类，适合作为探索性论文快速筛查。"
     return "它来自当前候选池，适合作为探索性论文快速筛查。"
+
+
+def _is_repository_item(item: dict[str, Any]) -> bool:
+    return str(item.get("item_type", "")).strip().lower() == "repository"
+
+
+def _fallback_repository_tldr(item: dict[str, Any], max_chars: int = 520) -> str:
+    stars_today = int(item.get("repository_stars_today") or 0)
+    trend = f"今日新增 star 约 {stars_today}，" if stars_today else "当前来自 GitHub Trending，"
+    paper_links = _paper_links_text(item.get("paper_links") or [])
+    paper_text = f"原始论文线索包括 {paper_links}。" if paper_links else "README 中未解析到明确原始论文链接。"
+    text = (
+        f"研究问题：这个仓库可能实现了与当前画像相关的开源系统或工具，{trend}值得快速检查其活跃度和真实适用范围。"
+        "核心方法：本地兜底只根据仓库描述、README 片段、topics 和语言判断，不会臆测未公开的系统设计细节。"
+        f"关键结论：{paper_text}"
+        "推荐理由：它命中当前体系结构、软硬件协同、模拟器或 HPC 交叉兴趣，可优先查看 README、示例和论文链接。"
+    )
+    return _truncate(" ".join(text.split()), max_chars=max_chars)
+
+
+def _system_prompt_for_item(item: dict[str, Any]) -> str:
+    if _is_repository_item(item):
+        return (
+            "你为计算机体系结构研究者写 GitHub 仓库的简体中文 TLDR。"
+            "只输出最终答案，不要解释。"
+            "写 4 句，总计 180-260 个汉字，覆盖仓库核心内容、它实现了什么、"
+            "为何与 agentic architecture 或软硬件协同相关、star 上涨趋势或原始论文线索。"
+            "不要编造 README 和仓库元数据中没有的信息；系统名、工具名和缩写可以保留英文。"
+        )
+    return (
+        "你为计算机体系结构研究者写简体中文 TLDR。"
+        "只输出最终答案，不要解释。"
+        "写 4 句，总计 180-260 个汉字，覆盖研究问题、核心方法、关键结论或实验发现、推荐理由。"
+        "如果摘要没有给出实验结论，可以明确说明摘要未披露实验结果。"
+        "不要逐句翻译摘要；系统名、工具名和缩写可以保留英文。"
+    )
+
+
+def _user_prompt_for_item(item: dict[str, Any]) -> str:
+    prompt = (
+        f"Title: {item.get('title', '')}\n"
+        f"Abstract: {item.get('abstract', '')}\n"
+        f"Categories: {', '.join(str(value) for value in item.get('categories', []))}"
+    )
+    if not _is_repository_item(item):
+        return prompt
+    return "\n".join(
+        [
+            prompt,
+            f"Repository URL: {item.get('repository_url') or item.get('url', '')}",
+            f"Stars today: {item.get('repository_stars_today', 0)}",
+            f"Total stars: {item.get('repository_stars', 0)}",
+            f"Forks: {item.get('repository_forks', 0)}",
+            f"Language: {item.get('repository_language', '')}",
+            f"Topics: {', '.join(str(value) for value in item.get('repository_topics', []))}",
+            f"Original paper links: {_paper_links_text(item.get('paper_links') or [])}",
+        ]
+    )
+
+
+def _paper_links_text(links: list[Any]) -> str:
+    parts = []
+    for link in links:
+        if isinstance(link, dict):
+            url = str(link.get("url", "")).strip()
+            label = str(link.get("label", "Paper")).strip() or "Paper"
+        else:
+            url = str(link).strip()
+            label = "Paper"
+        if url:
+            parts.append(f"{label} {url}")
+    return ", ".join(parts)
 
 
 def _truncate(text: str, max_chars: int) -> str:

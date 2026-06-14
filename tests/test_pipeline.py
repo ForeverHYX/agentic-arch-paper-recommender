@@ -50,6 +50,39 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("Agentic+Architecture+Exploration", paper.code_search_url)
         self.assertIn("type=repositories", paper.code_search_url)
 
+    def test_paper_from_record_preserves_repository_metadata(self):
+        record = {
+            "item_type": "repository",
+            "source": "github_trending",
+            "paper_id": "repo:example/arch-agent",
+            "title": "example/arch-agent",
+            "abstract": "Hardware design agent for gem5 microarchitecture exploration.",
+            "authors": ["example"],
+            "categories": ["github", "Python", "gem5"],
+            "url": "https://github.com/example/arch-agent",
+            "code_urls": ["https://github.com/example/arch-agent"],
+            "repository_url": "https://github.com/example/arch-agent",
+            "repository_full_name": "example/arch-agent",
+            "repository_stars": 1300,
+            "repository_forks": 60,
+            "repository_stars_today": 87,
+            "repository_language": "Python",
+            "repository_topics": ["gem5", "microarchitecture"],
+            "repository_pushed_at": "2026-06-14T00:00:00Z",
+            "repository_homepage": "https://example.com/arch-agent",
+            "paper_links": [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}],
+        }
+
+        paper = paper_from_record(record)
+
+        self.assertEqual(paper.item_type, "repository")
+        self.assertEqual(paper.source, "github_trending")
+        self.assertEqual(paper.repository_url, "https://github.com/example/arch-agent")
+        self.assertEqual(paper.repository_full_name, "example/arch-agent")
+        self.assertEqual(paper.repository_stars_today, 87)
+        self.assertEqual(paper.repository_topics, ["gem5", "microarchitecture"])
+        self.assertEqual(paper.paper_links, [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}])
+
     def test_load_papers_jsonl_skips_empty_lines(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "papers.jsonl"
@@ -109,6 +142,52 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(payload["recommendations"][0]["affiliations"], ["University of Architecture"])
         self.assertIn("code_search_url", payload["recommendations"][0])
         self.assertIn("github.com/search", payload["recommendations"][0]["code_search_url"])
+
+    def test_recommendation_payload_accepts_relevant_repository_items(self):
+        profile = InterestProfile(
+            name="Repo Profile",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI"}),
+            sections=(
+                SectionRule(
+                    "agentic_architecture",
+                    "Agentic Architecture",
+                    4.0,
+                    ("hardware design agent", "gem5", "microarchitecture exploration"),
+                ),
+            ),
+        )
+        paper = paper_from_record(
+            {
+                "item_type": "repository",
+                "source": "github_trending",
+                "paper_id": "repo:example/arch-agent",
+                "title": "example/arch-agent",
+                "abstract": "A hardware design agent uses gem5 for microarchitecture exploration.",
+                "authors": ["example"],
+                "categories": ["github", "Python", "gem5"],
+                "url": "https://github.com/example/arch-agent",
+                "code_urls": ["https://github.com/example/arch-agent"],
+                "repository_url": "https://github.com/example/arch-agent",
+                "repository_full_name": "example/arch-agent",
+                "repository_stars": 1300,
+                "repository_forks": 60,
+                "repository_stars_today": 87,
+                "repository_language": "Python",
+                "repository_topics": ["gem5", "microarchitecture"],
+                "paper_links": [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}],
+            }
+        )
+
+        payload = recommendation_payload([paper], "2026-06-14", profile=profile)
+
+        self.assertEqual(payload["count"], 1)
+        item = payload["recommendations"][0]
+        self.assertEqual(item["item_type"], "repository")
+        self.assertEqual(item["source"], "github_trending")
+        self.assertEqual(item["repository_url"], "https://github.com/example/arch-agent")
+        self.assertEqual(item["repository_stars_today"], 87)
+        self.assertEqual(item["paper_links"], [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}])
 
     def test_recommendation_payload_includes_profile_metadata(self):
         profile = InterestProfile(

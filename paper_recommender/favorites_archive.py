@@ -7,7 +7,9 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 from typing import Any, Callable
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -18,10 +20,39 @@ def fetch_liked_feedback_events(
     limit: int = 1000,
     opener: Callable[[Request], Any] = urlopen,
 ) -> list[dict[str, Any]]:
+    select = "paper_id,rating,item_type,section,title,abstract,authors,affiliations,categories,repository_url,paper_links,created_at"
+    legacy_select = "paper_id,rating,section,title,abstract,authors,affiliations,categories,created_at"
+    try:
+        return _fetch_liked_feedback_records(
+            supabase_url,
+            service_role_key,
+            select=select,
+            limit=limit,
+            opener=opener,
+        )
+    except HTTPError as exc:
+        if exc.code != 400:
+            raise
+        return _fetch_liked_feedback_records(
+            supabase_url,
+            service_role_key,
+            select=legacy_select,
+            limit=limit,
+            opener=opener,
+        )
+
+
+def _fetch_liked_feedback_records(
+    supabase_url: str,
+    service_role_key: str,
+    select: str,
+    limit: int,
+    opener: Callable[[Request], Any],
+) -> list[dict[str, Any]]:
     base_url = supabase_url.rstrip("/")
     query = urlencode(
         {
-            "select": "paper_id,rating,section,title,abstract,authors,affiliations,categories,created_at",
+            "select": select,
             "rating": "eq.like",
             "order": "created_at.desc",
             "limit": str(limit),
@@ -45,8 +76,10 @@ def export_favorites(
     output_dir: str | Path,
     opener: Callable[..., Any] = urlopen,
     timeout: int = 60,
+    command_runner: Callable[[list[str], Path], None] | None = None,
 ) -> int:
     root = Path(output_dir)
+    run_command = command_runner or _run_command
     written = 0
     for record in records:
         if str(record.get("rating", "")).lower() != "like":
@@ -62,14 +95,20 @@ def export_favorites(
 
         stem = slugify(paper_id)
         metadata = _metadata(record)
-        pdf_url = paper_pdf_url(paper_id)
-        metadata["pdf_url"] = pdf_url
-        if pdf_url:
-            pdf_path = folder / f"{stem}.pdf"
+        if metadata["item_type"] == "repository":
             try:
-                _download_pdf(pdf_url, pdf_path, opener=opener, timeout=timeout)
-            except Exception as exc:  # Download should not block metadata archival.
-                metadata["download_error"] = str(exc)
+                _add_repository_submodule(root, metadata["repository_url"], command_runner=run_command)
+            except Exception as exc:
+                metadata["submodule_error"] = str(exc)
+        else:
+            pdf_url = paper_pdf_url(paper_id)
+            metadata["pdf_url"] = pdf_url
+            if pdf_url:
+                pdf_path = folder / f"{stem}.pdf"
+                try:
+                    _download_pdf(pdf_url, pdf_path, opener=opener, timeout=timeout)
+                except Exception as exc:  # Download should not block metadata archival.
+                    metadata["download_error"] = str(exc)
 
         (folder / f"{stem}.json").write_text(
             json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
@@ -114,8 +153,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _metadata(record: dict[str, Any]) -> dict[str, Any]:
     paper_id = str(record.get("paper_id", "")).strip()
+    repository_url = str(record.get("repository_url", "")).strip() or _repository_url_from_paper_id(paper_id)
+    item_type = _item_type(record.get("item_type"), repository_url, paper_id)
     return {
         "paper_id": paper_id,
+        "item_type": item_type,
         "title": str(record.get("title", "")).strip(),
         "abstract": str(record.get("abstract", "")).strip(),
         "authors": _string_list(record.get("authors", [])),
@@ -125,6 +167,8 @@ def _metadata(record: dict[str, Any]) -> dict[str, Any]:
         "rating": "like",
         "created_at": str(record.get("created_at", "")).strip(),
         "arxiv_url": f"https://arxiv.org/abs/{paper_id}" if paper_pdf_url(paper_id) else "",
+        "repository_url": repository_url,
+        "paper_links": _paper_links(record.get("paper_links", [])),
     }
 
 
@@ -164,6 +208,68 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
+
+
+def _paper_links(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    links: list[dict[str, str]] = []
+    seen = set()
+    for item in value:
+        if isinstance(item, dict):
+            url = str(item.get("url", "")).strip()
+            label = str(item.get("label", "Paper")).strip() or "Paper"
+        else:
+            url = str(item).strip()
+            label = "Paper"
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        links.append({"label": label, "url": url})
+    return links
+
+
+def _item_type(value: Any, repository_url: Any = "", paper_id: str = "") -> str:
+    text = str(value or "").strip().lower()
+    if text == "repository" or str(repository_url or "").strip() or str(paper_id).startswith("repo:"):
+        return "repository"
+    return "paper"
+
+
+def _repository_url_from_paper_id(paper_id: str) -> str:
+    value = str(paper_id or "").strip()
+    if not value.startswith("repo:"):
+        return ""
+    full_name = value.split(":", 1)[1].strip("/")
+    if not re.fullmatch(r"[^/\s]+/[^/\s]+", full_name):
+        return ""
+    return f"https://github.com/{full_name}"
+
+
+def _add_repository_submodule(
+    root: Path,
+    repository_url: str,
+    command_runner: Callable[[list[str], Path], None],
+) -> None:
+    url = str(repository_url or "").strip()
+    if not url:
+        return
+    path = Path("repositories") / _repository_slug(url)
+    if (root / path).exists():
+        return
+    (root / path.parent).mkdir(parents=True, exist_ok=True)
+    command_runner(["git", "submodule", "add", url, path.as_posix()], root)
+
+
+def _repository_slug(repository_url: str) -> str:
+    match = re.search(r"github\.com[:/]([^/\s]+)/([^/\s]+?)(?:\.git)?/?$", repository_url)
+    if match:
+        return slugify(f"{match.group(1)}-{match.group(2)}")
+    return slugify(repository_url)
+
+
+def _run_command(command: list[str], cwd: Path) -> None:
+    subprocess.run(command, cwd=cwd, check=True)
 
 
 def _required_env(name: str) -> str:

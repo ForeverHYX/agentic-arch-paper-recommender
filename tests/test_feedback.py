@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 
 from paper_recommender.feedback import (
     FeedbackEvent,
@@ -10,6 +11,7 @@ from paper_recommender.feedback import (
     affiliation_feedback_weights,
     feedback_events_from_records,
     feedback_events_from_json_text,
+    fetch_feedback_events,
     feedback_metrics,
     load_feedback_json,
     section_feedback_weights,
@@ -17,6 +19,28 @@ from paper_recommender.feedback import (
     toolchain_feedback_weights,
     write_feedback_json,
 )
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+
+class FakeErrorBody:
+    def read(self):
+        return b'{"message":"column feedback_events.item_type does not exist"}'
+
+    def close(self):
+        pass
 
 
 class FeedbackTests(unittest.TestCase):
@@ -44,6 +68,29 @@ class FeedbackTests(unittest.TestCase):
                 )
             ],
         )
+
+    def test_fetch_feedback_events_falls_back_when_repository_columns_are_missing(self):
+        seen_urls = []
+
+        def opener(request):
+            seen_urls.append(request.full_url)
+            if len(seen_urls) == 1:
+                raise HTTPError(request.full_url, 400, "Bad Request", hdrs=None, fp=FakeErrorBody())
+            return FakeResponse(
+                [
+                    {
+                        "paper_id": "legacy",
+                        "rating": "like",
+                        "section": "agentic_architecture",
+                    }
+                ]
+            )
+
+        events = fetch_feedback_events("https://example.supabase.co", "service-key", opener=opener)
+
+        self.assertEqual(events[0].paper_id, "legacy")
+        self.assertIn("item_type", seen_urls[0])
+        self.assertNotIn("item_type", seen_urls[1])
 
     def test_section_feedback_weights_counts_likes_and_dislikes(self):
         weights = section_feedback_weights(
@@ -133,6 +180,28 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(events[0].affiliations, ("University of Architecture",))
         self.assertEqual(events[0].categories, ("cs.AR", "cs.AI"))
 
+    def test_feedback_events_preserve_repository_metadata_for_archive(self):
+        events = feedback_events_from_records(
+            [
+                {
+                    "paper_id": "repo:example/arch-agent",
+                    "rating": "like",
+                    "section": "agentic_architecture",
+                    "item_type": "repository",
+                    "repository_url": "https://github.com/example/arch-agent",
+                    "paper_links": [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}],
+                    "title": "example/arch-agent",
+                    "abstract": "Hardware design agent for gem5.",
+                    "authors": ["example"],
+                    "categories": ["github", "Python"],
+                }
+            ]
+        )
+
+        self.assertEqual(events[0].item_type, "repository")
+        self.assertEqual(events[0].repository_url, "https://github.com/example/arch-agent")
+        self.assertEqual(events[0].paper_links, ({"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"},))
+
     def test_write_feedback_json_preserves_learning_metadata(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "feedback.json"
@@ -158,6 +227,29 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(rows[0]["title"], "Agentic AI-Driven Microarchitecture Exploration")
         self.assertEqual(rows[0]["authors"], ["A. Architect"])
         self.assertEqual(rows[0]["affiliations"], ["University of Architecture"])
+
+    def test_write_feedback_json_preserves_repository_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "feedback.json"
+            write_feedback_json(
+                [
+                    FeedbackEvent(
+                        paper_id="repo:example/arch-agent",
+                        rating="like",
+                        section="agentic_architecture",
+                        item_type="repository",
+                        repository_url="https://github.com/example/arch-agent",
+                        paper_links=({"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"},),
+                    )
+                ],
+                path,
+            )
+
+            rows = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(rows[0]["item_type"], "repository")
+        self.assertEqual(rows[0]["repository_url"], "https://github.com/example/arch-agent")
+        self.assertEqual(rows[0]["paper_links"], [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}])
 
     def test_text_feedback_weights_learn_from_likes_and_dislikes(self):
         weights = text_feedback_weights(

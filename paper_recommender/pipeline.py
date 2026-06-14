@@ -88,6 +88,14 @@ def paper_from_record(record: dict[str, Any]) -> Paper:
         pdf_url = _pdf_url_from_abs_url(url)
     code_urls = _code_urls_from_record(record)
     code_search_url = _code_search_url(title=title, paper_id=paper_id)
+    item_type = _first_text(record, ("item_type",)) or "paper"
+    source = _first_text(record, ("source",)) or ("github_trending" if item_type == "repository" else "arxiv")
+    repository_url = _first_text(record, ("repository_url", "repo_url"))
+    repository_full_name = _first_text(record, ("repository_full_name", "full_name"))
+    repository_language = _first_text(record, ("repository_language", "language"))
+    repository_topics = _string_list(record.get("repository_topics", record.get("topics", [])))
+    repository_homepage = _first_text(record, ("repository_homepage", "homepage"))
+    repository_pushed_at = _first_text(record, ("repository_pushed_at", "pushed_at"))
 
     return Paper(
         paper_id=paper_id,
@@ -100,6 +108,18 @@ def paper_from_record(record: dict[str, Any]) -> Paper:
         pdf_url=pdf_url,
         code_urls=code_urls,
         code_search_url=code_search_url,
+        item_type=item_type,
+        source=source,
+        repository_url=repository_url,
+        repository_full_name=repository_full_name,
+        repository_stars=_int_value(record.get("repository_stars", record.get("stargazers_count"))),
+        repository_forks=_int_value(record.get("repository_forks", record.get("forks_count"))),
+        repository_stars_today=_int_value(record.get("repository_stars_today", record.get("stars_today"))),
+        repository_language=repository_language,
+        repository_topics=repository_topics,
+        repository_pushed_at=repository_pushed_at,
+        repository_homepage=repository_homepage,
+        paper_links=_paper_links_from_record(record),
     )
 
 
@@ -186,6 +206,18 @@ def recommendation_payload(
                 "pdf_url": paper.pdf_url,
                 "code_urls": paper.code_urls,
                 "code_search_url": paper.code_search_url,
+                "item_type": paper.item_type,
+                "source": paper.source,
+                "repository_url": paper.repository_url,
+                "repository_full_name": paper.repository_full_name,
+                "repository_stars": paper.repository_stars,
+                "repository_forks": paper.repository_forks,
+                "repository_stars_today": paper.repository_stars_today,
+                "repository_language": paper.repository_language,
+                "repository_topics": paper.repository_topics,
+                "repository_pushed_at": paper.repository_pushed_at,
+                "repository_homepage": paper.repository_homepage,
+                "paper_links": paper.paper_links,
                 "score": result.score,
                 "sections": list(result.sections),
                 "positive_matches": list(result.positive_matches),
@@ -376,6 +408,35 @@ def _string_list(value: Any) -> list[str]:
                 result.append(text)
         return result
     return []
+
+
+def _int_value(value: Any) -> int:
+    try:
+        if isinstance(value, str):
+            value = value.replace(",", "").strip()
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _paper_links_from_record(record: dict[str, Any]) -> list[dict[str, str]]:
+    raw_links = record.get("paper_links", [])
+    if not isinstance(raw_links, list):
+        return []
+    links: list[dict[str, str]] = []
+    seen = set()
+    for item in raw_links:
+        if isinstance(item, dict):
+            url = str(item.get("url", "")).strip()
+            label = str(item.get("label", "")).strip() or "Paper"
+        else:
+            url = str(item).strip()
+            label = "Paper"
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        links.append({"label": label, "url": url})
+    return links
 
 
 def _extract_code_urls(text: str) -> list[str]:

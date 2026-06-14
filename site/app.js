@@ -138,20 +138,27 @@ function searchTextFor(paper) {
     paper.abstract,
     paper.tldr,
     paper.ai_judgement?.reason,
+    paper.repository_full_name,
+    paper.repository_language,
+    paper.repository_url,
     ...(Array.isArray(paper.authors) ? paper.authors : []),
     ...(Array.isArray(paper.affiliations) ? paper.affiliations : []),
     ...(Array.isArray(paper.categories) ? paper.categories : []),
+    ...(Array.isArray(paper.repository_topics) ? paper.repository_topics : []),
+    ...paperLinksFor(paper).map((link) => `${link.label} ${link.url}`),
   ].join(" ").toLowerCase();
 }
 
 function renderSummaryStats(payload) {
   const target = document.getElementById("summaryStats");
   const recommendations = payload.recommendations || [];
+  const repositoryCount = recommendations.filter(isRepositoryItem).length;
   const sectionCount = new Set(recommendations.map((paper) => paper.sections?.[0] || "exploratory")).size;
   const codeCount = recommendations.filter((paper) => (Array.isArray(paper.code_urls) && paper.code_urls.length > 0) || paper.code_search_url).length;
   const affiliationCount = recommendations.filter(hasAffiliations).length;
   target.innerHTML = `
     <div><strong>${recommendations.length}</strong><span>论文</span></div>
+    <div><strong>${repositoryCount}</strong><span>仓库</span></div>
     <div><strong>${sectionCount}</strong><span>栏目</span></div>
     <div><strong>${codeCount}</strong><span>代码线索</span></div>
     <div><strong>${affiliationCount}</strong><span>有单位</span></div>
@@ -286,10 +293,11 @@ function renderPaper(paper) {
   const section = paper.sections?.[0] || "";
   const authors = Array.isArray(paper.authors) ? paper.authors.join(", ") : "";
   const categories = Array.isArray(paper.categories) ? paper.categories.join(", ") : "";
-  const paperUrl = paper.url || `https://arxiv.org/abs/${encodeURIComponent(paper.paper_id)}`;
-  const pdfUrl = paper.pdf_url || `https://arxiv.org/pdf/${encodeURIComponent(paper.paper_id)}`;
+  const isRepository = isRepositoryItem(paper);
+  const paperUrl = isRepository ? (paper.repository_url || paper.url) : (paper.url || `https://arxiv.org/abs/${encodeURIComponent(paper.paper_id)}`);
+  const pdfUrl = isRepository ? "" : (paper.pdf_url || `https://arxiv.org/pdf/${encodeURIComponent(paper.paper_id)}`);
   const codeLinks = Array.isArray(paper.code_urls) ? paper.code_urls : [];
-  const codeSearchUrl = paper.code_search_url || githubSearchUrl(paper);
+  const codeSearchUrl = isRepository ? "" : (paper.code_search_url || githubSearchUrl(paper));
   const aiJudgement = paper.ai_judgement || null;
   const aiScore = aiJudgement?.score ?? paper.ai_score;
   const feedbackState = feedbackStateFor(paper.paper_id);
@@ -298,15 +306,18 @@ function renderPaper(paper) {
     <article class="paper${liked ? " is-liked" : ""}" id="paper-${escapeAttr(paper.paper_id)}" data-paper-id="${escapeAttr(paper.paper_id)}">
       ${liked ? '<div class="paper-favorite-star" aria-label="已喜欢" title="已喜欢">★</div>' : ""}
       <div class="paper-meta"><span>#${paper.rank}</span><span>规则分 ${paper.score}</span>${aiScore !== undefined ? `<span>AI ${escapeHtml(aiScore)}</span>` : ""}<span>${escapeHtml(categories)}</span></div>
+      ${isRepository ? renderRepositoryMeta(paper) : ""}
       <h3>${escapeHtml(paper.title)}</h3>
       <p class="authors">${escapeHtml(authors)}</p>
-      ${renderAffiliationBlock(paper.affiliations)}
+      ${isRepository ? "" : renderAffiliationBlock(paper.affiliations)}
       ${paper.tldr ? `<div class="paper-tldr"><span>核心解读</span><p>${escapeHtml(paper.tldr)}</p></div>` : ""}
       ${aiJudgement ? `<div class="ai-judgement"><span>AI 判断</span><p>${escapeHtml(aiJudgement.reason || "")}</p></div>` : ""}
       <p class="abstract">${escapeHtml(paper.abstract || "")}</p>
+      ${renderOriginalPaperLinks(paper)}
       <div class="actions">
-        <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">arXiv</a>
-        <a class="link-button" href="${escapeAttr(pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>
+        <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${isRepository ? "GitHub" : "arXiv"}</a>
+        ${pdfUrl ? `<a class="link-button" href="${escapeAttr(pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>` : ""}
+        ${isRepository && paper.repository_homepage ? `<a class="link-button" href="${escapeAttr(paper.repository_homepage)}" target="_blank" rel="noreferrer">主页</a>` : ""}
         ${codeLinks.map((url) => `<a class="link-button" href="${escapeAttr(url)}" target="_blank" rel="noreferrer">代码</a>`).join("")}
         ${codeSearchUrl ? `<a class="link-button" href="${escapeAttr(codeSearchUrl)}" target="_blank" rel="noreferrer">搜代码</a>` : ""}
         <button class="feedback-button like" type="button" data-paper-id="${escapeAttr(paper.paper_id)}" data-feedback-rating="like" data-section="${escapeAttr(section)}">${liked ? "已喜欢" : "喜欢"}</button>
@@ -359,11 +370,14 @@ function buildFeedbackEvent(paper, rating) {
     rating,
     source: "page",
     section: String(sections[0] || ""),
+    item_type: isRepositoryItem(paper) ? "repository" : "paper",
     title: String(paper.title || ""),
     abstract: String(paper.abstract || ""),
     authors: stringList(paper.authors),
     affiliations: stringList(paper.affiliations),
     categories: stringList(paper.categories),
+    repository_url: String(paper.repository_url || ""),
+    paper_links: paperLinksFor(paper),
     created_at: new Date().toISOString(),
   };
 }
@@ -373,7 +387,21 @@ async function postFeedbackEvent(event) {
   if (!config.supabaseUrl || !config.supabaseAnonKey) {
     throw new Error("Supabase 未配置，使用本地反馈队列。");
   }
-  const response = await fetch(`${config.supabaseUrl.replace(/\/$/, "")}/rest/v1/feedback_events`, {
+  const response = await postSupabaseFeedbackPayload(config, feedbackPayload(event));
+  if (response.ok) {
+    return;
+  }
+  if (event.item_type === "repository") {
+    const legacyResponse = await postSupabaseFeedbackPayload(config, legacyFeedbackPayload(event));
+    if (legacyResponse.ok) {
+      return;
+    }
+  }
+  throw new Error(`Supabase rejected feedback: ${response.status}`);
+}
+
+async function postSupabaseFeedbackPayload(config, payload) {
+  return fetch(`${config.supabaseUrl.replace(/\/$/, "")}/rest/v1/feedback_events`, {
     method: "POST",
     headers: {
       apikey: config.supabaseAnonKey,
@@ -381,21 +409,39 @@ async function postFeedbackEvent(event) {
       "Content-Type": "application/json",
       Prefer: "return=minimal",
     },
-    body: JSON.stringify({
-      paper_id: event.paper_id,
-      rating: event.rating,
-      source: event.source,
-      section: event.section || null,
-      title: event.title,
-      abstract: event.abstract,
-      authors: event.authors,
-      affiliations: event.affiliations,
-      categories: event.categories,
-    }),
+    body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    throw new Error(`Supabase rejected feedback: ${response.status}`);
-  }
+}
+
+function feedbackPayload(event) {
+  return {
+    paper_id: event.paper_id,
+    rating: event.rating,
+    source: event.source,
+    section: event.section || null,
+    title: event.title,
+    abstract: event.abstract,
+    authors: event.authors,
+    affiliations: event.affiliations,
+    categories: event.categories,
+    item_type: event.item_type,
+    repository_url: event.repository_url || null,
+    paper_links: event.paper_links,
+  };
+}
+
+function legacyFeedbackPayload(event) {
+  return {
+    paper_id: event.paper_id,
+    rating: event.rating,
+    source: event.source,
+    section: event.section || null,
+    title: event.title,
+    abstract: event.abstract,
+    authors: event.authors,
+    affiliations: event.affiliations,
+    categories: event.categories,
+  };
 }
 
 function storeLocalFeedback(event) {
@@ -482,6 +528,49 @@ function renderAffiliationBlock(affiliations) {
   }
   const items = values.map((value) => `<span>${escapeHtml(value)}</span>`).join("");
   return `<div class="paper-affiliations"><strong>作者单位</strong><div>${items}</div></div>`;
+}
+
+function renderRepositoryMeta(paper) {
+  const parts = ["GitHub 仓库"];
+  const starsToday = Number(paper.repository_stars_today || 0);
+  const totalStars = Number(paper.repository_stars || 0);
+  const forks = Number(paper.repository_forks || 0);
+  const language = String(paper.repository_language || "").trim();
+  const topics = stringList(paper.repository_topics).slice(0, 6);
+  if (starsToday) parts.push(`今日新增 star ${starsToday}`);
+  if (totalStars) parts.push(`总 star ${totalStars}`);
+  if (forks) parts.push(`fork ${forks}`);
+  if (language) parts.push(language);
+  if (topics.length) parts.push(topics.join(", "));
+  return `<div class="repo-meta">${parts.map((part) => `<span>${escapeHtml(part)}</span>`).join("")}</div>`;
+}
+
+function renderOriginalPaperLinks(paper) {
+  const links = paperLinksFor(paper);
+  if (!links.length) return "";
+  return `
+    <div class="paper-links">
+      <strong>原始论文</strong>
+      <div>${links.map((link) => `<a href="${escapeAttr(link.url)}" target="_blank" rel="noreferrer">${escapeHtml(link.label)}</a>`).join("")}</div>
+    </div>
+  `;
+}
+
+function paperLinksFor(paper) {
+  const rawLinks = Array.isArray(paper.paper_links) ? paper.paper_links : [];
+  return rawLinks.map((link) => {
+    if (link && typeof link === "object") {
+      return {
+        label: String(link.label || "Paper"),
+        url: String(link.url || ""),
+      };
+    }
+    return { label: "Paper", url: String(link || "") };
+  }).filter((link) => link.url);
+}
+
+function isRepositoryItem(paper) {
+  return String(paper?.item_type || "").toLowerCase() === "repository";
 }
 
 function hasAffiliations(paper) {

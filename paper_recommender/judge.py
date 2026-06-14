@@ -62,6 +62,7 @@ def request_judgement(
     section_text = _section_text(item, section_labels or {})
     feedback_text = _feedback_text(feedback_summary or {})
     seed_text = _seed_papers_text(seed_papers or [])
+    repository_text = _repository_text(item)
     body = {
         "model": model,
         "temperature": 0.1,
@@ -70,21 +71,7 @@ def request_judgement(
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "你正在为一名计算机体系结构研究者判断 arXiv 论文相关性。"
-                    "核心兴趣包括 agentic computer architecture design、自动架构设计空间探索、"
-                    "全栈软硬件协同设计、CPU/GPU 微架构、体系结构模拟器，以及与 HPC、编译器、"
-                    "运行时和性能可移植性的交叉方向。降低泛 AI agent、Web/RAG benchmark、"
-                    "软件架构和无关机器学习论文的分数。作者单位只能作为弱质量信号，不能因为缺失单位就丢弃。"
-                    "当 Current rule sections 包含 exploration 时，它属于额外 exploration 板块，目标是发现"
-                    "和当前画像不完全重合但可能值得关注的 AI/ML 系统、加速器、GPU、编译器、运行时、"
-                    "推理服务、训练系统或硬件感知机器学习论文；不要按核心画像过严丢弃，只有纯应用、"
-                    "纯 benchmark、泛 Web/RAG agent 或完全缺少系统/硬件线索时才 drop。"
-                    "仅在论文明显无关、过泛或质量过低时使用 decision=drop。"
-                    "只返回一行 JSON，不要 Markdown，不要解释。"
-                    "JSON keys 必须是 score, reason, decision；score 是 0-10；"
-                    "decision 只能是 keep 或 drop；reason 使用简体中文，80 个汉字以内。"
-                ),
+                "content": _system_prompt_for_item(item),
             },
             {
                 "role": "user",
@@ -98,6 +85,7 @@ def request_judgement(
                     f"Abstract: {item.get('abstract', '')}\n"
                     f"Affiliations: {', '.join(str(value) for value in item.get('affiliations', []))}\n"
                     f"Categories: {', '.join(str(value) for value in item.get('categories', []))}\n"
+                    f"{repository_text}"
                     f"Positive keyword matches: {', '.join(str(value) for value in item.get('positive_matches', []))}\n"
                     f"Negative keyword matches: {', '.join(str(value) for value in item.get('negative_matches', []))}"
                 ),
@@ -275,6 +263,64 @@ def _normalize_judgement(value: dict[str, Any]) -> Judgement:
     if not reason:
         reason = "模型未返回原因，使用分数排序。"
     return {"score": score, "reason": reason, "decision": decision}
+
+
+def _system_prompt_for_item(item: dict[str, Any]) -> str:
+    repository_guidance = ""
+    if _is_repository_item(item):
+        repository_guidance = (
+            "当前候选可能是 GitHub 仓库；判断时关注仓库核心内容、README 描述、topics、"
+            "star 上涨趋势、是否实现真实系统或工具、是否链接原始论文。"
+            "不要因为它不是 arXiv 论文就降分，但要降低泛 agent 工具、应用模板和无硬件/系统线索仓库。"
+        )
+    return (
+        "你正在为一名计算机体系结构研究者判断 arXiv 论文或 GitHub 仓库相关性。"
+        "核心兴趣包括 agentic computer architecture design、自动架构设计空间探索、"
+        "全栈软硬件协同设计、CPU/GPU 微架构、体系结构模拟器，以及与 HPC、编译器、"
+        "运行时和性能可移植性的交叉方向。降低泛 AI agent、Web/RAG benchmark、"
+        "软件架构和无关机器学习论文的分数。作者单位只能作为弱质量信号，不能因为缺失单位就丢弃。"
+        f"{repository_guidance}"
+        "当 Current rule sections 包含 exploration 时，它属于额外 exploration 板块，目标是发现"
+        "和当前画像不完全重合但可能值得关注的 AI/ML 系统、加速器、GPU、编译器、运行时、"
+        "推理服务、训练系统或硬件感知机器学习论文；不要按核心画像过严丢弃，只有纯应用、"
+        "纯 benchmark、泛 Web/RAG agent 或完全缺少系统/硬件线索时才 drop。"
+        "仅在论文明显无关、过泛或质量过低时使用 decision=drop。"
+        "只返回一行 JSON，不要 Markdown，不要解释。"
+        "JSON keys 必须是 score, reason, decision；score 是 0-10；"
+        "decision 只能是 keep 或 drop；reason 使用简体中文，80 个汉字以内。"
+    )
+
+
+def _is_repository_item(item: dict[str, Any]) -> bool:
+    return str(item.get("item_type", "")).strip().lower() == "repository"
+
+
+def _repository_text(item: dict[str, Any]) -> str:
+    if not _is_repository_item(item):
+        return ""
+    return (
+        f"Repository URL: {item.get('repository_url') or item.get('url', '')}\n"
+        f"Stars today: {item.get('repository_stars_today', 0)}\n"
+        f"Total stars: {item.get('repository_stars', 0)}\n"
+        f"Forks: {item.get('repository_forks', 0)}\n"
+        f"Language: {item.get('repository_language', '')}\n"
+        f"Topics: {', '.join(str(value) for value in item.get('repository_topics', []))}\n"
+        f"Original paper links: {_paper_links_text(item.get('paper_links') or [])}\n"
+    )
+
+
+def _paper_links_text(links: list[Any]) -> str:
+    parts = []
+    for link in links:
+        if isinstance(link, dict):
+            url = str(link.get("url", "")).strip()
+            label = str(link.get("label", "Paper")).strip() or "Paper"
+        else:
+            url = str(link).strip()
+            label = "Paper"
+        if url:
+            parts.append(f"{label} {url}")
+    return ", ".join(parts)
 
 
 def _parse_plain_text_judgement(raw: str) -> Judgement:

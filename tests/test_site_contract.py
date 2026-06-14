@@ -295,6 +295,96 @@ if (!html.includes("<strong>1</strong><span>有单位</span>")) {
 """
         )
 
+    def test_reader_renders_repository_cards_with_trend_and_paper_links(self):
+        self.run_app_script(
+            """
+const html = context.renderPaper({
+  rank: 1,
+  score: 12,
+  paper_id: "repo:example/arch-agent",
+  item_type: "repository",
+  title: "example/arch-agent",
+  abstract: "Hardware design agent for gem5.",
+  authors: ["example"],
+  categories: ["github", "Python", "gem5"],
+  sections: ["agentic_architecture"],
+  url: "https://github.com/example/arch-agent",
+  code_urls: ["https://github.com/example/arch-agent"],
+  repository_url: "https://github.com/example/arch-agent",
+  repository_stars: 1300,
+  repository_forks: 60,
+  repository_stars_today: 87,
+  repository_language: "Python",
+  repository_topics: ["gem5", "microarchitecture"],
+  paper_links: [{ label: "arXiv", url: "https://arxiv.org/abs/2606.00001" }],
+});
+if (!html.includes("GitHub 仓库")) throw new Error(`missing repo type label: ${html}`);
+if (!html.includes("今日新增 star 87")) throw new Error(`missing star trend: ${html}`);
+if (!html.includes("总 star 1300")) throw new Error(`missing total stars: ${html}`);
+if (!html.includes("Python")) throw new Error(`missing language: ${html}`);
+if (!html.includes("gem5")) throw new Error(`missing topics: ${html}`);
+if (!html.includes("原始论文")) throw new Error(`missing original paper block: ${html}`);
+if (!html.includes("https://arxiv.org/abs/2606.00001")) throw new Error(`missing paper link: ${html}`);
+"""
+        )
+
+    def test_inline_feedback_preserves_repository_metadata(self):
+        self.run_app_script(
+            """
+const event = context.buildFeedbackEvent({
+  paper_id: "repo:example/arch-agent",
+  item_type: "repository",
+  title: "example/arch-agent",
+  abstract: "Hardware design agent for gem5.",
+  authors: ["example"],
+  categories: ["github", "Python", "gem5"],
+  sections: ["agentic_architecture"],
+  repository_url: "https://github.com/example/arch-agent",
+  paper_links: [{ label: "arXiv", url: "https://arxiv.org/abs/2606.00001" }],
+}, "like");
+if (event.item_type !== "repository") throw new Error(`item_type missing: ${JSON.stringify(event)}`);
+if (event.repository_url !== "https://github.com/example/arch-agent") throw new Error(`repo url missing: ${JSON.stringify(event)}`);
+if (event.paper_links.length !== 1) throw new Error(`paper links missing: ${JSON.stringify(event)}`);
+"""
+        )
+
+    def test_inline_feedback_retries_legacy_payload_for_repository_when_supabase_schema_is_old(self):
+        self.run_app_script(
+            """
+const calls = [];
+context.window.RECOMMENDER_CONFIG = {
+  supabaseUrl: "https://example.supabase.co",
+  supabaseAnonKey: "anon-key",
+};
+context.fetch = async (url, options) => {
+  calls.push(JSON.parse(options.body));
+  return { ok: calls.length === 2, status: calls.length === 1 ? 400 : 201 };
+};
+context.postFeedbackEvent({
+  paper_id: "repo:example/arch-agent",
+  rating: "like",
+  source: "page",
+  section: "agentic_architecture",
+  item_type: "repository",
+  title: "example/arch-agent",
+  abstract: "Hardware design agent for gem5.",
+  authors: ["example"],
+  affiliations: [],
+  categories: ["github", "Python"],
+  repository_url: "https://github.com/example/arch-agent",
+  paper_links: [{ label: "arXiv", url: "https://arxiv.org/abs/2606.00001" }],
+}).then(() => {
+  if (calls.length !== 2) throw new Error(`expected retry, got ${calls.length}`);
+  if (!("repository_url" in calls[0])) throw new Error(`new payload missing repo url: ${JSON.stringify(calls[0])}`);
+  if ("repository_url" in calls[1]) throw new Error(`legacy payload kept repo url: ${JSON.stringify(calls[1])}`);
+  if ("item_type" in calls[1]) throw new Error(`legacy payload kept item type: ${JSON.stringify(calls[1])}`);
+}).catch((error) => {
+  console.error(error.stack || error.message);
+  process.exit(1);
+});
+"""
+        )
+
     def test_reader_shows_feedback_persistence_status(self):
         self.run_app_script(
             """
@@ -429,6 +519,8 @@ if (!target.scrolled) {
         self.assertIn("applyControls", script)
         self.assertIn("filteredRecommendations", script)
         self.assertIn("collectFilterState", script)
+        self.assertIn("repository_stars_today", script)
+        self.assertIn("paper_links", script)
         self.assertIn(".paper-tldr", styles)
         self.assertIn(".ai-judgement", styles)
         self.assertIn(".controls", styles)

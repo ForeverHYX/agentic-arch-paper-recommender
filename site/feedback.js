@@ -29,6 +29,9 @@ async function recordFeedback() {
       authors: paperMetadata.authors,
       affiliations: paperMetadata.affiliations,
       categories: paperMetadata.categories,
+      item_type: paperMetadata.item_type,
+      repository_url: paperMetadata.repository_url,
+      paper_links: paperMetadata.paper_links,
       created_at: new Date().toISOString(),
     });
     renderLocalFeedbackExport();
@@ -38,26 +41,24 @@ async function recordFeedback() {
   }
 
   const paperMetadata = await findPaperMetadata(paperId);
-  const response = await fetch(`${config.supabaseUrl.replace(/\/$/, "")}/rest/v1/feedback_events`, {
-    method: "POST",
-    headers: {
-      apikey: config.supabaseAnonKey,
-      Authorization: `Bearer ${config.supabaseAnonKey}`,
-      "Content-Type": "application/json",
-      Prefer: "return=minimal",
-    },
-    body: JSON.stringify({
-      paper_id: paperId,
-      rating,
-      source,
-      section: params.get("section") || null,
-      title: paperMetadata.title,
-      abstract: paperMetadata.abstract,
-      authors: paperMetadata.authors,
-      affiliations: paperMetadata.affiliations,
-      categories: paperMetadata.categories,
-    }),
-  });
+  const payload = {
+    paper_id: paperId,
+    rating,
+    source,
+    section: params.get("section") || null,
+    title: paperMetadata.title,
+    abstract: paperMetadata.abstract,
+    authors: paperMetadata.authors,
+    affiliations: paperMetadata.affiliations,
+    categories: paperMetadata.categories,
+    item_type: paperMetadata.item_type,
+    repository_url: paperMetadata.repository_url || null,
+    paper_links: paperMetadata.paper_links,
+  };
+  let response = await postSupabaseFeedbackPayload(config, payload);
+  if (!response.ok && payload.item_type === "repository") {
+    response = await postSupabaseFeedbackPayload(config, legacyFeedbackPayload(payload));
+  }
 
   if (!response.ok) {
     throw new Error(`Supabase rejected feedback: ${response.status}`);
@@ -65,6 +66,33 @@ async function recordFeedback() {
 
   titleEl.textContent = "反馈已记录";
   detailEl.textContent = `已为 ${paperId} 记录“${rating === "like" ? "喜欢" : "不喜欢"}”。`;
+}
+
+async function postSupabaseFeedbackPayload(config, payload) {
+  return fetch(`${config.supabaseUrl.replace(/\/$/, "")}/rest/v1/feedback_events`, {
+    method: "POST",
+    headers: {
+      apikey: config.supabaseAnonKey,
+      Authorization: `Bearer ${config.supabaseAnonKey}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+function legacyFeedbackPayload(payload) {
+  return {
+    paper_id: payload.paper_id,
+    rating: payload.rating,
+    source: payload.source,
+    section: payload.section,
+    title: payload.title,
+    abstract: payload.abstract,
+    authors: payload.authors,
+    affiliations: payload.affiliations,
+    categories: payload.categories,
+  };
 }
 
 async function findPaperMetadata(targetPaperId) {
@@ -80,6 +108,9 @@ async function findPaperMetadata(targetPaperId) {
       authors: Array.isArray(paper.authors) ? paper.authors : [],
       affiliations: Array.isArray(paper.affiliations) ? paper.affiliations : [],
       categories: Array.isArray(paper.categories) ? paper.categories : [],
+      item_type: paper.item_type === "repository" ? "repository" : "paper",
+      repository_url: paper.repository_url || "",
+      paper_links: Array.isArray(paper.paper_links) ? paper.paper_links : [],
     };
   } catch {
     return emptyPaperMetadata();
@@ -93,6 +124,9 @@ function emptyPaperMetadata() {
     authors: [],
     affiliations: [],
     categories: [],
+    item_type: "paper",
+    repository_url: "",
+    paper_links: [],
   };
 }
 
