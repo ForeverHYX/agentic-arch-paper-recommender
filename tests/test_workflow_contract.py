@@ -124,6 +124,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m paper_recommender.email_delivery", workflow)
         self.assertIn("--max-attempts 3", workflow)
 
+    def test_daily_workflow_optionally_exports_liked_papers_archive(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("HAS_FAVORITES_ARCHIVE", workflow)
+        self.assertIn("LIKED_PAPERS_REPO: ${{ vars.LIKED_PAPERS_REPO }}", workflow)
+        self.assertIn("LIKED_PAPERS_REPO_TOKEN: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}", workflow)
+        self.assertIn("repository: ${{ vars.LIKED_PAPERS_REPO }}", workflow)
+        self.assertIn("path: favorites-archive", workflow)
+        self.assertIn("python -m paper_recommender.favorites_archive", workflow)
+        self.assertIn("daily-recommender-paper-favorites", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

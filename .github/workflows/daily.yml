@@ -21,6 +21,8 @@ env:
   HAS_SUPABASE: ${{ vars.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}
   HAS_LOCAL_FEEDBACK: ${{ secrets.LOCAL_FEEDBACK_JSON != '' }}
   HAS_PROFILE_OVERRIDE: ${{ secrets.PROFILE_OVERRIDE_JSON != '' }}
+  # Expected public archive repository: ForeverHYX/daily-recommender-paper-favorites
+  HAS_FAVORITES_ARCHIVE: ${{ vars.LIKED_PAPERS_REPO != '' && secrets.LIKED_PAPERS_REPO_TOKEN != '' }}
 
 jobs:
   build:
@@ -158,6 +160,37 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python -m paper_recommender.history publish --recommendations site/recommendations.json
+
+      - name: Checkout liked papers archive
+        if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.LIKED_PAPERS_REPO }}
+          token: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}
+          path: favorites-archive
+
+      - name: Export liked papers archive
+        if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true'
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LIKED_PAPERS_REPO: ${{ vars.LIKED_PAPERS_REPO }}
+          LIKED_PAPERS_REPO_TOKEN: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}
+        run: python -m paper_recommender.favorites_archive --output-dir favorites-archive
+
+      - name: Commit liked papers archive
+        if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true'
+        run: |
+          cd favorites-archive
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Update liked paper archive"
+            git push
+          else
+            echo "No liked paper archive changes"
+          fi
 
       - uses: actions/configure-pages@v5
 
