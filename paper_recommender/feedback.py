@@ -132,6 +132,82 @@ STOPWORDS = frozenset(
 )
 
 
+DOMAIN_KEYWORDS = frozenset(
+    {
+        "acceleration",
+        "accelerator",
+        "accelerators",
+        "agent",
+        "agentic",
+        "agents",
+        "analog",
+        "architecture",
+        "architectural",
+        "arm",
+        "asic",
+        "attention",
+        "batched",
+        "benchmark",
+        "branch",
+        "browser",
+        "cache",
+        "caches",
+        "co-design",
+        "codesign",
+        "coherence",
+        "compiler",
+        "compilers",
+        "cuda",
+        "design",
+        "fpga",
+        "gpu",
+        "gpus",
+        "hardware",
+        "hierarchy",
+        "hpc",
+        "inference",
+        "interconnect",
+        "isa",
+        "kernel",
+        "kernels",
+        "llm",
+        "llms",
+        "memory",
+        "microarchitecture",
+        "microarchitectural",
+        "modeling",
+        "multi-agent",
+        "multi-gpu",
+        "network",
+        "networks",
+        "openmp",
+        "partition",
+        "partitioning",
+        "prefetcher",
+        "quantization",
+        "rag",
+        "replacement",
+        "risc-v",
+        "runtime",
+        "scheduling",
+        "search",
+        "serving",
+        "simulation",
+        "simulator",
+        "simulators",
+        "software",
+        "spiking",
+        "stochastic",
+        "systems",
+        "tensor",
+        "traffic",
+        "transformer",
+        "web",
+        "write-shared",
+    }
+)
+
+
 TOOLCHAIN_ALIASES = {
     "accel-sim": ("accel-sim", "accelsim"),
     "champsim": ("champsim", "champ sim"),
@@ -397,7 +473,11 @@ def _is_feedback_keyword_token(token: str) -> bool:
         return False
     if not re.search(r"[a-z]", token):
         return False
-    return True
+    if token in DOMAIN_KEYWORDS or token in TOOLCHAIN_ALIASES:
+        return True
+    if "-" in token:
+        return True
+    return False
 
 
 def _entity_feedback_weights(events: list[FeedbackEvent], extractor: Callable[[FeedbackEvent], tuple[str, ...]]) -> dict[str, float]:
