@@ -3,6 +3,7 @@ const profileStorageKey = "recommender_profile_override";
 const profileEditor = document.getElementById("profileEditor");
 const profileStatus = document.getElementById("profileStatus");
 const profileSummary = document.getElementById("profileSummary");
+const profileReview = document.getElementById("profileReview");
 const saveProfileButton = document.getElementById("saveProfileButton");
 const downloadProfileLink = document.getElementById("downloadProfileLink");
 
@@ -49,6 +50,9 @@ if (profileEditor) {
 loadProfile().catch((error) => {
   profileStatus.textContent = error.message;
 });
+loadProfileReview().catch(() => {
+  if (profileReview) profileReview.hidden = true;
+});
 
 async function loadProfile() {
   const stored = localStorage.getItem(profileStorageKey);
@@ -67,6 +71,17 @@ async function loadProfile() {
   profileEditor.value = JSON.stringify(profile, null, 2);
   profileStatus.textContent = "已加载当前 workflow 发布的画像。";
   renderProfileExport(profileEditor.value);
+}
+
+async function loadProfileReview() {
+  if (!profileReview) return;
+  const response = await fetch("profile_review.json", { cache: "no-store" });
+  if (!response.ok) {
+    profileReview.hidden = true;
+    return;
+  }
+  const review = await response.json();
+  renderProfileReview(review);
 }
 
 function saveProfileOverride() {
@@ -116,6 +131,42 @@ function renderProfileSummary(profile) {
     </div>
     ${sectionCards ? `<div class="profile-section-summary">${sectionCards}</div>` : ""}
   `;
+}
+
+function renderProfileReview(review) {
+  if (!profileReview) return;
+  if (!review || typeof review !== "object") {
+    profileReview.hidden = true;
+    return;
+  }
+  const positive = renderReviewList(review.positive_adjustments, "暂无增强建议");
+  const negative = renderReviewList(review.negative_adjustments, "暂无降权建议");
+  const exploration = renderReviewList(review.exploration_notes, "暂无探索观察");
+  const risks = renderReviewList(review.risk_notes, "暂无风险提示");
+  const summary = String(review.summary_zh || "").trim() || "本次没有可用的 LLM 画像复核。";
+  const runtimeNote = review.apply_to_runtime
+    ? "模型建议不会自动写入主画像，仍需人工确认。"
+    : "仅作为复核 overlay，不会自动改写主兴趣画像。";
+
+  profileReview.hidden = false;
+  profileReview.innerHTML = `
+    <h2>LLM 画像复核</h2>
+    <p class="profile-summary-lede">${escapeHtml(summary)}</p>
+    <div class="profile-review-note">${escapeHtml(runtimeNote)}</div>
+    <div class="profile-review-grid">
+      <div><strong>增强方向</strong>${positive}</div>
+      <div><strong>降权方向</strong>${negative}</div>
+      <div><strong>探索观察</strong>${exploration}</div>
+      <div><strong>风险提示</strong>${risks}</div>
+    </div>
+  `;
+}
+
+function renderReviewList(values, fallback) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return `<span>${escapeHtml(fallback)}</span>`;
+  }
+  return `<ul>${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul>`;
 }
 
 function renderSectionSummary(section) {

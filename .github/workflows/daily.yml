@@ -87,7 +87,8 @@ jobs:
             --output site/recommendations.json \
             --run-date "$(date -u +%F)" \
             --limit 45 \
-            --min-count 45
+            --min-count 45 \
+            --exploration-count 12
 
       - name: Judge recommendations with LLM
         env:
@@ -102,14 +103,14 @@ jobs:
           python -m paper_recommender.judge \
             --input site/recommendations.json \
             --output site/recommendations.json \
-            --limit 15 $REQUIRE_API
+            --limit 15 --exploration-limit 5 $REQUIRE_API
 
       - name: Enrich author affiliations
         run: |
           python -m paper_recommender.affiliations \
             --input site/recommendations.json \
             --output site/recommendations.json \
-            --max-items 15
+            --max-items 20
 
       - name: Enrich TLDR summaries
         env:
@@ -124,6 +125,21 @@ jobs:
           python -m paper_recommender.summarizer \
             --input site/recommendations.json \
             --output site/recommendations.json $REQUIRE_API
+
+      - name: Generate LLM profile review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'deepseek-v4-flash' }}
+        run: |
+          REQUIRE_API=""
+          if [ "$HAS_LLM" = "true" ]; then
+            REQUIRE_API="--require-api"
+          fi
+          python -m paper_recommender.profile_review \
+            --profile output/interests.json \
+            --recommendations site/recommendations.json \
+            --output site/profile_review.json $REQUIRE_API
 
       - name: Inject public feedback config
         run: |

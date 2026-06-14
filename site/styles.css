@@ -296,14 +296,16 @@ h1 {
   gap: 12px;
 }
 
-.profile-summary {
+.profile-summary,
+.profile-review {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
   padding: 16px;
 }
 
-.profile-summary h2 {
+.profile-summary h2,
+.profile-review h2 {
   margin-bottom: 8px;
 }
 
@@ -349,6 +351,42 @@ h1 {
 
 .profile-section-summary p {
   margin: 6px 0 0;
+}
+
+.profile-review-note {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.profile-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profile-review-grid div {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.profile-review-grid strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.profile-review-grid ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.profile-review-grid span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .profile-editor {
@@ -639,7 +677,8 @@ h3 {
   }
 
   .profile-rule-grid,
-  .profile-section-summary {
+  .profile-section-summary,
+  .profile-review-grid {
     grid-template-columns: 1fr;
   }
 

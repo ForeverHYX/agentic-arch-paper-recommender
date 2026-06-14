@@ -19,6 +19,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--profile output/interests.json", workflow)
         self.assertIn("--limit 45", workflow)
         self.assertIn("--min-count 45", workflow)
+        self.assertIn("--exploration-count 12", workflow)
         self.assertNotIn("--input examples/sample_papers.jsonl", workflow)
 
     def test_daily_workflow_allows_profile_override_secret(self):
@@ -40,6 +41,7 @@ class WorkflowContractTests(unittest.TestCase):
 
         self.assertIn("python -m paper_recommender.judge", workflow)
         self.assertIn("--limit 15", workflow)
+        self.assertIn("--exploration-limit 5", workflow)
         self.assertIn("OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}", workflow)
         self.assertLess(
             workflow.index("python -m paper_recommender.judge"),
@@ -81,8 +83,25 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('REQUIRE_API=""', workflow)
         self.assertIn('if [ "$HAS_LLM" = "true" ]; then', workflow)
         self.assertIn('REQUIRE_API="--require-api"', workflow)
-        self.assertIn("--limit 15 $REQUIRE_API", workflow)
+        self.assertIn("--limit 15 --exploration-limit 5 $REQUIRE_API", workflow)
         self.assertIn("--output site/recommendations.json $REQUIRE_API", workflow)
+
+    def test_daily_workflow_generates_llm_profile_review_overlay(self):
+        workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
+
+        self.assertIn("Generate LLM profile review", workflow)
+        self.assertIn("python -m paper_recommender.profile_review", workflow)
+        self.assertIn("--profile output/interests.json", workflow)
+        self.assertIn("--recommendations site/recommendations.json", workflow)
+        self.assertIn("--output site/profile_review.json $REQUIRE_API", workflow)
+        self.assertLess(
+            workflow.index("python -m paper_recommender.summarizer"),
+            workflow.index("python -m paper_recommender.profile_review"),
+        )
+        self.assertLess(
+            workflow.index("python -m paper_recommender.profile_review"),
+            workflow.index("Inject public feedback config"),
+        )
 
     def test_daily_workflow_publishes_subsystem_status_without_secret_values(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")

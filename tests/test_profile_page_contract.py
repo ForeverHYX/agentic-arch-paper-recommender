@@ -21,17 +21,32 @@ function element(id) {
 
 const context = {
   document: { getElementById: element },
-  fetch: async () => ({
-    ok: true,
-    json: async () => ({
-      name: "Test Profile",
-      core_categories: ["cs.AR"],
-      expansion_categories: ["cs.AI"],
-      sections: [
-        { id: "arch", label: "Architecture", weight: 4, keywords: ["gem5", "microarchitecture"] }
-      ],
-    }),
-  }),
+  fetch: async (url) => {
+    if (String(url).includes("profile_review.json")) {
+      return {
+        ok: true,
+        json: async () => ({
+          summary_zh: "LLM 复核认为近期反馈更偏好 GPU 系统。",
+          positive_adjustments: ["增强 GPU/ML systems"],
+          negative_adjustments: ["降低泛 Web agent"],
+          exploration_notes: ["继续观察 AI+体系结构探索"],
+          risk_notes: ["反馈样本仍少"],
+          apply_to_runtime: false,
+        }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        name: "Test Profile",
+        core_categories: ["cs.AR"],
+        expansion_categories: ["cs.AI"],
+        sections: [
+          { id: "arch", label: "Architecture", weight: 4, keywords: ["gem5", "microarchitecture"] }
+        ],
+      }),
+    };
+  },
   localStorage: {
     getItem(key) {
       return Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null;
@@ -71,13 +86,17 @@ __BODY__
 
         self.assertIn('id="profileEditor"', html)
         self.assertIn('id="profileSummary"', html)
+        self.assertIn('id="profileReview"', html)
         self.assertIn('id="saveProfileButton"', html)
         self.assertIn('id="downloadProfileLink"', html)
         self.assertIn("PROFILE_OVERRIDE_JSON", html)
         self.assertIn("loadProfile", script)
+        self.assertIn("loadProfileReview", script)
         self.assertIn("saveProfileOverride", script)
         self.assertIn("renderProfileExport", script)
         self.assertIn("renderProfileSummary", script)
+        self.assertIn("renderProfileReview", script)
+        self.assertIn("profile_review.json", script)
 
     def test_profile_page_saves_and_exports_valid_json(self):
         self.run_profile_script(
@@ -140,6 +159,28 @@ if (html.includes("automated architecture discovery")) throw new Error(`raw keyw
 """
         )
 
+    def test_profile_page_renders_llm_profile_review_summary(self):
+        self.run_profile_script(
+            """
+context.renderProfileReview({
+  summary_zh: "LLM 复核认为近期反馈更偏好 GPU 系统。",
+  positive_adjustments: ["增强 GPU/ML systems"],
+  negative_adjustments: ["降低泛 Web agent"],
+  exploration_notes: ["继续观察 AI+体系结构探索"],
+  risk_notes: ["反馈样本仍少"],
+  apply_to_runtime: false,
+});
+
+const html = elements.profileReview.innerHTML;
+if (!html.includes("LLM 画像复核")) throw new Error(`missing review heading: ${html}`);
+if (!html.includes("增强方向")) throw new Error(`missing positive adjustments: ${html}`);
+if (!html.includes("降权方向")) throw new Error(`missing negative adjustments: ${html}`);
+if (!html.includes("探索观察")) throw new Error(`missing exploration notes: ${html}`);
+if (!html.includes("风险提示")) throw new Error(`missing risk notes: ${html}`);
+if (html.includes("apply_to_runtime")) throw new Error(`raw review key leaked: ${html}`);
+"""
+        )
+
     def test_profile_page_uses_chinese_copy(self):
         html = Path("site/profile.html").read_text(encoding="utf-8")
         script = Path("site/profile.js").read_text(encoding="utf-8")
@@ -147,6 +188,7 @@ if (html.includes("automated architecture discovery")) throw new Error(`raw keyw
         self.assertIn('lang="zh-CN"', html)
         self.assertIn("兴趣画像", html)
         self.assertIn("核心规则", html)
+        self.assertIn("LLM 画像复核", html)
         self.assertIn("返回推荐列表", html)
         self.assertIn("保存本地副本", html)
         self.assertIn("下载 JSON", html)
