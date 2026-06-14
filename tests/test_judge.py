@@ -399,6 +399,60 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual([item["paper_id"] for item in enriched["recommendations"]], ["keep"])
         self.assertEqual(enriched["judge_summary"]["dropped_count"], 1)
 
+    def test_enrich_payload_with_judgements_preserves_exploration_quota(self):
+        recommendations = [
+            {
+                "rank": index + 1,
+                "paper_id": f"core-{index:02d}",
+                "title": f"Core Architecture Candidate {index}",
+                "abstract": "A core microarchitecture paper.",
+                "score": 20 - index,
+                "sections": ["microarchitecture_simulators"],
+            }
+            for index in range(17)
+        ]
+        recommendations.extend(
+            {
+                "rank": 100 + index,
+                "paper_id": f"explore-{index:02d}",
+                "title": f"Exploration Candidate {index}",
+                "abstract": "A GPU accelerator runtime for machine learning systems.",
+                "score": 1.0,
+                "sections": ["exploration"],
+            }
+            for index in range(6)
+        )
+        payload = {"recommendations": recommendations}
+
+        def opener(request):
+            return FakeResponse(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"score": 7, "reason": "相关，保留。", "decision": "keep"}'
+                            }
+                        }
+                    ]
+                }
+            )
+
+        enriched = enrich_payload_with_judgements(
+            payload,
+            api_key="secret",
+            limit=15,
+            exploration_limit=5,
+            opener=opener,
+        )
+
+        kept = enriched["recommendations"]
+        exploration_count = sum("exploration" in item.get("sections", []) for item in kept)
+        core_count = len(kept) - exploration_count
+        self.assertEqual(enriched["count"], 20)
+        self.assertEqual(core_count, 15)
+        self.assertEqual(exploration_count, 5)
+        self.assertEqual(enriched["judge_summary"]["exploration_limit"], 5)
+
     def test_enrich_payload_with_judgements_requires_api_without_leaking_key(self):
         payload = {
             "recommendations": [

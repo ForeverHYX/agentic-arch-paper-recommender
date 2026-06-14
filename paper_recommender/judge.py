@@ -125,6 +125,7 @@ def enrich_payload_with_judgements(
     payload: dict[str, Any],
     api_key: str = "",
     limit: int = 15,
+    exploration_limit: int = 0,
     base_url: str = DEFAULT_BASE_URL,
     model: str = DEFAULT_MODEL,
     opener: Callable[[Request], Any] = urlopen,
@@ -160,7 +161,15 @@ def enrich_payload_with_judgements(
     judged.sort(key=_ranking_key)
     kept = [item for item in judged if item["ai_judgement"]["decision"] != "drop"]
     dropped = [item for item in judged if item["ai_judgement"]["decision"] == "drop"]
-    selected = kept[:limit]
+    if exploration_limit > 0:
+        exploration = [item for item in kept if _is_exploration_item(item)]
+        core = [item for item in kept if not _is_exploration_item(item)]
+        selected = core[:limit] + exploration[:exploration_limit]
+        selected.sort(key=_ranking_key)
+    else:
+        exploration = [item for item in kept if _is_exploration_item(item)]
+        core = [item for item in kept if not _is_exploration_item(item)]
+        selected = kept[:limit]
     for rank, item in enumerate(selected, start=1):
         item["rank"] = rank
 
@@ -173,6 +182,10 @@ def enrich_payload_with_judgements(
         "kept_count": len(kept),
         "dropped_count": len(dropped),
         "limit": limit,
+        "core_limit": limit,
+        "exploration_limit": exploration_limit,
+        "core_kept_count": len(core),
+        "exploration_kept_count": len(exploration),
     }
     return enriched
 
@@ -182,6 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--input", required=True, help="输入推荐 JSON 路径。")
     parser.add_argument("--output", required=True, help="输出推荐 JSON 路径。")
     parser.add_argument("--limit", type=int, default=15, help="AI 判断后最多保留推荐数。")
+    parser.add_argument("--exploration-limit", type=int, default=0, help="AI 判断后额外保留探索论文数。")
     parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL))
     parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL))
     parser.add_argument("--require-api", action="store_true", help="API 已配置时调用失败则退出，不使用规则兜底。")
@@ -192,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         payload,
         api_key=os.environ.get("OPENAI_API_KEY", ""),
         limit=args.limit,
+        exploration_limit=args.exploration_limit,
         base_url=args.base_url,
         model=args.model,
         require_api=args.require_api,
@@ -364,6 +379,10 @@ def _ranking_key(item: dict[str, Any]) -> tuple[float, float, str]:
         -_float_value(item.get("score"), 0.0),
         str(item.get("paper_id", "")),
     )
+
+
+def _is_exploration_item(item: dict[str, Any]) -> bool:
+    return "exploration" in {str(section) for section in item.get("sections", [])}
 
 
 def _section_text(item: dict[str, Any], section_labels: dict[str, str]) -> str:
