@@ -531,7 +531,7 @@ function renderPaper(paper) {
   const tagChipsHtml = tags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("");
   const originalPaperHtml = renderOriginalPaperLinks(paper);
   return `
-    <article class="paper${liked ? " is-liked" : ""}" id="paper-${escapeAttr(paper.paper_id)}" data-paper-id="${escapeAttr(paper.paper_id)}">
+    <article class="paper home-glass${liked ? " is-liked" : ""}" id="paper-${escapeAttr(paper.paper_id)}" data-paper-id="${escapeAttr(paper.paper_id)}">
       ${liked ? '<div class="paper-favorite-star" aria-label="已喜欢" title="已喜欢">★</div>' : ""}
       <h3 class="paper-title"><a href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${escapeHtml(paper.title)}</a></h3>
       <div class="paper-meta">
