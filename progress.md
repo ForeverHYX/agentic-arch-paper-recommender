@@ -773,5 +773,24 @@
 | 交互浏览器检查 | `agent-browser click` 画像 tab、`gem5` keyword chip | 画像与系统 tab 独立展示；`gem5` 关键词把当前示例筛为 1/2 | 通过 | pass |
 | 移动浏览器检查 | `agent-browser` 390x844 screenshot | 灵动岛置顶，筛选面板先于列表堆叠，长文本/chips 自动换行无重叠 | 已用临时截图目检通过 | pass |
 
+## 会话补充：Pages 未显示新版 UI 的部署根因修复
+- **状态：** in_progress
+- 执行的操作：
+  - 对比本地 `site/index.html`、GitHub raw `main/site/index.html` 和线上 Pages HTML，确认本地和 `main` 已有 `nav-island`、`readerTabs`、`keywordFilters`，但线上 Pages 仍服务旧 HTML。
+  - 通过 `gh api repos/ForeverHYX/agentic-arch-paper-recommender/pages` 确认 Pages 使用 `build_type=workflow`。
+  - 检查 `.github/workflows/daily.yml`，确认 Pages artifact 只在 `workflow_dispatch` 和定时任务发布；普通 `git push` 不会重新部署 Pages。
+  - 新增轻量 `.github/workflows/pages-ui.yml`，在 `site/**` 和前端契约测试变更时部署静态 UI。
+  - 轻量部署 workflow 会先从当前线上 Pages 拉回 `recommendations.json`、`status.json`、`interests.json`、`profile_review.json`，再上传新的静态 HTML/CSS/JS，避免为了 UI 改动重新抓论文、跑 LLM 或发送邮件，也避免把 daily 生成数据回退成仓库样例。
+- 创建/修改的文件：
+  - `.github/workflows/pages-ui.yml`
+  - `tests/test_workflow_contract.py`
+  - `progress.md`
+
+| Pages 线上根因检查 | `curl https://foreverhyx.github.io/agentic-arch-paper-recommender/index.html?... \| rg 'nav-island\|readerTabs\|keywordFilters'` | 若已部署新版，应能匹配 UI hooks | 无匹配；线上仍为旧 artifact | root-cause |
+| Pages 配置检查 | `gh api repos/ForeverHYX/agentic-arch-paper-recommender/pages` | 确认 Pages 发布源 | `build_type=workflow`，source `main /` | root-cause |
+| UI deploy workflow RED 测试 | `python3 -m unittest tests.test_workflow_contract.WorkflowContractTests.test_static_pages_ui_workflow_redeploys_frontend_without_regenerating_recommendations` | 缺少轻量 UI 部署 workflow 时失败 | `FileNotFoundError: .github/workflows/pages-ui.yml` | expected-fail |
+| UI deploy workflow 测试 | `python3 -m unittest tests.test_workflow_contract.WorkflowContractTests.test_static_pages_ui_workflow_redeploys_frontend_without_regenerating_recommendations` | workflow 存在且只部署 UI、不跑 LLM/邮件 | 通过 | pass |
+| workflow/site 回归测试 | `python3 -m unittest tests.test_workflow_contract tests.test_site_contract tests.test_profile_page_contract tests.test_feedback_page_contract` | 相关契约测试通过 | 48 个测试通过 | pass |
+
 ---
 *每个阶段完成后或遇到错误时更新此文件*

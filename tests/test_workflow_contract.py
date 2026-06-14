@@ -3,6 +3,25 @@ from pathlib import Path
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_static_pages_ui_workflow_redeploys_frontend_without_regenerating_recommendations(self):
+        workflow = Path(".github/workflows/pages-ui.yml").read_text(encoding="utf-8")
+
+        self.assertIn("name: Deploy Static Pages UI", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("push:", workflow)
+        self.assertIn("branches: [main]", workflow)
+        self.assertIn("- \"site/**\"", workflow)
+        self.assertIn("python -m unittest tests.test_site_contract tests.test_profile_page_contract tests.test_feedback_page_contract", workflow)
+        self.assertIn("Hydrate generated Pages data", workflow)
+        self.assertIn("recommendations.json status.json interests.json profile_review.json", workflow)
+        self.assertIn("curl -fsSL \"$SITE_BASE_URL/$file\"", workflow)
+        self.assertIn("cp config/interests.json site/interests.json", workflow)
+        self.assertIn("window.RECOMMENDER_CONFIG", workflow)
+        self.assertIn("actions/upload-pages-artifact", workflow)
+        self.assertIn("actions/deploy-pages", workflow)
+        self.assertNotIn("paper_recommender.email_delivery", workflow)
+        self.assertNotIn("paper_recommender.judge", workflow)
+
     def test_daily_workflow_runs_at_noon_china_time(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 

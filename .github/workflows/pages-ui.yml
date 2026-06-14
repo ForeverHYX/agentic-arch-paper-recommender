@@ -1,0 +1,83 @@
+name: Deploy Static Pages UI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "tests/test_site_contract.py"
+      - "tests/test_profile_page_contract.py"
+      - "tests/test_feedback_page_contract.py"
+      - ".github/workflows/pages-ui.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  SITE_BASE_URL: https://foreverhyx.github.io/agentic-arch-paper-recommender
+
+jobs:
+  deploy-ui:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run frontend contract tests
+        run: python -m unittest tests.test_site_contract tests.test_profile_page_contract tests.test_feedback_page_contract
+
+      - name: Hydrate generated Pages data
+        run: |
+          set -euo pipefail
+          for file in recommendations.json status.json interests.json profile_review.json; do
+            if curl -fsSL "$SITE_BASE_URL/$file" -o "site/$file"; then
+              echo "Hydrated $file from current Pages deployment"
+            else
+              echo "No current Pages copy for $file"
+            fi
+          done
+          if [ ! -s site/recommendations.json ]; then
+            echo "site/recommendations.json already comes from the repository sample payload"
+          fi
+          if [ ! -s site/interests.json ]; then
+            cp config/interests.json site/interests.json
+          fi
+          if [ ! -s site/status.json ]; then
+            cat > site/status.json <<'EOF'
+          {
+            "llm": {"configured": false, "base_url": "", "model": ""},
+            "smtp": {"configured": false},
+            "supabase": {"configured": false},
+            "local_feedback": {"configured": false},
+            "profile_override": {"configured": false}
+          }
+          EOF
+          fi
+          cat > site/config.js <<'EOF'
+          window.RECOMMENDER_CONFIG = {
+            supabaseUrl: "${{ vars.SUPABASE_URL }}",
+            supabaseAnonKey: "${{ vars.SUPABASE_ANON_KEY }}",
+          };
+          EOF
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
