@@ -475,8 +475,6 @@ def _is_feedback_keyword_token(token: str) -> bool:
         return False
     if token in DOMAIN_KEYWORDS or token in TOOLCHAIN_ALIASES:
         return True
-    if "-" in token:
-        return True
     return False
 
 

@@ -254,6 +254,41 @@ class FeedbackTests(unittest.TestCase):
         self.assertGreater(weights["cache"], 0)
         self.assertGreater(weights["microarchitecture"], 0)
 
+    def test_text_feedback_weights_reject_context_free_hyphenated_phrases(self):
+        weights = text_feedback_weights(
+            [
+                FeedbackEvent(
+                    "liked-noise",
+                    "like",
+                    "exploration",
+                    title="Dispersion-based full-application evaluation",
+                    abstract=(
+                        "A 109b-parameter model reports accuracy-latency-energy tradeoffs "
+                        "on an apnea-ecg benchmark from AS-SiliconMind."
+                    ),
+                ),
+                FeedbackEvent(
+                    "liked-domain",
+                    "like",
+                    "microarchitecture_simulators",
+                    title="multi-gpu co-design for RISC-V cache hierarchy",
+                    abstract="write-shared cache coherence with gem5 and GPU memory simulation.",
+                ),
+            ]
+        )
+
+        for noisy in (
+            "dispersion-based",
+            "full-application",
+            "109b-parameter",
+            "accuracy-latency-energy",
+            "apnea-ecg",
+            "as-siliconmind",
+        ):
+            self.assertNotIn(noisy, weights)
+        for domain in ("multi-gpu", "co-design", "risc-v", "write-shared"):
+            self.assertGreater(weights[domain], 0)
+
     def test_entity_feedback_weights_learn_authors_affiliations_and_toolchains(self):
         events = [
             FeedbackEvent(
