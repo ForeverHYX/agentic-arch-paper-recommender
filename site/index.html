@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
-    <link rel="stylesheet" href="styles.css?v=20260614-liquid-glass">
+    <link rel="stylesheet" href="styles.css?v=20260614-articles-redesign">
     <script>
       (function () {
         try {
@@ -28,32 +28,51 @@
     <div class="home-lightfield" aria-hidden="true"></div>
     <header class="site-header">
       <div class="container nav-shell">
-        <div class="nav-island home-liquid-card">
-          <span class="home-liquid-warp nav-island-warp" aria-hidden="true"></span>
-          <div class="nav-island-body">
-            <a class="brand nav-brand" href="index.html">每日推荐</a>
-            <nav id="readerTabs" class="reader-tabs" aria-label="推荐类型">
-              <button type="button" class="reader-tab is-active" data-tab="all">全部</button>
-              <button type="button" class="reader-tab" data-tab="paper">论文</button>
-              <button type="button" class="reader-tab" data-tab="repository">仓库</button>
-              <button type="button" class="reader-tab" data-tab="profile">画像与系统</button>
-            </nav>
+        <div class="nav-cluster" id="navCluster">
+          <div class="nav-island home-liquid-card" id="navIsland">
+            <span class="home-liquid-warp nav-island-warp" aria-hidden="true"></span>
+            <div class="nav-island-body">
+              <a class="brand nav-brand" href="index.html">每日推荐</a>
+              <nav id="readerTabs" class="reader-tabs nav-links" aria-label="推荐领域">
+                <button type="button" class="nav-link reader-tab is-active" data-tab="all">全部</button>
+                <button type="button" class="nav-link reader-tab" data-tab="repository">仓库</button>
+                <button type="button" class="nav-link reader-tab" data-tab="profile">画像与系统</button>
+              </nav>
+              <div class="nav-divider" aria-hidden="true"></div>
+              <div id="inlineSearchBar" class="search-bar-container">
+                <svg class="search-bar-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input type="text" id="inlineSearchInput" class="search-input" placeholder="搜索标题或关键词..." autocomplete="off">
+                <button type="button" class="search-close-btn" id="searchCloseBtn" aria-label="关闭搜索">&times;</button>
+              </div>
+              <div class="nav-actions">
+                <button type="button" id="searchTrigger" class="action-btn search-trigger" title="搜索" aria-expanded="false">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </button>
+                <button type="button" id="themeToggle" class="action-btn nav-theme-toggle" title="切换主题">
+                  <svg class="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                  <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </header>
     <main class="site-main">
       <div class="container page-shell">
-        <section class="reader-overview">
-          <div class="hero-copy">
-            <p class="eyebrow">个人论文雷达</p>
-            <h1>每日 arXiv 推荐</h1>
-            <p id="runDate">正在加载...</p>
+        <div id="recommendationWorkspace" class="article-grid is-active">
+          <div class="page-stack">
+            <div class="reader-overview">
+              <div class="hero-copy">
+                <p class="eyebrow">个人论文雷达</p>
+                <h1>每日 arXiv 推荐</h1>
+                <p id="runDate">正在加载...</p>
+              </div>
+              <div id="summaryStats" class="summary-stats" aria-live="polite"></div>
+            </div>
+            <div id="filterBar" class="article-filter-bar"></div>
+            <section id="recommendations" class="paper-list" aria-live="polite"></section>
           </div>
-          <div id="summaryStats" class="summary-stats" aria-live="polite"></div>
-        </section>
-        <section id="recommendationWorkspace" class="reader-workspace article-grid is-active">
-          <section id="recommendations" class="paper-list page-stack" aria-live="polite"></section>
           <aside class="filter-sidebar sidebar" aria-label="推荐筛选">
             <div id="resultCount" class="result-count" aria-live="polite"></div>
             <div class="sidebar-title">筛选</div>
@@ -97,7 +116,7 @@
             <div class="sidebar-title">栏目</div>
             <nav id="sectionNav" class="section-nav"></nav>
           </aside>
-        </section>
+        </div>
         <section id="profileSystemWorkspace" class="profile-system-workspace is-hidden">
           <div class="profile-system-grid">
             <section class="profile-system-panel">
@@ -124,9 +143,10 @@
       </div>
     </footer>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <script src="config.js?v=20260614-llm-ui"></script>
-    <script src="effects/lightfield.js?v=20260614-liquid-glass" defer></script>
-    <script src="effects/liquid-glass.js?v=20260614-liquid-glass" defer></script>
-    <script src="app.js?v=20260614-liquid-glass"></script>
+    <script src="config.js?v=20260614-articles-redesign"></script>
+    <script src="effects/lightfield.js?v=20260614-articles-redesign" defer></script>
+    <script src="effects/liquid-glass.js?v=20260614-articles-redesign" defer></script>
+    <script src="effects/site-header.js?v=20260614-articles-redesign" defer></script>
+    <script src="app.js?v=20260614-articles-redesign"></script>
   </body>
 </html>

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
-    <link rel="stylesheet" href="styles.css?v=20260614-liquid-glass">
+    <link rel="stylesheet" href="styles.css?v=20260614-articles-redesign">
     <script>
       (function () {
         try {
@@ -28,21 +28,33 @@
     <div class="home-lightfield" aria-hidden="true"></div>
     <header class="site-header">
       <div class="container nav-shell">
-        <div class="nav-island home-liquid-card">
-          <span class="home-liquid-warp nav-island-warp" aria-hidden="true"></span>
-          <div class="nav-island-body">
-            <a class="brand nav-brand" href="index.html">每日推荐</a>
-            <nav class="reader-tabs" aria-label="导航">
-              <a class="reader-tab" href="index.html">推荐</a>
-              <button type="button" class="reader-tab is-active">画像</button>
-              <a class="reader-tab" href="feedback.html">反馈</a>
-            </nav>
+        <div class="nav-cluster" id="navCluster">
+          <div class="nav-island home-liquid-card" id="navIsland">
+            <span class="home-liquid-warp nav-island-warp" aria-hidden="true"></span>
+            <div class="nav-island-body">
+              <a class="brand nav-brand" href="index.html">每日推荐</a>
+              <nav class="nav-links" aria-label="导航">
+                <a class="nav-link" href="index.html">推荐</a>
+                <span class="nav-link is-active">画像</span>
+                <a class="nav-link" href="feedback.html">反馈</a>
+              </nav>
+              <div class="nav-divider" aria-hidden="true"></div>
+              <div class="nav-actions">
+                <a class="action-btn" href="index.html" title="返回搜索" style="text-decoration:none">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </a>
+                <button type="button" id="themeToggle" class="action-btn nav-theme-toggle" title="切换主题">
+                  <svg class="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                  <svg class="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </header>
     <main class="site-main">
-      <main class="profile-settings">
+      <div class="profile-settings">
         <header class="profile-header">
           <div>
             <p class="eyebrow">个人推荐画像</p>
@@ -67,15 +79,16 @@
           </div>
           <p class="profile-note">要让每日 workflow 使用这份画像，请把下载的 JSON 内容放入 GitHub Secret <code>PROFILE_OVERRIDE_JSON</code>，然后重新运行 workflow。</p>
         </section>
-      </main>
+      </div>
     </main>
     <footer>
       <div class="container">
         每日 arXiv 推荐 · 基于个人兴趣画像的论文与仓库雷达
       </div>
     </footer>
-    <script src="effects/lightfield.js?v=20260614-liquid-glass" defer></script>
-    <script src="effects/liquid-glass.js?v=20260614-liquid-glass" defer></script>
-    <script src="profile.js?v=20260614-liquid-glass"></script>
+    <script src="effects/lightfield.js?v=20260614-articles-redesign" defer></script>
+    <script src="effects/liquid-glass.js?v=20260614-articles-redesign" defer></script>
+    <script src="effects/site-header.js?v=20260614-articles-redesign" defer></script>
+    <script src="profile.js?v=20260614-articles-redesign"></script>
   </body>
 </html>

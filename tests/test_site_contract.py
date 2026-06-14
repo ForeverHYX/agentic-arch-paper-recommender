@@ -182,8 +182,8 @@ const withAffiliations = context.renderPaper({
   ...basePaper,
   affiliations: ["University of Architecture", "National HPC Lab"],
 });
-if (!withAffiliations.includes("paper-affiliations")) {
-  throw new Error("affiliation block class missing");
+if (!withAffiliations.includes("paper-affiliations-inline")) {
+  throw new Error("affiliation inline class missing");
 }
 if (!withAffiliations.includes("University of Architecture")) {
   throw new Error("affiliation value missing");
@@ -199,9 +199,6 @@ const withoutAffiliations = context.renderPaper({
 if (!withoutAffiliations.includes("未解析到作者单位")) {
   throw new Error("missing-affiliation status not rendered");
 }
-if (!withoutAffiliations.includes("作者单位")) {
-  throw new Error("explicit missing affiliation label missing");
-}
 """
         )
 
@@ -216,7 +213,7 @@ if (!withoutAffiliations.includes("作者单位")) {
     def test_index_busts_app_cache_for_affiliation_ui(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
-        self.assertIn("app.js?v=20260614-liquid-glass", html)
+        self.assertIn("app.js?v=20260614-articles-redesign", html)
 
     def test_index_contains_run_health_placeholder_and_cache_bust(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -225,7 +222,7 @@ if (!withoutAffiliations.includes("作者单位")) {
         self.assertIn('class="run-health"', html)
         self.assertIn('id="statusDetails"', html)
         self.assertIn("反馈与系统细节", html)
-        self.assertIn("app.js?v=20260614-liquid-glass", html)
+        self.assertIn("app.js?v=20260614-articles-redesign", html)
 
     def test_sidebar_keeps_secondary_status_in_collapsible_details(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -248,7 +245,6 @@ if (!withoutAffiliations.includes("作者单位")) {
         self.assertIn("home-liquid-card", html)
         self.assertIn('id="readerTabs"', html)
         self.assertIn('data-tab="all"', html)
-        self.assertIn('data-tab="paper"', html)
         self.assertIn('data-tab="repository"', html)
         self.assertIn('data-tab="profile"', html)
         self.assertIn('id="recommendationWorkspace"', html)
@@ -458,8 +454,8 @@ const html = context.renderPaper({
   paper_links: [{ label: "arXiv", url: "https://arxiv.org/abs/2606.00001" }],
 });
 if (!html.includes("GitHub 仓库")) throw new Error(`missing repo type label: ${html}`);
-if (!html.includes("今日新增 star 87")) throw new Error(`missing star trend: ${html}`);
-if (!html.includes("总 star 1300")) throw new Error(`missing total stars: ${html}`);
+if (!html.includes("今日 +87")) throw new Error(`missing star trend: ${html}`);
+if (!html.includes("★ 1300")) throw new Error(`missing total stars: ${html}`);
 if (!html.includes("Python")) throw new Error(`missing language: ${html}`);
 if (!html.includes("gem5")) throw new Error(`missing topics: ${html}`);
 if (!html.includes("原始论文")) throw new Error(`missing original paper block: ${html}`);
@@ -662,10 +658,10 @@ if (!target.scrolled) {
         self.assertIn("repository_stars_today", script)
         self.assertIn("paper_links", script)
         self.assertIn(".paper-tldr", styles)
-        self.assertIn(".ai-judgement", styles)
+        self.assertIn(".paper-ai", styles)
         self.assertIn(".controls", styles)
         self.assertIn(".profile-system-grid", styles)
-        self.assertIn("max-height: calc(100vh - 32px)", styles)
+        self.assertIn("max-height: calc(100vh -", styles)
         self.assertIn("overflow-y: auto", styles)
         self.assertIn(".filter-row", styles)
         self.assertIn(".link-button", styles)

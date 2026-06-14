@@ -85,6 +85,7 @@ function renderControls(payload) {
     });
     sectionFilter.dataset.ready = "true";
   }
+  renderDomainTabs(payload);
   bindReaderTabs();
   bindKeywordFilters();
   updateTabPanels();
@@ -93,6 +94,31 @@ function renderControls(payload) {
     recommendations.addEventListener("click", handleFeedbackClick);
     recommendations.dataset.feedbackReady = "true";
   }
+}
+
+function renderDomainTabs(payload) {
+  const tabsContainer = document.getElementById("readerTabs");
+  if (!tabsContainer || tabsContainer.dataset.domainsReady) return;
+  const sectionLabels = payload.section_labels || {};
+  const sections = Array.from(new Set((payload.recommendations || [])
+    .map((paper) => paper.sections?.[0] || "exploratory")
+    .filter(Boolean)));
+  const repoCount = (payload.recommendations || []).filter(isRepositoryItem).length;
+  const domainTabs = sections.map((section) => ({
+    tab: `section:${section}`,
+    label: sectionLabels[section] || "探索性相关",
+  }));
+  const fixedTabs = [
+    { tab: "all", label: "全部" },
+    ...domainTabs,
+  ];
+  if (repoCount > 0) fixedTabs.push({ tab: "repository", label: "仓库" });
+  fixedTabs.push({ tab: "profile", label: "画像与系统" });
+  tabsContainer.innerHTML = fixedTabs.map((entry) => {
+    const active = entry.tab === "all" ? " is-active" : "";
+    return `<button type="button" class="nav-link reader-tab${active}" data-tab="${escapeAttr(entry.tab)}">${escapeHtml(entry.label)}</button>`;
+  }).join("");
+  tabsContainer.dataset.domainsReady = "true";
 }
 
 function bindReaderTabs() {
@@ -105,7 +131,7 @@ function bindReaderTabs() {
 }
 
 function setActiveTab(tab) {
-  uiState.activeTab = ["all", "paper", "repository", "profile"].includes(tab) ? tab : "all";
+  uiState.activeTab = tab || "all";
   updateTabPanels();
   applyControls();
 }
@@ -215,8 +241,15 @@ function filteredRecommendations(recommendations, filters) {
 }
 
 function typeMatchesActiveTab(paper) {
-  if (uiState.activeTab === "paper") return !isRepositoryItem(paper);
-  if (uiState.activeTab === "repository") return isRepositoryItem(paper);
+  const tab = uiState.activeTab;
+  if (tab === "profile") return false;
+  if (tab === "all") return true;
+  if (tab === "repository") return isRepositoryItem(paper);
+  if (tab === "paper") return !isRepositoryItem(paper);
+  if (tab.startsWith("section:")) {
+    const section = tab.slice("section:".length);
+    return (paper.sections?.[0] || "exploratory") === section;
+  }
   return true;
 }
 
@@ -484,19 +517,40 @@ function renderPaper(paper) {
   const aiScore = aiJudgement?.score ?? paper.ai_score;
   const feedbackState = feedbackStateFor(paper.paper_id);
   const liked = feedbackState === "like";
+  const affiliations = stringList(paper.affiliations);
+  const authorIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  const affiliationIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>`;
+  const tags = uniqueStrings([
+    ...(isRepository ? [] : (Array.isArray(paper.categories) ? paper.categories : [])),
+    ...(Array.isArray(paper.repository_topics) ? paper.repository_topics.slice(0, 4) : []),
+  ]);
+  const aiJudgementHtml = aiJudgement
+    ? `<div class="paper-ai"><span class="ai-label">AI 判断</span>${escapeHtml(aiJudgement.reason || "")}</div>`
+    : "";
+  const tldrHtml = paper.tldr
+    ? `<div class="paper-tldr"><span class="tldr-label">核心解读</span>${escapeHtml(paper.tldr)}</div>`
+    : "";
+  const repoTag = isRepository ? `<span class="tag-chip repo">GitHub 仓库</span>` : "";
+  const repoTrendHtml = isRepository ? renderRepositoryMetaInline(paper) : "";
+  const tagChipsHtml = tags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("");
+  const originalPaperHtml = renderOriginalPaperLinks(paper);
   return `
     <article class="paper${liked ? " is-liked" : ""}" id="paper-${escapeAttr(paper.paper_id)}" data-paper-id="${escapeAttr(paper.paper_id)}">
       ${liked ? '<div class="paper-favorite-star" aria-label="已喜欢" title="已喜欢">★</div>' : ""}
-      <div class="paper-meta"><span>#${paper.rank}</span><span>规则分 ${paper.score}</span>${aiScore !== undefined ? `<span>AI ${escapeHtml(aiScore)}</span>` : ""}<span>${escapeHtml(categories)}</span></div>
-      ${isRepository ? renderRepositoryMeta(paper) : ""}
-      <h3>${escapeHtml(paper.title)}</h3>
-      <p class="authors">${escapeHtml(authors)}</p>
-      ${isRepository ? "" : renderAffiliationBlock(paper.affiliations)}
-      ${paper.tldr ? `<div class="paper-tldr"><span>核心解读</span><p>${escapeHtml(paper.tldr)}</p></div>` : ""}
-      ${aiJudgement ? `<div class="ai-judgement"><span>AI 判断</span><p>${escapeHtml(aiJudgement.reason || "")}</p></div>` : ""}
-      <p class="abstract">${escapeHtml(paper.abstract || "")}</p>
-      ${renderOriginalPaperLinks(paper)}
-      <div class="actions">
+      <h3 class="paper-title"><a href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${escapeHtml(paper.title)}</a></h3>
+      <div class="paper-meta">
+        <span class="meta-rank">#${paper.rank}</span>
+        ${aiScore !== undefined ? `<span class="meta-score ai">AI ${escapeHtml(aiScore)}</span>` : ""}
+        <span class="meta-score">规则 ${escapeHtml(paper.score)}</span>
+        ${repoTag}${repoTrendHtml}
+        ${authors ? `<span class="meta-line">${authorIcon}<span>${escapeHtml(authors)}</span></span>` : ""}
+        ${renderAffiliationInline(affiliations, affiliationIcon)}
+        <span class="paper-tag-list">${tagChipsHtml}</span>
+      </div>
+      ${originalPaperHtml}
+      ${tldrHtml}
+      ${aiJudgementHtml}
+      <div class="paper-actions actions">
         <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${isRepository ? "GitHub" : "arXiv"}</a>
         ${pdfUrl ? `<a class="link-button" href="${escapeAttr(pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>` : ""}
         ${isRepository && paper.repository_homepage ? `<a class="link-button" href="${escapeAttr(paper.repository_homepage)}" target="_blank" rel="noreferrer">主页</a>` : ""}
@@ -507,6 +561,27 @@ function renderPaper(paper) {
       </div>
     </article>
   `;
+}
+
+function renderAffiliationInline(affiliations, iconHtml) {
+  if (!affiliations.length) {
+    return `<span class="paper-affiliations-inline is-missing">${iconHtml}<span>未解析到作者单位</span></span>`;
+  }
+  const text = affiliations.slice(0, 2).join("、") + (affiliations.length > 2 ? " 等" : "");
+  return `<span class="paper-affiliations-inline" title="${escapeAttr(affiliations.join("; "))}">${iconHtml}<span>作者单位：${escapeHtml(text)}</span></span>`;
+}
+
+function renderRepositoryMetaInline(paper) {
+  const parts = [];
+  const starsToday = Number(paper.repository_stars_today || 0);
+  const totalStars = Number(paper.repository_stars || 0);
+  const forks = Number(paper.repository_forks || 0);
+  const language = String(paper.repository_language || "").trim();
+  if (starsToday) parts.push(`今日 +${starsToday}`);
+  if (totalStars) parts.push(`★ ${totalStars}`);
+  if (forks) parts.push(`fork ${forks}`);
+  if (language) parts.push(language);
+  return parts.map((part) => `<span class="tag-chip repo">${escapeHtml(part)}</span>`).join("");
 }
 
 async function handleFeedbackClick(event) {
