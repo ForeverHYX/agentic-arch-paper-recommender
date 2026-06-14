@@ -87,11 +87,11 @@ __BODY__
         script = Path("site/app.js").read_text(encoding="utf-8")
 
         self.assertIn("paper.tldr", script)
-        self.assertIn("核心解读", script)
+        self.assertIn("TLDR", script)
+        self.assertNotIn("核心解读", script)
         self.assertIn("paper.ai_judgement", script)
         self.assertIn("AI 判断", script)
         self.assertIn("paper.affiliations", script)
-        self.assertIn("作者单位", script)
         self.assertIn("paper.url", script)
         self.assertIn("paper.pdf_url", script)
         self.assertIn("paper.code_urls", script)
@@ -164,7 +164,7 @@ if (filtered.length !== 1 || filtered[0].paper_id !== "keep-me") {
 """
         )
 
-    def test_recommendation_cards_always_render_affiliation_status(self):
+    def test_recommendation_cards_do_not_render_affiliation_status(self):
         self.run_app_script(
             """
 const basePaper = {
@@ -182,22 +182,19 @@ const withAffiliations = context.renderPaper({
   ...basePaper,
   affiliations: ["University of Architecture", "National HPC Lab"],
 });
-if (!withAffiliations.includes("paper-affiliations-inline")) {
-  throw new Error("affiliation inline class missing");
+if (withAffiliations.includes("paper-affiliations-inline")) {
+  throw new Error(`affiliation inline class should not render: ${withAffiliations}`);
 }
-if (!withAffiliations.includes("University of Architecture")) {
-  throw new Error("affiliation value missing");
-}
-if (!withAffiliations.includes("作者单位")) {
-  throw new Error("explicit author affiliation label missing");
+if (withAffiliations.includes("University of Architecture") || withAffiliations.includes("作者单位")) {
+  throw new Error(`affiliation text should not render: ${withAffiliations}`);
 }
 
 const withoutAffiliations = context.renderPaper({
   ...basePaper,
   affiliations: [],
 });
-if (!withoutAffiliations.includes("未解析到作者单位")) {
-  throw new Error("missing-affiliation status not rendered");
+if (withoutAffiliations.includes("未解析到作者单位")) {
+  throw new Error(`missing-affiliation status should not render: ${withoutAffiliations}`);
 }
 """
         )
@@ -213,7 +210,7 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
     def test_index_busts_app_cache_for_affiliation_ui(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
-        self.assertIn("app.js?v=20260615-layout-align", html)
+        self.assertIn("app.js?v=20260615-keyword-sidebar", html)
 
     def test_index_contains_run_health_placeholder_and_cache_bust(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -222,7 +219,7 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
         self.assertIn('class="run-health"', html)
         self.assertIn('id="statusDetails"', html)
         self.assertIn("反馈与系统细节", html)
-        self.assertIn("app.js?v=20260615-layout-align", html)
+        self.assertIn("app.js?v=20260615-keyword-sidebar", html)
 
     def test_sidebar_keeps_secondary_status_in_collapsible_details(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -268,16 +265,22 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
         html = Path("site/index.html").read_text(encoding="utf-8")
         styles = Path("site/styles.css").read_text(encoding="utf-8")
 
-        self.assertIn("max-width: 1080px", styles)
-        self.assertIn("grid-template-columns: minmax(0, 1fr) 240px", styles)
+        self.assertIn("max-width: 1180px", styles)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) 320px", styles)
         self.assertIn("gap: 32px", styles)
         self.assertIn(".paper .home-glass-body", styles)
         self.assertIn("padding: 28px 32px", styles)
         self.assertIn(".sidebar-card-title", styles)
         self.assertIn(".filter-sidebar .home-liquid-body", styles)
         self.assertIn("padding: 24px 22px", styles)
-        self.assertIn('class="sidebar-card-title">筛选</h3>', html)
+        self.assertIn('class="sidebar-card-title">关键词</h3>', html)
         self.assertIn('class="paper home-glass article-card', Path("site/app.js").read_text(encoding="utf-8"))
+
+    def test_liked_cards_keep_homepage_glass_without_green_outline(self):
+        styles = Path("site/styles.css").read_text(encoding="utf-8")
+
+        self.assertNotIn(".paper.is-liked", styles)
+        self.assertNotIn("inset 0 -22px 36px rgba(15, 118, 110", styles)
 
     def test_reader_cards_have_homepage_article_spacing_and_aligned_nav(self):
         styles = Path("site/styles.css").read_text(encoding="utf-8")
@@ -287,6 +290,30 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
         self.assertIn("gap: 24px", styles)
         self.assertIn("width: 100%", styles)
         self.assertNotIn("width: min(100%, 980px)", styles)
+
+    def test_reader_sidebar_is_keyword_only_and_wide_enough_for_two_chips(self):
+        html = Path("site/index.html").read_text(encoding="utf-8")
+        styles = Path("site/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="keywordFilters"', html)
+        self.assertIn('id="typeKeywordFilters"', html)
+        self.assertIn('id="contentKeywordFilters"', html)
+        for removed in [
+            'id="summaryStats"',
+            'id="resultCount"',
+            'id="searchInput"',
+            'id="sectionFilter"',
+            'id="minAiScore"',
+            'id="hasCodeFilter"',
+            'id="hasAffiliationFilter"',
+            'id="sortSelect"',
+            'id="sectionNav"',
+            "最低 AI 分",
+            "有作者单位",
+        ]:
+            self.assertNotIn(removed, html)
+        self.assertIn("flex: 1 1 calc(50% - 4px)", styles)
+        self.assertIn(".keyword-chip span", styles)
 
     def test_reader_nav_uses_fixed_homepage_frame_tabs_even_without_matches(self):
         self.run_app_script(
@@ -425,6 +452,59 @@ if (filtered.length !== 1 || filtered[0].paper_id !== "2606.00001") {
 """
         )
 
+    def test_reader_keyword_sidebar_orders_type_chips_first_and_hides_arxiv_categories(self):
+        self.run_app_script(
+            """
+const payload = {
+  run_date: "2026-06-14",
+  recommendations: [
+    {
+      paper_id: "2606.00001",
+      rank: 1,
+      score: 8,
+      title: "Branch Predictor Design",
+      abstract: "A paper about branch predictor microarchitecture.",
+      sections: ["microarchitecture_simulators"],
+      categories: ["cs.AR", "cs.DC"],
+    },
+    {
+      paper_id: "repo:example/gem5-tools",
+      item_type: "repository",
+      rank: 2,
+      score: 7,
+      title: "gem5 Tools",
+      abstract: "Repository for simulator workflows.",
+      repository_topics: ["gem5", "simulation"],
+      repository_language: "Python",
+      sections: ["microarchitecture_simulators"],
+    },
+  ],
+  section_labels: {
+    microarchitecture_simulators: "微架构与模拟器",
+  },
+};
+
+context.render(payload);
+const typeHtml = elements.typeKeywordFilters.innerHTML;
+const contentHtml = elements.contentKeywordFilters.innerHTML;
+if (!typeHtml.includes(">论文<")) throw new Error(`paper chip missing: ${typeHtml}`);
+if (!typeHtml.includes(">仓库<")) throw new Error(`repository chip missing: ${typeHtml}`);
+if (typeHtml.indexOf(">论文<") > typeHtml.indexOf(">仓库<")) {
+  throw new Error(`type chips out of order: ${typeHtml}`);
+}
+if (typeHtml.includes("<strong>") || contentHtml.includes("<strong>")) {
+  throw new Error(`keyword chips should only show text: ${typeHtml} ${contentHtml}`);
+}
+if (contentHtml.toLowerCase().includes("cs.ar") || contentHtml.toLowerCase().includes("cs.dc")) {
+  throw new Error(`arxiv category leaked into content keywords: ${contentHtml}`);
+}
+if (contentHtml.includes("microarchitecture_simulators")) {
+  throw new Error(`internal section id leaked into content keywords: ${contentHtml}`);
+}
+if (!contentHtml.includes("gem5")) throw new Error(`content keyword missing: ${contentHtml}`);
+"""
+        )
+
     def test_reader_shows_run_health_for_local_feedback_mode(self):
         self.run_app_script(
             """
@@ -479,9 +559,10 @@ if (html.includes("SUPABASE_SERVICE_ROLE_KEY")) throw new Error(`unexpected setu
 """
         )
 
-    def test_summary_stats_show_affiliation_coverage(self):
+    def test_removed_sidebar_stats_noop_when_placeholder_absent(self):
         self.run_app_script(
             """
+delete elements.summaryStats;
 context.renderSummaryStats({
   recommendations: [
     { sections: ["agentic_architecture"], affiliations: ["University of Architecture"], code_urls: [] },
@@ -489,11 +570,6 @@ context.renderSummaryStats({
     { sections: ["hpc_cross_over"], code_search_url: "https://github.com/search?q=x", code_urls: [] },
   ],
 });
-
-const html = elements.summaryStats.innerHTML;
-if (!html.includes("<strong>1</strong><span>有单位</span>")) {
-  throw new Error(`affiliation coverage stat missing: ${html}`);
-}
 """
         )
 
@@ -687,27 +763,32 @@ if (!target.scrolled) {
 
         self.assertIn('lang="zh-CN"', html)
         self.assertIn("每日 arXiv 推荐", html)
-        self.assertIn("筛选", html)
-        self.assertIn("搜索", html)
-        self.assertIn("栏目", html)
-        self.assertIn("最低 AI 分", html)
-        self.assertIn("排序", html)
-        self.assertIn("有代码仓库", html)
-        self.assertIn("有作者单位", html)
+        self.assertIn("关键词", html)
+        self.assertIn("搜索标题或关键词", html)
         self.assertIn("编辑兴趣画像", html)
-        self.assertLess(html.index('id="searchInput"'), html.index('id="profileSystemWorkspace"'))
+        self.assertLess(html.index('id="keywordFilters"'), html.index('id="profileSystemWorkspace"'))
         self.assertLess(html.index('id="profileSystemWorkspace"'), html.index('id="runHealth"'))
         self.assertIn('class="sidebar-card home-liquid-card home-news-card filter-sidebar"', html)
         self.assertIn('id="keywordFilters"', html)
-        self.assertIn('id="summaryStats"', html)
-        self.assertIn('id="sectionNav"', html)
-        self.assertIn('id="searchInput"', html)
-        self.assertIn('id="sectionFilter"', html)
-        self.assertIn('id="minAiScore"', html)
-        self.assertIn('id="hasCodeFilter"', html)
-        self.assertIn('id="hasAffiliationFilter"', html)
-        self.assertIn('id="sortSelect"', html)
-        self.assertIn('id="resultCount"', html)
+        self.assertIn('id="typeKeywordFilters"', html)
+        self.assertIn('id="contentKeywordFilters"', html)
+        for removed in [
+            'id="summaryStats"',
+            'id="sectionNav"',
+            'id="searchInput"',
+            'id="sectionFilter"',
+            'id="minAiScore"',
+            'id="hasCodeFilter"',
+            'id="hasAffiliationFilter"',
+            'id="sortSelect"',
+            'id="resultCount"',
+            "最低 AI 分",
+            "有代码仓库",
+            "有作者单位",
+            "类型关键词",
+            "内容关键词",
+        ]:
+            self.assertNotIn(removed, html)
         self.assertIn('id="feedbackStatus"', html)
         self.assertIn('id="feedbackInsights"', html)
         self.assertIn('id="subsystemStatus"', html)
@@ -726,14 +807,11 @@ if (!target.scrolled) {
         self.assertIn("paper_links", script)
         self.assertIn(".paper-tldr", styles)
         self.assertIn(".paper-ai", styles)
-        self.assertIn(".controls", styles)
         self.assertIn(".profile-system-grid", styles)
         self.assertIn(".filter-sidebar", styles)
         self.assertIn("max-height: none", styles)
         self.assertIn("overflow: visible", styles)
-        self.assertIn(".filter-row", styles)
         self.assertIn(".link-button", styles)
-        self.assertIn(".section-nav", styles)
         self.assertIn(".keyword-chip", styles)
 
 

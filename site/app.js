@@ -63,7 +63,7 @@ function render(payload) {
   const runDate = document.getElementById("runDate");
   runDate.textContent = payload.run_date ? `运行日期：${payload.run_date}` : "";
   renderControls(payload);
-  renderKeywordFilters(payload.recommendations || [], payload.section_labels || {});
+  renderKeywordFilters(payload.recommendations || []);
   renderFeedbackStatus();
   renderFeedbackInsights(payload.feedback_summary?.metrics || {});
   renderRunHealth(payload, null);
@@ -78,20 +78,10 @@ function render(payload) {
 }
 
 function renderControls(payload) {
-  const sectionFilter = document.getElementById("sectionFilter");
-  if (!sectionFilter.dataset.ready) {
-    const sectionLabels = payload.section_labels || {};
-    const sections = Array.from(new Set((payload.recommendations || []).map((paper) => paper.sections?.[0] || "exploratory")));
-    sectionFilter.innerHTML = '<option value="">全部栏目</option>' + sections.map((section) => {
-      const label = sectionLabels[section] || "探索性相关";
-      return `<option value="${escapeAttr(section)}">${escapeHtml(label)}</option>`;
-    }).join("");
-    ["searchInput", "sectionFilter", "minAiScore", "hasCodeFilter", "hasAffiliationFilter", "sortSelect"].forEach((id) => {
-      const element = document.getElementById(id);
-      element.addEventListener("input", applyControls);
-      element.addEventListener("change", applyControls);
-    });
-    sectionFilter.dataset.ready = "true";
+  const inlineSearchInput = document.getElementById("inlineSearchInput");
+  if (inlineSearchInput && !inlineSearchInput.dataset.filterReady) {
+    inlineSearchInput.addEventListener("input", applyControls);
+    inlineSearchInput.dataset.filterReady = "true";
   }
   renderDomainTabs(payload);
   bindReaderTabs();
@@ -165,7 +155,7 @@ function toggleKeywordFilter(keyword) {
   } else {
     uiState.selectedKeywords.add(key);
   }
-  renderKeywordFilters(activePayload?.recommendations || [], activePayload?.section_labels || {});
+  renderKeywordFilters(activePayload?.recommendations || []);
   applyControls();
 }
 
@@ -175,7 +165,9 @@ function applyControls() {
   renderSummaryStats({ ...activePayload, recommendations: filtered });
   renderRecommendationGroups(filtered, activePayload.section_labels || {});
   const resultCount = document.getElementById("resultCount");
-  resultCount.textContent = `当前显示 ${filtered.length} / ${(activePayload.recommendations || []).length} 篇`;
+  if (resultCount) {
+    resultCount.textContent = `当前显示 ${filtered.length} / ${(activePayload.recommendations || []).length} 篇`;
+  }
   highlightTargetPaper();
 }
 
@@ -200,13 +192,14 @@ function renderRecommendationGroups(recommendations, sectionLabels) {
 }
 
 function collectFilterState() {
+  const inlineSearchInput = document.getElementById("inlineSearchInput");
   return {
-    query: document.getElementById("searchInput").value.trim().toLowerCase(),
-    section: document.getElementById("sectionFilter").value,
-    minAiScore: Number(document.getElementById("minAiScore").value),
-    hasCode: document.getElementById("hasCodeFilter").checked,
-    hasAffiliation: document.getElementById("hasAffiliationFilter").checked,
-    sort: document.getElementById("sortSelect").value,
+    query: String(inlineSearchInput?.value || "").trim().toLowerCase(),
+    section: "",
+    minAiScore: 0,
+    hasCode: false,
+    hasAffiliation: false,
+    sort: "rank",
     keywords: Array.from(uiState.selectedKeywords),
   };
 }
@@ -256,15 +249,15 @@ function matchesKeywordFilters(paper, keywords) {
   return selectedContent.every((keyword) => text.includes(keyword));
 }
 
-function renderKeywordFilters(recommendations, sectionLabels) {
+function renderKeywordFilters(recommendations) {
   const typeTarget = document.getElementById("typeKeywordFilters");
   const contentTarget = document.getElementById("contentKeywordFilters");
   if (!typeTarget || !contentTarget) return;
-  const facets = keywordFacetsFor(recommendations, sectionLabels);
+  const facets = keywordFacetsFor(recommendations);
   typeTarget.innerHTML = renderKeywordChips(facets.type);
   contentTarget.innerHTML = facets.content.length
     ? renderKeywordChips(facets.content)
-    : '<span class="empty-nav">暂无内容关键词</span>';
+    : "";
 }
 
 function renderKeywordChips(items) {
@@ -273,27 +266,27 @@ function renderKeywordChips(items) {
     const active = uiState.selectedKeywords.has(keyword);
     return `
       <button class="keyword-chip${active ? " is-active" : ""}" type="button" data-keyword-filter="${escapeDataAttr(keyword)}">
-        <span>${escapeHtml(item.label || keyword)}</span><strong>${Number(item.count || 0)}</strong>
+        <span>${escapeHtml(item.label || keyword)}</span>
       </button>
     `;
   }).join("");
 }
 
-function keywordFacetsFor(recommendations, sectionLabels) {
+function keywordFacetsFor(recommendations) {
   const items = Array.isArray(recommendations) ? recommendations : [];
   return {
     type: [
-      { keyword: "paper", label: "paper", count: items.filter((item) => !isRepositoryItem(item)).length },
-      { keyword: "repository", label: "repository", count: items.filter(isRepositoryItem).length },
+      { keyword: "paper", label: "论文", count: items.filter((item) => !isRepositoryItem(item)).length },
+      { keyword: "repository", label: "仓库", count: items.filter(isRepositoryItem).length },
     ],
-    content: deriveContentKeywords(items, sectionLabels),
+    content: deriveContentKeywords(items),
   };
 }
 
-function deriveContentKeywords(recommendations, sectionLabels) {
+function deriveContentKeywords(recommendations) {
   const counts = new Map();
   recommendations.forEach((paper) => {
-    contentKeywordCandidatesFor(paper, sectionLabels).forEach((keyword) => {
+    contentKeywordCandidatesFor(paper).forEach((keyword) => {
       const key = normalizeKeyword(keyword);
       if (!key || typeKeywords.has(key)) return;
       counts.set(key, (counts.get(key) || 0) + 1);
@@ -305,14 +298,11 @@ function deriveContentKeywords(recommendations, sectionLabels) {
     .map(([keyword, count]) => ({ keyword, label: keyword, count }));
 }
 
-function contentKeywordCandidatesFor(paper, sectionLabels) {
+function contentKeywordCandidatesFor(paper) {
   const candidates = [];
-  const sections = stringList(paper.sections);
-  sections.forEach((section) => {
-    candidates.push(section);
-    if (sectionLabels?.[section]) candidates.push(sectionLabels[section]);
+  stringList(paper.categories).forEach((category) => {
+    if (!isArxivCategoryKeyword(category)) candidates.push(category);
   });
-  candidates.push(...stringList(paper.categories));
   candidates.push(...stringList(paper.repository_topics));
   if (paper.repository_language) candidates.push(paper.repository_language);
   paperLinksFor(paper).forEach((link) => candidates.push(link.label));
@@ -355,6 +345,7 @@ function searchTextFor(paper) {
 
 function renderSummaryStats(payload) {
   const target = document.getElementById("summaryStats");
+  if (!target) return;
   const recommendations = payload.recommendations || [];
   const repositoryCount = recommendations.filter(isRepositoryItem).length;
   const sectionCount = new Set(recommendations.map((paper) => paper.sections?.[0] || "exploratory")).size;
@@ -483,6 +474,7 @@ function renderStatusRow(label, configured, detail) {
 
 function renderSectionNav(groups, sectionLabels) {
   const target = document.getElementById("sectionNav");
+  if (!target) return;
   if (!groups.size) {
     target.innerHTML = '<span class="empty-nav">暂无栏目</span>';
     return;
@@ -506,9 +498,7 @@ function renderPaper(paper) {
   const aiScore = aiJudgement?.score ?? paper.ai_score;
   const feedbackState = feedbackStateFor(paper.paper_id);
   const liked = feedbackState === "like";
-  const affiliations = stringList(paper.affiliations);
   const authorIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
-  const affiliationIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/></svg>`;
   const tags = uniqueStrings([
     ...(isRepository ? [] : (Array.isArray(paper.categories) ? paper.categories : [])),
     ...(Array.isArray(paper.repository_topics) ? paper.repository_topics.slice(0, 4) : []),
@@ -517,7 +507,7 @@ function renderPaper(paper) {
     ? `<div class="paper-ai"><span class="ai-label">AI 判断</span>${escapeHtml(aiJudgement.reason || "")}</div>`
     : "";
   const tldrHtml = paper.tldr
-    ? `<div class="paper-tldr"><span class="tldr-label">核心解读</span>${escapeHtml(paper.tldr)}</div>`
+    ? `<div class="paper-tldr"><span class="tldr-label">TLDR</span>${escapeHtml(paper.tldr)}</div>`
     : "";
   const repoTag = isRepository ? `<span class="tag-chip repo">GitHub 仓库</span>` : "";
   const repoTrendHtml = isRepository ? renderRepositoryMetaInline(paper) : "";
@@ -534,7 +524,6 @@ function renderPaper(paper) {
           <span class="meta-score">规则 ${escapeHtml(paper.score)}</span>
           ${repoTag}${repoTrendHtml}
           ${authors ? `<span class="meta-line">${authorIcon}<span>${escapeHtml(authors)}</span></span>` : ""}
-          ${renderAffiliationInline(affiliations, affiliationIcon)}
           <span class="paper-tag-list">${tagChipsHtml}</span>
         </div>
         ${originalPaperHtml}
@@ -552,14 +541,6 @@ function renderPaper(paper) {
       </div>
     </article>
   `;
-}
-
-function renderAffiliationInline(affiliations, iconHtml) {
-  if (!affiliations.length) {
-    return `<span class="paper-affiliations-inline is-missing">${iconHtml}<span>未解析到作者单位</span></span>`;
-  }
-  const text = affiliations.slice(0, 2).join("、") + (affiliations.length > 2 ? " 等" : "");
-  return `<span class="paper-affiliations-inline" title="${escapeAttr(affiliations.join("; "))}">${iconHtml}<span>作者单位：${escapeHtml(text)}</span></span>`;
 }
 
 function renderRepositoryMetaInline(paper) {
@@ -769,15 +750,6 @@ function highlightTargetPaper() {
   target.scrollIntoView({ block: "center", behavior: "smooth" });
 }
 
-function renderAffiliationBlock(affiliations) {
-  const values = stringList(affiliations);
-  if (values.length === 0) {
-    return '<div class="paper-affiliations is-missing"><strong>作者单位</strong><div><span>未解析到作者单位</span></div></div>';
-  }
-  const items = values.map((value) => `<span>${escapeHtml(value)}</span>`).join("");
-  return `<div class="paper-affiliations"><strong>作者单位</strong><div>${items}</div></div>`;
-}
-
 function renderRepositoryMeta(paper) {
   const parts = ["GitHub 仓库"];
   const starsToday = Number(paper.repository_stars_today || 0);
@@ -845,6 +817,10 @@ function uniqueStrings(values) {
 
 function normalizeKeyword(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function isArxivCategoryKeyword(value) {
+  return /^[a-z]+(\.[a-z0-9-]+)+$/i.test(String(value || "").trim());
 }
 
 function localFeedbackCount() {
