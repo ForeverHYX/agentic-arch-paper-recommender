@@ -213,7 +213,7 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
     def test_index_busts_app_cache_for_affiliation_ui(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
-        self.assertIn("app.js?v=20260614-articles-layout", html)
+        self.assertIn("app.js?v=20260615-layout-align", html)
 
     def test_index_contains_run_health_placeholder_and_cache_bust(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -222,7 +222,7 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
         self.assertIn('class="run-health"', html)
         self.assertIn('id="statusDetails"', html)
         self.assertIn("反馈与系统细节", html)
-        self.assertIn("app.js?v=20260614-articles-layout", html)
+        self.assertIn("app.js?v=20260615-layout-align", html)
 
     def test_sidebar_keeps_secondary_status_in_collapsible_details(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -245,8 +245,16 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
         self.assertIn("home-liquid-card", html)
         self.assertIn('id="readerTabs"', html)
         self.assertIn('data-tab="all"', html)
-        self.assertIn('data-tab="repository"', html)
+        self.assertIn('data-tab="section:agentic_architecture"', html)
+        self.assertIn('data-tab="section:full_stack_codesign"', html)
+        self.assertIn('data-tab="section:microarchitecture_simulators"', html)
+        self.assertIn('data-tab="section:exploratory"', html)
         self.assertIn('data-tab="profile"', html)
+        self.assertIn("Agentic Arch", html)
+        self.assertIn("Codesign", html)
+        self.assertIn("Simulator", html)
+        self.assertIn("Exploration", html)
+        self.assertIn("Settings", html)
         self.assertIn('id="recommendationWorkspace"', html)
         self.assertIn('id="profileSystemWorkspace"', html)
         self.assertIn('id="keywordFilters"', html)
@@ -255,6 +263,65 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
         self.assertIn(".nav-island", styles)
         self.assertIn(".article-grid", styles)
         self.assertIn(".keyword-chip", styles)
+
+    def test_reader_layout_matches_homepage_articles_geometry(self):
+        html = Path("site/index.html").read_text(encoding="utf-8")
+        styles = Path("site/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("max-width: 1080px", styles)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) 240px", styles)
+        self.assertIn("gap: 32px", styles)
+        self.assertIn(".paper .home-glass-body", styles)
+        self.assertIn("padding: 28px 32px", styles)
+        self.assertIn(".sidebar-card-title", styles)
+        self.assertIn(".filter-sidebar .home-liquid-body", styles)
+        self.assertIn("padding: 24px 22px", styles)
+        self.assertIn('class="sidebar-card-title">筛选</h3>', html)
+        self.assertIn('class="paper home-glass article-card', Path("site/app.js").read_text(encoding="utf-8"))
+
+    def test_reader_cards_have_homepage_article_spacing_and_aligned_nav(self):
+        styles = Path("site/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn(".paper-list", styles)
+        self.assertIn("display: grid", styles)
+        self.assertIn("gap: 24px", styles)
+        self.assertIn("width: 100%", styles)
+        self.assertNotIn("width: min(100%, 980px)", styles)
+
+    def test_reader_nav_uses_fixed_homepage_frame_tabs_even_without_matches(self):
+        self.run_app_script(
+            """
+const payload = {
+  run_date: "2026-06-14",
+  recommendations: [{
+    paper_id: "2606.00001",
+    rank: 1,
+    score: 8,
+    title: "Codesign Only",
+    abstract: "Hardware software co-design.",
+    sections: ["full_stack_codesign"],
+  }],
+  section_labels: {
+    full_stack_codesign: "全栈软硬件协同设计",
+  },
+};
+
+context.render(payload);
+const html = elements.readerTabs.innerHTML;
+["All", "Agentic Arch", "Codesign", "Simulator", "Exploration", "Settings"].forEach((label) => {
+  if (!html.includes(label)) throw new Error(`missing fixed nav label ${label}: ${html}`);
+});
+if (!html.includes('data-tab="section:agentic_architecture"')) throw new Error(`missing Agentic section tab: ${html}`);
+if (!html.includes('data-tab="section:microarchitecture_simulators"')) throw new Error(`missing Simulator section tab: ${html}`);
+if (!html.includes('data-tab="section:exploratory"')) throw new Error(`missing Exploration section tab: ${html}`);
+
+context.setActiveTab("section:agentic_architecture");
+const filtered = context.filteredRecommendations(payload.recommendations, context.collectFilterState());
+if (filtered.length !== 0) {
+  throw new Error(`missing-category tab should render empty state, got ${filtered.length}`);
+}
+"""
+        )
 
     def test_reader_type_tabs_filter_and_profile_panel(self):
         self.run_app_script(
@@ -661,8 +728,9 @@ if (!target.scrolled) {
         self.assertIn(".paper-ai", styles)
         self.assertIn(".controls", styles)
         self.assertIn(".profile-system-grid", styles)
-        self.assertIn("max-height: calc(100vh -", styles)
-        self.assertIn("overflow-y: auto", styles)
+        self.assertIn(".filter-sidebar", styles)
+        self.assertIn("max-height: none", styles)
+        self.assertIn("overflow: visible", styles)
         self.assertIn(".filter-row", styles)
         self.assertIn(".link-button", styles)
         self.assertIn(".section-nav", styles)

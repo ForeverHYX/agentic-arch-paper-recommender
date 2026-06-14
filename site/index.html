@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
-    <link rel="stylesheet" href="styles.css?v=20260614-articles-layout">
+    <link rel="stylesheet" href="styles.css?v=20260615-layout-align">
     <script>
       (function () {
         try {
@@ -39,9 +39,12 @@
               </a>
               <div class="nav-main">
                 <nav id="readerTabs" class="reader-tabs nav-links nav-links-desktop" aria-label="推荐领域">
-                  <button type="button" class="nav-link reader-tab is-active" data-tab="all">全部</button>
-                  <button type="button" class="nav-link reader-tab" data-tab="repository">仓库</button>
-                  <button type="button" class="nav-link reader-tab" data-tab="profile">画像与系统</button>
+                  <button type="button" class="nav-link reader-tab is-active" data-tab="all">All</button>
+                  <button type="button" class="nav-link reader-tab" data-tab="section:agentic_architecture">Agentic Arch</button>
+                  <button type="button" class="nav-link reader-tab" data-tab="section:full_stack_codesign">Codesign</button>
+                  <button type="button" class="nav-link reader-tab" data-tab="section:microarchitecture_simulators">Simulator</button>
+                  <button type="button" class="nav-link reader-tab" data-tab="section:exploratory">Exploration</button>
+                  <button type="button" class="nav-link reader-tab" data-tab="profile">Settings</button>
                 </nav>
                 <div class="nav-divider" aria-hidden="true"></div>
                 <div id="inlineSearchBar" class="search-bar-container">
@@ -77,9 +80,9 @@
               <div class="sidebar-card home-liquid-card home-news-card filter-sidebar">
                 <span class="home-liquid-warp" aria-hidden="true"></span>
                 <div class="home-liquid-body">
+                  <h3 class="sidebar-card-title">筛选</h3>
                   <div id="summaryStats" class="summary-stats" aria-live="polite"></div>
                   <div id="resultCount" class="result-count" aria-live="polite"></div>
-                  <div class="sidebar-title">筛选</div>
                   <div class="controls">
                     <label class="filter-row">
                       <span>搜索</span>
@@ -150,10 +153,10 @@
       </div>
     </footer>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <script src="config.js?v=20260614-articles-layout"></script>
-    <script src="effects/lightfield.js?v=20260614-articles-layout" defer></script>
-    <script src="effects/liquid-glass.js?v=20260614-articles-layout" defer></script>
-    <script src="effects/site-header.js?v=20260614-articles-layout" defer></script>
-    <script src="app.js?v=20260614-articles-layout"></script>
+    <script src="config.js?v=20260615-layout-align"></script>
+    <script src="effects/lightfield.js?v=20260615-layout-align" defer></script>
+    <script src="effects/liquid-glass.js?v=20260615-layout-align" defer></script>
+    <script src="effects/site-header.js?v=20260615-layout-align" defer></script>
+    <script src="app.js?v=20260615-layout-align"></script>
   </body>
 </html>

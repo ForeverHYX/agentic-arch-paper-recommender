@@ -33,6 +33,14 @@ const contentKeywordSeeds = [
   "memory hierarchy",
   "repository",
 ];
+const readerFrameTabs = [
+  { tab: "all", label: "All" },
+  { tab: "section:agentic_architecture", label: "Agentic Arch" },
+  { tab: "section:full_stack_codesign", label: "Codesign" },
+  { tab: "section:microarchitecture_simulators", label: "Simulator" },
+  { tab: "section:exploratory", label: "Exploration" },
+  { tab: "profile", label: "Settings" },
+];
 
 async function loadRecommendations() {
   const response = await fetch("recommendations.json", { cache: "no-store" });
@@ -99,22 +107,7 @@ function renderControls(payload) {
 function renderDomainTabs(payload) {
   const tabsContainer = document.getElementById("readerTabs");
   if (!tabsContainer || tabsContainer.dataset.domainsReady) return;
-  const sectionLabels = payload.section_labels || {};
-  const sections = Array.from(new Set((payload.recommendations || [])
-    .map((paper) => paper.sections?.[0] || "exploratory")
-    .filter(Boolean)));
-  const repoCount = (payload.recommendations || []).filter(isRepositoryItem).length;
-  const domainTabs = sections.map((section) => ({
-    tab: `section:${section}`,
-    label: sectionLabels[section] || "探索性相关",
-  }));
-  const fixedTabs = [
-    { tab: "all", label: "全部" },
-    ...domainTabs,
-  ];
-  if (repoCount > 0) fixedTabs.push({ tab: "repository", label: "仓库" });
-  fixedTabs.push({ tab: "profile", label: "画像与系统" });
-  tabsContainer.innerHTML = fixedTabs.map((entry) => {
+  tabsContainer.innerHTML = readerFrameTabs.map((entry) => {
     const active = entry.tab === "all" ? " is-active" : "";
     return `<button type="button" class="nav-link reader-tab${active}" data-tab="${escapeAttr(entry.tab)}">${escapeHtml(entry.label)}</button>`;
   }).join("");
@@ -531,29 +524,31 @@ function renderPaper(paper) {
   const tagChipsHtml = tags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("");
   const originalPaperHtml = renderOriginalPaperLinks(paper);
   return `
-    <article class="paper home-glass${liked ? " is-liked" : ""}" id="paper-${escapeAttr(paper.paper_id)}" data-paper-id="${escapeAttr(paper.paper_id)}">
+    <article class="paper home-glass article-card${liked ? " is-liked" : ""}" id="paper-${escapeAttr(paper.paper_id)}" data-paper-id="${escapeAttr(paper.paper_id)}">
       ${liked ? '<div class="paper-favorite-star" aria-label="已喜欢" title="已喜欢">★</div>' : ""}
-      <h3 class="paper-title"><a href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${escapeHtml(paper.title)}</a></h3>
-      <div class="paper-meta">
-        <span class="meta-rank">#${paper.rank}</span>
-        ${aiScore !== undefined ? `<span class="meta-score ai">AI ${escapeHtml(aiScore)}</span>` : ""}
-        <span class="meta-score">规则 ${escapeHtml(paper.score)}</span>
-        ${repoTag}${repoTrendHtml}
-        ${authors ? `<span class="meta-line">${authorIcon}<span>${escapeHtml(authors)}</span></span>` : ""}
-        ${renderAffiliationInline(affiliations, affiliationIcon)}
-        <span class="paper-tag-list">${tagChipsHtml}</span>
-      </div>
-      ${originalPaperHtml}
-      ${tldrHtml}
-      ${aiJudgementHtml}
-      <div class="paper-actions actions">
-        <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${isRepository ? "GitHub" : "arXiv"}</a>
-        ${pdfUrl ? `<a class="link-button" href="${escapeAttr(pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>` : ""}
-        ${isRepository && paper.repository_homepage ? `<a class="link-button" href="${escapeAttr(paper.repository_homepage)}" target="_blank" rel="noreferrer">主页</a>` : ""}
-        ${codeLinks.map((url) => `<a class="link-button" href="${escapeAttr(url)}" target="_blank" rel="noreferrer">代码</a>`).join("")}
-        ${codeSearchUrl ? `<a class="link-button" href="${escapeAttr(codeSearchUrl)}" target="_blank" rel="noreferrer">搜代码</a>` : ""}
-        <button class="feedback-button like" type="button" data-paper-id="${escapeAttr(paper.paper_id)}" data-feedback-rating="like" data-section="${escapeAttr(section)}">${liked ? "已喜欢" : "喜欢"}</button>
-        <button class="feedback-button dislike" type="button" data-paper-id="${escapeAttr(paper.paper_id)}" data-feedback-rating="dislike" data-section="${escapeAttr(section)}">不喜欢</button>
+      <div class="home-glass-body">
+        <h3 class="paper-title article-card-title"><a href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${escapeHtml(paper.title)}</a></h3>
+        <div class="paper-meta article-card-meta">
+          <span class="meta-rank">#${paper.rank}</span>
+          ${aiScore !== undefined ? `<span class="meta-score ai">AI ${escapeHtml(aiScore)}</span>` : ""}
+          <span class="meta-score">规则 ${escapeHtml(paper.score)}</span>
+          ${repoTag}${repoTrendHtml}
+          ${authors ? `<span class="meta-line">${authorIcon}<span>${escapeHtml(authors)}</span></span>` : ""}
+          ${renderAffiliationInline(affiliations, affiliationIcon)}
+          <span class="paper-tag-list">${tagChipsHtml}</span>
+        </div>
+        ${originalPaperHtml}
+        ${tldrHtml}
+        ${aiJudgementHtml}
+        <div class="paper-actions actions">
+          <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${isRepository ? "GitHub" : "arXiv"}</a>
+          ${pdfUrl ? `<a class="link-button" href="${escapeAttr(pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>` : ""}
+          ${isRepository && paper.repository_homepage ? `<a class="link-button" href="${escapeAttr(paper.repository_homepage)}" target="_blank" rel="noreferrer">主页</a>` : ""}
+          ${codeLinks.map((url) => `<a class="link-button" href="${escapeAttr(url)}" target="_blank" rel="noreferrer">代码</a>`).join("")}
+          ${codeSearchUrl ? `<a class="link-button" href="${escapeAttr(codeSearchUrl)}" target="_blank" rel="noreferrer">搜代码</a>` : ""}
+          <button class="feedback-button like" type="button" data-paper-id="${escapeAttr(paper.paper_id)}" data-feedback-rating="like" data-section="${escapeAttr(section)}">${liked ? "已喜欢" : "喜欢"}</button>
+          <button class="feedback-button dislike" type="button" data-paper-id="${escapeAttr(paper.paper_id)}" data-feedback-rating="dislike" data-section="${escapeAttr(section)}">不喜欢</button>
+        </div>
       </div>
     </article>
   `;
