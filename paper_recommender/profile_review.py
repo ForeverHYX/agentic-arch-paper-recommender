@@ -57,6 +57,8 @@ def request_profile_review(
                     "exploration_notes, risk_notes, apply_to_runtime。"
                     "所有文本使用简体中文。apply_to_runtime 必须为 false。"
                     "如果反馈不足，请明确写入风险提示，不要过度推断。"
+                    "不要把单个英文语法词、泛论文套话词、数字区间或无上下文的普通词当成兴趣关键词；"
+                    "只引用明确的领域概念、工具链、系统类型、硬件/编译器/运行时主题或多词短语。"
                 ),
             },
             {

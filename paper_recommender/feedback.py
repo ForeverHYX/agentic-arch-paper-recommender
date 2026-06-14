@@ -16,27 +16,93 @@ from urllib.request import Request, urlopen
 
 STOPWORDS = frozenset(
     {
+        "able",
         "about",
         "across",
+        "accurate",
         "after",
         "also",
+        "although",
+        "among",
+        "and",
+        "another",
+        "any",
+        "are",
+        "based",
+        "been",
+        "being",
+        "both",
+        "but",
+        "can",
+        "communication",
+        "communications",
+        "could",
+        "cycle",
+        "detailed",
+        "discuss",
+        "discusses",
+        "discussed",
+        "does",
+        "each",
+        "either",
+        "efficiency",
+        "efficient",
+        "emerging",
+        "framework",
+        "frameworks",
         "from",
+        "further",
+        "has",
+        "have",
+        "having",
+        "implementation",
+        "implementations",
+        "implemented",
+        "improve",
+        "improves",
+        "improved",
         "into",
+        "its",
+        "more",
+        "most",
+        "paper",
+        "papers",
+        "present",
+        "presents",
+        "presented",
+        "propose",
+        "proposes",
+        "proposed",
+        "provide",
+        "provides",
+        "provided",
+        "result",
+        "results",
+        "several",
+        "show",
+        "shows",
+        "shown",
+        "size",
+        "such",
+        "than",
         "that",
         "their",
+        "these",
         "this",
+        "those",
         "through",
         "using",
         "uses",
+        "for",
+        "our",
+        "the",
+        "there",
+        "they",
+        "via",
+        "which",
+        "while",
         "with",
         "without",
-        "and",
-        "for",
-        "the",
-        "are",
-        "can",
-        "our",
-        "via",
     }
 )
 
@@ -296,7 +362,17 @@ def _tokens(text: str) -> list[str]:
     normalized = text.lower()
     raw_tokens = re.findall(r"[a-z0-9][a-z0-9.+#-]*", normalized)
     tokens = [token.strip(".,;:!?()[]{}\"'") for token in raw_tokens]
-    return [token for token in tokens if len(token) >= 3 and token not in STOPWORDS and not token.isdigit()]
+    return [token for token in tokens if _is_feedback_keyword_token(token)]
+
+
+def _is_feedback_keyword_token(token: str) -> bool:
+    if len(token) < 3:
+        return False
+    if token in STOPWORDS:
+        return False
+    if not re.search(r"[a-z]", token):
+        return False
+    return True
 
 
 def _entity_feedback_weights(events: list[FeedbackEvent], extractor: Callable[[FeedbackEvent], tuple[str, ...]]) -> dict[str, float]:

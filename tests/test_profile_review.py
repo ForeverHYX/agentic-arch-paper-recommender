@@ -112,9 +112,12 @@ class ProfileReviewTests(unittest.TestCase):
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
         self.assertEqual(seen["body"]["thinking"], {"type": "disabled"})
         prompt = seen["body"]["messages"][1]["content"]
+        system_prompt = seen["body"]["messages"][0]["content"]
         self.assertIn("Agentic Architecture", prompt)
         self.assertIn("GPU Runtime for ML Systems", prompt)
         self.assertIn("exploration", prompt)
+        self.assertIn("不要把单个英文语法词", system_prompt)
+        self.assertIn("数字区间", system_prompt)
         self.assertFalse(review["apply_to_runtime"])
         self.assertIn("GPU", review["summary_zh"])
 

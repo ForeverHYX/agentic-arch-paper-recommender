@@ -190,6 +190,49 @@ class FeedbackTests(unittest.TestCase):
         self.assertNotIn("cs.ar", weights)
         self.assertNotIn("with", weights)
 
+    def test_text_feedback_weights_filter_generic_words_and_numeric_ranges(self):
+        weights = text_feedback_weights(
+            [
+                FeedbackEvent(
+                    "liked",
+                    "like",
+                    "exploration",
+                    title="A detailed framework which improves communication",
+                    abstract=(
+                        "The paper discusses further implementations, efficiency, efficient emerging systems, "
+                        "and size 4--6 results."
+                    ),
+                ),
+                FeedbackEvent(
+                    "liked-domain",
+                    "like",
+                    "microarchitecture_simulators",
+                    title="gem5 cache replacement exploration",
+                    abstract="Cycle accurate microarchitecture simulation for GPU memory hierarchy.",
+                ),
+            ]
+        )
+
+        for noisy in (
+            "which",
+            "communication",
+            "detailed",
+            "framework",
+            "further",
+            "implementations",
+            "size",
+            "4--6",
+            "accurate",
+            "cycle",
+            "efficiency",
+            "efficient",
+            "emerging",
+        ):
+            self.assertNotIn(noisy, weights)
+        self.assertGreater(weights["gem5"], 0)
+        self.assertGreater(weights["cache"], 0)
+        self.assertGreater(weights["microarchitecture"], 0)
+
     def test_entity_feedback_weights_learn_authors_affiliations_and_toolchains(self):
         events = [
             FeedbackEvent(
