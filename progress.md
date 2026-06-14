@@ -792,5 +792,31 @@
 | UI deploy workflow 测试 | `python3 -m unittest tests.test_workflow_contract.WorkflowContractTests.test_static_pages_ui_workflow_redeploys_frontend_without_regenerating_recommendations` | workflow 存在且只部署 UI、不跑 LLM/邮件 | 通过 | pass |
 | workflow/site 回归测试 | `python3 -m unittest tests.test_workflow_contract tests.test_site_contract tests.test_profile_page_contract tests.test_feedback_page_contract` | 相关契约测试通过 | 48 个测试通过 | pass |
 
+## 会话补充：前端重构为 foreverhyx.top/articles 的液态玻璃材质
+- **状态：** complete
+- 执行的操作：
+  - 克隆 `github.com/ForeverHYX/Homepage` 参考仓库到临时目录，提取其 iOS 26 风格液态玻璃材质系统。
+  - 复制 Homepage 的 `lightfield.js`（6 光斑环境动画 + 鼠标视差）和 `liquid-glass.js`（SVG `feDisplacementMap` 边缘折射 + 鼠标跟随）两个原生动效引擎到 `site/effects/`，引擎自动作用于 `.home-lightfield`、`.home-liquid-card`、`.home-liquid-warp` 类。
+  - 重写 `site/styles.css`，移植 Homepage 的液态玻璃 token（高/中/低透明度玻璃、光场、圆角、字体系统），同时保留推荐项目原有的布局类（reader-tabs、article-grid、paper 卡片、filter-sidebar、profile-system、keyword-chip、section-nav 等）和契约测试依赖的样式 hook（`.paper-tldr`、`.ai-judgement`、`.controls`、`.filter-row`、`.link-button`、`.section-nav`、`.keyword-chip`、`.sidebar-details`、`.profile-system-grid`）。
+  - 给 `site/index.html`、`site/profile.html`、`site/feedback.html` 三页加入 `.home-lightfield` 背景层、灵动岛 `.nav-island.home-liquid-card` + `.home-liquid-warp` 结构、主题初始化脚本（`data-theme` + localStorage）、Google Fonts（Source Sans 3 / Source Serif 4 / JetBrains Mono）和 `effects/lightfield.js` + `effects/liquid-glass.js` 两个 defer 脚本。
+  - 论文/仓库卡片改用低透明度玻璃面板（`.paper`），筛选侧栏改用高透明度玻璃面板，keyword chips / reader-tabs / link-button 全部改成 Homepage 的玻璃 chip 风格 + 蓝紫渐变激活态。
+  - 所有核心功能保持不变：`app.js`/`profile.js`/`feedback.js` 的渲染、筛选、反馈、画像编辑逻辑未改；只改了 CSS 视觉层和 HTML 结构层（玻璃类、光场层、字体、主题、footer）。
+  - 更新前端 cache-bust 版本号为 `20260614-liquid-glass`，并同步契约测试中的版本断言和 `class="nav-island"` → `class="nav-island home-liquid-card"` 的多类断言。
+  - 暗色模式（`data-theme="dark"`）覆盖光场、液态玻璃边框、芯片、链接渐变和滚动条颜色。
+- 创建/修改的文件：
+  - `site/effects/lightfield.js`（新）
+  - `site/effects/liquid-glass.js`（新）
+  - `site/styles.css`
+  - `site/index.html`
+  - `site/profile.html`
+  - `site/feedback.html`
+  - `tests/test_site_contract.py`
+  - `progress.md`
+
+| 液态玻璃引擎语法检查 | `node --check site/effects/*.js` | JS 语法正确 | 通过 | pass |
+| 前端语法检查 | `node --check site/app.js site/feedback.js site/profile.js` | JS 语法正确 | 通过 | pass |
+| 全量测试 | `python3 -m unittest discover -s tests` | 测试通过 | 158 个测试通过 | pass |
+| diff 密钥扫描 | `git diff \| grep -iE "(sk-\|service_role\|smtp.*pass\|bearer)"` | 不出现密钥明文 | 无匹配 | pass |
+
 ---
 *每个阶段完成后或遇到错误时更新此文件*

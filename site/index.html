@@ -1,15 +1,35 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light" style="color-scheme: light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>每日 arXiv 推荐</title>
-    <link rel="stylesheet" href="styles.css?v=20260614-reader-tabs">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+    <link rel="stylesheet" href="styles.css?v=20260614-liquid-glass">
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("theme");
+          var sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var theme = saved === "dark" || (!saved && sysDark) ? "dark" : "light";
+          document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+          document.documentElement.style.colorScheme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
+    <div class="home-lightfield" aria-hidden="true"></div>
     <header class="site-header">
       <div class="container nav-shell">
-        <div class="nav-island">
+        <div class="nav-island home-liquid-card">
+          <span class="home-liquid-warp nav-island-warp" aria-hidden="true"></span>
           <div class="nav-island-body">
             <a class="brand nav-brand" href="index.html">每日推荐</a>
             <nav id="readerTabs" class="reader-tabs" aria-label="推荐类型">
@@ -22,82 +42,91 @@
         </div>
       </div>
     </header>
-    <main class="container page-shell">
-      <section class="reader-overview">
-        <div class="hero-copy">
-          <p class="eyebrow">个人论文雷达</p>
-          <h1>每日 arXiv 推荐</h1>
-          <p id="runDate">正在加载...</p>
-        </div>
-        <div id="summaryStats" class="summary-stats" aria-live="polite"></div>
-      </section>
-      <section id="recommendationWorkspace" class="reader-workspace article-grid is-active">
-        <section id="recommendations" class="paper-list page-stack" aria-live="polite"></section>
-        <aside class="filter-sidebar sidebar" aria-label="推荐筛选">
-          <div id="resultCount" class="result-count" aria-live="polite"></div>
-          <div class="sidebar-title">筛选</div>
-          <div class="controls">
-            <label class="filter-row">
-              <span>搜索</span>
-              <input id="searchInput" type="search" autocomplete="off">
-            </label>
-            <label class="filter-row">
-              <span>栏目</span>
-              <select id="sectionFilter"></select>
-            </label>
-            <label class="filter-row">
-              <span>最低 AI 分</span>
-              <input id="minAiScore" type="number" min="0" max="10" step="1">
-            </label>
-            <label class="filter-row">
-              <span>排序</span>
-              <select id="sortSelect">
-                <option value="rank">推荐顺序</option>
-                <option value="ai">AI 分</option>
-                <option value="rule">规则分</option>
-                <option value="title">标题</option>
-              </select>
-            </label>
-            <label class="check-row">
-              <input id="hasCodeFilter" type="checkbox">
-              <span>有代码仓库</span>
-            </label>
-            <label class="check-row">
-              <input id="hasAffiliationFilter" type="checkbox">
-              <span>有作者单位</span>
-            </label>
+    <main class="site-main">
+      <div class="container page-shell">
+        <section class="reader-overview">
+          <div class="hero-copy">
+            <p class="eyebrow">个人论文雷达</p>
+            <h1>每日 arXiv 推荐</h1>
+            <p id="runDate">正在加载...</p>
           </div>
-          <div id="keywordFilters" class="keyword-filters">
-            <div class="sidebar-title">类型关键词</div>
-            <div id="typeKeywordFilters" class="keyword-chip-list" aria-live="polite"></div>
-            <div class="sidebar-title">内容关键词</div>
-            <div id="contentKeywordFilters" class="keyword-chip-list" aria-live="polite"></div>
+          <div id="summaryStats" class="summary-stats" aria-live="polite"></div>
+        </section>
+        <section id="recommendationWorkspace" class="reader-workspace article-grid is-active">
+          <section id="recommendations" class="paper-list page-stack" aria-live="polite"></section>
+          <aside class="filter-sidebar sidebar" aria-label="推荐筛选">
+            <div id="resultCount" class="result-count" aria-live="polite"></div>
+            <div class="sidebar-title">筛选</div>
+            <div class="controls">
+              <label class="filter-row">
+                <span>搜索</span>
+                <input id="searchInput" type="search" autocomplete="off">
+              </label>
+              <label class="filter-row">
+                <span>栏目</span>
+                <select id="sectionFilter"></select>
+              </label>
+              <label class="filter-row">
+                <span>最低 AI 分</span>
+                <input id="minAiScore" type="number" min="0" max="10" step="1">
+              </label>
+              <label class="filter-row">
+                <span>排序</span>
+                <select id="sortSelect">
+                  <option value="rank">推荐顺序</option>
+                  <option value="ai">AI 分</option>
+                  <option value="rule">规则分</option>
+                  <option value="title">标题</option>
+                </select>
+              </label>
+              <label class="check-row">
+                <input id="hasCodeFilter" type="checkbox">
+                <span>有代码仓库</span>
+              </label>
+              <label class="check-row">
+                <input id="hasAffiliationFilter" type="checkbox">
+                <span>有作者单位</span>
+              </label>
+            </div>
+            <div id="keywordFilters" class="keyword-filters">
+              <div class="sidebar-title">类型关键词</div>
+              <div id="typeKeywordFilters" class="keyword-chip-list" aria-live="polite"></div>
+              <div class="sidebar-title">内容关键词</div>
+              <div id="contentKeywordFilters" class="keyword-chip-list" aria-live="polite"></div>
+            </div>
+            <div class="sidebar-title">栏目</div>
+            <nav id="sectionNav" class="section-nav"></nav>
+          </aside>
+        </section>
+        <section id="profileSystemWorkspace" class="profile-system-workspace is-hidden">
+          <div class="profile-system-grid">
+            <section class="profile-system-panel">
+              <h2>画像与系统</h2>
+              <p class="profile-note">查看每日运行质量、反馈学习状态和推荐画像设置。</p>
+              <a class="profile-link" href="profile.html">编辑兴趣画像</a>
+            </section>
+            <section class="profile-system-panel">
+              <div id="runHealth" class="run-health" aria-live="polite"></div>
+            </section>
+            <details id="statusDetails" class="sidebar-details profile-system-panel" open>
+              <summary>反馈与系统细节</summary>
+              <div id="feedbackStatus" class="feedback-status" aria-live="polite"></div>
+              <div id="feedbackInsights" class="feedback-insights" aria-live="polite"></div>
+              <div id="subsystemStatus" class="subsystem-status" aria-live="polite"></div>
+            </details>
           </div>
-          <div class="sidebar-title">栏目</div>
-          <nav id="sectionNav" class="section-nav"></nav>
-        </aside>
-      </section>
-      <section id="profileSystemWorkspace" class="profile-system-workspace is-hidden">
-        <div class="profile-system-grid">
-          <section class="profile-system-panel">
-            <h2>画像与系统</h2>
-            <p class="profile-note">查看每日运行质量、反馈学习状态和推荐画像设置。</p>
-            <a class="profile-link" href="profile.html">编辑兴趣画像</a>
-          </section>
-          <section class="profile-system-panel">
-            <div id="runHealth" class="run-health" aria-live="polite"></div>
-          </section>
-          <details id="statusDetails" class="sidebar-details profile-system-panel" open>
-            <summary>反馈与系统细节</summary>
-            <div id="feedbackStatus" class="feedback-status" aria-live="polite"></div>
-            <div id="feedbackInsights" class="feedback-insights" aria-live="polite"></div>
-            <div id="subsystemStatus" class="subsystem-status" aria-live="polite"></div>
-          </details>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
+    <footer>
+      <div class="container">
+        每日 arXiv 推荐 · 基于个人兴趣画像的论文与仓库雷达
+      </div>
+    </footer>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script src="config.js?v=20260614-llm-ui"></script>
-    <script src="app.js?v=20260614-reader-tabs"></script>
+    <script src="effects/lightfield.js?v=20260614-liquid-glass" defer></script>
+    <script src="effects/liquid-glass.js?v=20260614-liquid-glass" defer></script>
+    <script src="app.js?v=20260614-liquid-glass"></script>
   </body>
 </html>

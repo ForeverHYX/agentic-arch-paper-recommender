@@ -1,38 +1,81 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light" style="color-scheme: light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>兴趣画像</title>
-    <link rel="stylesheet" href="styles.css?v=20260614-exploration-profile">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+    <link rel="stylesheet" href="styles.css?v=20260614-liquid-glass">
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("theme");
+          var sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var theme = saved === "dark" || (!saved && sysDark) ? "dark" : "light";
+          document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+          document.documentElement.style.colorScheme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
-    <main class="profile-settings">
-      <header class="profile-header">
-        <div>
-          <p class="eyebrow">个人推荐画像</p>
-          <h1>兴趣画像</h1>
-          <p id="profileStatus">正在加载画像...</p>
+    <div class="home-lightfield" aria-hidden="true"></div>
+    <header class="site-header">
+      <div class="container nav-shell">
+        <div class="nav-island home-liquid-card">
+          <span class="home-liquid-warp nav-island-warp" aria-hidden="true"></span>
+          <div class="nav-island-body">
+            <a class="brand nav-brand" href="index.html">每日推荐</a>
+            <nav class="reader-tabs" aria-label="导航">
+              <a class="reader-tab" href="index.html">推荐</a>
+              <button type="button" class="reader-tab is-active">画像</button>
+              <a class="reader-tab" href="feedback.html">反馈</a>
+            </nav>
+          </div>
         </div>
-        <a class="link-button" href="index.html">返回推荐列表</a>
-      </header>
-      <section class="profile-panel">
-        <section id="profileSummary" class="profile-summary" aria-live="polite">
-          <h2>核心规则</h2>
-          <p>正在生成中文规则摘要...</p>
+      </div>
+    </header>
+    <main class="site-main">
+      <main class="profile-settings">
+        <header class="profile-header">
+          <div>
+            <p class="eyebrow">个人推荐画像</p>
+            <h1>兴趣画像</h1>
+            <p id="profileStatus">正在加载画像...</p>
+          </div>
+          <a class="link-button" href="index.html">返回推荐列表</a>
+        </header>
+        <section class="profile-panel">
+          <section id="profileSummary" class="profile-summary" aria-live="polite">
+            <h2>核心规则</h2>
+            <p>正在生成中文规则摘要...</p>
+          </section>
+          <section id="profileReview" class="profile-review" aria-live="polite">
+            <h2>LLM 画像复核</h2>
+            <p>正在加载每日画像复核...</p>
+          </section>
+          <textarea id="profileEditor" class="profile-editor" spellcheck="false"></textarea>
+          <div class="profile-actions">
+            <button id="saveProfileButton" class="link-button" type="button">保存本地副本</button>
+            <a id="downloadProfileLink" class="link-button">下载 JSON</a>
+          </div>
+          <p class="profile-note">要让每日 workflow 使用这份画像，请把下载的 JSON 内容放入 GitHub Secret <code>PROFILE_OVERRIDE_JSON</code>，然后重新运行 workflow。</p>
         </section>
-        <section id="profileReview" class="profile-review" aria-live="polite">
-          <h2>LLM 画像复核</h2>
-          <p>正在加载每日画像复核...</p>
-        </section>
-        <textarea id="profileEditor" class="profile-editor" spellcheck="false"></textarea>
-        <div class="profile-actions">
-          <button id="saveProfileButton" class="link-button" type="button">保存本地副本</button>
-          <a id="downloadProfileLink" class="link-button">下载 JSON</a>
-        </div>
-        <p class="profile-note">要让每日 workflow 使用这份画像，请把下载的 JSON 内容放入 GitHub Secret <code>PROFILE_OVERRIDE_JSON</code>，然后重新运行 workflow。</p>
-      </section>
+      </main>
     </main>
-    <script src="profile.js?v=20260614-exploration-profile"></script>
+    <footer>
+      <div class="container">
+        每日 arXiv 推荐 · 基于个人兴趣画像的论文与仓库雷达
+      </div>
+    </footer>
+    <script src="effects/lightfield.js?v=20260614-liquid-glass" defer></script>
+    <script src="effects/liquid-glass.js?v=20260614-liquid-glass" defer></script>
+    <script src="profile.js?v=20260614-liquid-glass"></script>
   </body>
 </html>
