@@ -313,6 +313,54 @@ if (!elements.recommendationWorkspace.classList.contains("is-hidden")) {
 """
         )
 
+    def test_reader_keyword_filters_match_repository_and_paper_content(self):
+        self.run_app_script(
+            """
+const payload = {
+  run_date: "2026-06-14",
+  recommendations: [
+    {
+      paper_id: "2606.00001",
+      rank: 1,
+      score: 8,
+      title: "Branch Predictor Design",
+      abstract: "A paper about branch predictor microarchitecture.",
+      sections: ["microarchitecture_simulators"],
+      categories: ["cs.AR"],
+    },
+    {
+      paper_id: "repo:example/gem5-tools",
+      item_type: "repository",
+      rank: 2,
+      score: 7,
+      title: "gem5 Tools",
+      abstract: "Repository for simulator workflows.",
+      repository_topics: ["gem5", "simulation"],
+      repository_language: "Python",
+      sections: ["microarchitecture_simulators"],
+    },
+  ],
+  section_labels: {
+    microarchitecture_simulators: "微架构与模拟器",
+  },
+};
+
+context.render(payload);
+context.toggleKeywordFilter("gem5");
+let filtered = context.filteredRecommendations(payload.recommendations, context.collectFilterState());
+if (filtered.length !== 1 || filtered[0].paper_id !== "repo:example/gem5-tools") {
+  throw new Error(`gem5 keyword failed: ${filtered.map((item) => item.paper_id).join(",")}`);
+}
+
+context.toggleKeywordFilter("gem5");
+context.toggleKeywordFilter("branch predictor");
+filtered = context.filteredRecommendations(payload.recommendations, context.collectFilterState());
+if (filtered.length !== 1 || filtered[0].paper_id !== "2606.00001") {
+  throw new Error(`paper content keyword failed: ${filtered.map((item) => item.paper_id).join(",")}`);
+}
+"""
+        )
+
     def test_reader_shows_run_health_for_local_feedback_mode(self):
         self.run_app_script(
             """

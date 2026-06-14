@@ -6,6 +6,33 @@ const uiState = {
   activeTab: "all",
   selectedKeywords: new Set(),
 };
+const typeKeywords = new Set(["paper", "repository"]);
+const contentKeywordSeeds = [
+  "agentic architecture",
+  "architecture design space exploration",
+  "hardware software co-design",
+  "co-design",
+  "microarchitecture",
+  "branch predictor",
+  "cache",
+  "prefetcher",
+  "simulator",
+  "simulation",
+  "gem5",
+  "gpu",
+  "cuda",
+  "rocm",
+  "hpc",
+  "compiler",
+  "runtime",
+  "mlir",
+  "triton",
+  "risc-v",
+  "fpga",
+  "accelerator",
+  "memory hierarchy",
+  "repository",
+];
 
 async function loadRecommendations() {
   const response = await fetch("recommendations.json", { cache: "no-store" });
@@ -28,6 +55,7 @@ function render(payload) {
   const runDate = document.getElementById("runDate");
   runDate.textContent = payload.run_date ? `运行日期：${payload.run_date}` : "";
   renderControls(payload);
+  renderKeywordFilters(payload.recommendations || [], payload.section_labels || {});
   renderFeedbackStatus();
   renderFeedbackInsights(payload.feedback_summary?.metrics || {});
   renderRunHealth(payload, null);
@@ -58,6 +86,7 @@ function renderControls(payload) {
     sectionFilter.dataset.ready = "true";
   }
   bindReaderTabs();
+  bindKeywordFilters();
   updateTabPanels();
   const recommendations = document.getElementById("recommendations");
   if (recommendations && !recommendations.dataset.feedbackReady) {
@@ -96,6 +125,29 @@ function updateTabPanels() {
     tab.classList.toggle?.("is-active", active);
     tab.setAttribute?.("aria-selected", active ? "true" : "false");
   });
+}
+
+function bindKeywordFilters() {
+  const target = document.getElementById("keywordFilters");
+  if (!target || target.dataset.ready) return;
+  target.addEventListener("click", (event) => {
+    const button = event.target?.closest?.("[data-keyword-filter]");
+    if (!button) return;
+    toggleKeywordFilter(button.dataset.keywordFilter || "");
+  });
+  target.dataset.ready = "true";
+}
+
+function toggleKeywordFilter(keyword) {
+  const key = normalizeKeyword(keyword);
+  if (!key) return;
+  if (uiState.selectedKeywords.has(key)) {
+    uiState.selectedKeywords.delete(key);
+  } else {
+    uiState.selectedKeywords.add(key);
+  }
+  renderKeywordFilters(activePayload?.recommendations || [], activePayload?.section_labels || {});
+  applyControls();
 }
 
 function applyControls() {
@@ -140,6 +192,7 @@ function collectFilterState() {
     hasCode: document.getElementById("hasCodeFilter").checked,
     hasAffiliation: document.getElementById("hasAffiliationFilter").checked,
     sort: document.getElementById("sortSelect").value,
+    keywords: Array.from(uiState.selectedKeywords),
   };
 }
 
@@ -155,6 +208,7 @@ function filteredRecommendations(recommendations, filters) {
     if (filters.hasAffiliation && !(Array.isArray(paper.affiliations) && paper.affiliations.length > 0)) return false;
     if (minAiScore && aiScoreFor(paper) < minAiScore) return false;
     if (filters.query && !searchTextFor(paper).includes(filters.query)) return false;
+    if (!matchesKeywordFilters(paper, filters.keywords || [])) return false;
     return true;
   });
   return filtered.sort((left, right) => sortPapers(left, right, filters.sort));
@@ -164,6 +218,89 @@ function typeMatchesActiveTab(paper) {
   if (uiState.activeTab === "paper") return !isRepositoryItem(paper);
   if (uiState.activeTab === "repository") return isRepositoryItem(paper);
   return true;
+}
+
+function matchesKeywordFilters(paper, keywords) {
+  const selected = keywords.map(normalizeKeyword).filter(Boolean);
+  if (!selected.length) return true;
+  const selectedTypes = selected.filter((keyword) => typeKeywords.has(keyword));
+  const selectedContent = selected.filter((keyword) => !typeKeywords.has(keyword));
+  if (selectedTypes.length) {
+    const itemType = isRepositoryItem(paper) ? "repository" : "paper";
+    if (!selectedTypes.includes(itemType)) return false;
+  }
+  if (!selectedContent.length) return true;
+  const text = normalizeKeyword(searchTextFor(paper));
+  return selectedContent.every((keyword) => text.includes(keyword));
+}
+
+function renderKeywordFilters(recommendations, sectionLabels) {
+  const typeTarget = document.getElementById("typeKeywordFilters");
+  const contentTarget = document.getElementById("contentKeywordFilters");
+  if (!typeTarget || !contentTarget) return;
+  const facets = keywordFacetsFor(recommendations, sectionLabels);
+  typeTarget.innerHTML = renderKeywordChips(facets.type);
+  contentTarget.innerHTML = facets.content.length
+    ? renderKeywordChips(facets.content)
+    : '<span class="empty-nav">暂无内容关键词</span>';
+}
+
+function renderKeywordChips(items) {
+  return items.map((item) => {
+    const keyword = normalizeKeyword(item.keyword);
+    const active = uiState.selectedKeywords.has(keyword);
+    return `
+      <button class="keyword-chip${active ? " is-active" : ""}" type="button" data-keyword-filter="${escapeDataAttr(keyword)}">
+        <span>${escapeHtml(item.label || keyword)}</span><strong>${Number(item.count || 0)}</strong>
+      </button>
+    `;
+  }).join("");
+}
+
+function keywordFacetsFor(recommendations, sectionLabels) {
+  const items = Array.isArray(recommendations) ? recommendations : [];
+  return {
+    type: [
+      { keyword: "paper", label: "paper", count: items.filter((item) => !isRepositoryItem(item)).length },
+      { keyword: "repository", label: "repository", count: items.filter(isRepositoryItem).length },
+    ],
+    content: deriveContentKeywords(items, sectionLabels),
+  };
+}
+
+function deriveContentKeywords(recommendations, sectionLabels) {
+  const counts = new Map();
+  recommendations.forEach((paper) => {
+    contentKeywordCandidatesFor(paper, sectionLabels).forEach((keyword) => {
+      const key = normalizeKeyword(keyword);
+      if (!key || typeKeywords.has(key)) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+  });
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 36)
+    .map(([keyword, count]) => ({ keyword, label: keyword, count }));
+}
+
+function contentKeywordCandidatesFor(paper, sectionLabels) {
+  const candidates = [];
+  const sections = stringList(paper.sections);
+  sections.forEach((section) => {
+    candidates.push(section);
+    if (sectionLabels?.[section]) candidates.push(sectionLabels[section]);
+  });
+  candidates.push(...stringList(paper.categories));
+  candidates.push(...stringList(paper.repository_topics));
+  if (paper.repository_language) candidates.push(paper.repository_language);
+  paperLinksFor(paper).forEach((link) => candidates.push(link.label));
+
+  const text = normalizeKeyword(searchTextFor(paper));
+  contentKeywordSeeds.forEach((keyword) => {
+    const normalized = normalizeKeyword(keyword);
+    if (normalized && text.includes(normalized)) candidates.push(normalized);
+  });
+  return uniqueStrings(candidates);
 }
 
 function sortPapers(left, right, mode) {
@@ -640,6 +777,10 @@ function uniqueStrings(values) {
   return result;
 }
 
+function normalizeKeyword(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 function localFeedbackCount() {
   return readJsonArray(localFeedbackKey).length;
 }
@@ -669,6 +810,10 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replaceAll(" ", "-");
+}
+
+function escapeDataAttr(value) {
+  return escapeHtml(value);
 }
 
 loadRecommendations().then(render).catch((error) => {
