@@ -201,7 +201,7 @@ class FeedbackTests(unittest.TestCase):
                     abstract=(
                         "The paper discusses further implementations, efficiency, efficient emerging systems, "
                         "and size 4--6 results. It achieves a better point, enables model studies, "
-                        "and affects results along several settings."
+                        "and affects large-scale results along several clear settings beyond the baseline."
                     ),
                 ),
                 FeedbackEvent(
@@ -237,6 +237,12 @@ class FeedbackTests(unittest.TestCase):
             "better",
             "studies",
             "settings",
+            "large",
+            "large-scale",
+            "scale",
+            "clear",
+            "beyond",
+            "baseline",
         ):
             self.assertNotIn(noisy, weights)
         self.assertGreater(weights["gem5"], 0)
