@@ -27,6 +27,31 @@ from paper_recommender.feedback import (
 from paper_recommender.history import RecommendationRun, history_counts, load_history_json
 
 
+EXPLORATION_SECTION = "exploration"
+EXPLORATION_LABEL = "Exploration / AI+体系结构探索"
+EXPLORATION_CATEGORIES = frozenset({"cs.AI", "cs.LG", "cs.AR", "cs.PF", "cs.DC", "cs.PL"})
+EXPLORATION_KEYWORDS = (
+    "accelerator",
+    "gpu",
+    "hardware-aware",
+    "hardware aware",
+    "ml compiler",
+    "machine learning systems",
+    "systems for machine learning",
+    "performance model",
+    "runtime",
+    "compiler",
+    "inference serving",
+    "training system",
+    "tensor",
+    "systolic",
+    "fpga",
+    "asic",
+    "memory hierarchy",
+    "interconnect",
+)
+
+
 def paper_from_record(record: dict[str, Any]) -> Paper:
     paper_id = _first_text(record, ("paper_id", "id", "arxiv_id", "entry_id", "url"))
     title = _first_text(record, ("title",))
@@ -74,6 +99,7 @@ def recommendation_payload(
     feedback_events: list[FeedbackEvent] | None = None,
     history_runs: list[RecommendationRun] | None = None,
     min_count: int = 0,
+    exploration_count: int = 0,
 ) -> dict[str, Any]:
     resolved_profile = profile or load_interest_profile()
     resolved_feedback_events = feedback_events or []
@@ -107,6 +133,19 @@ def recommendation_payload(
         )
     if limit is not None:
         ranked = ranked[:limit]
+    if exploration_count:
+        ranked = ranked + _exploration_candidates(
+            ranked,
+            papers,
+            resolved_profile,
+            exploration_count,
+            feedback_weights,
+            keyword_weights,
+            author_weights,
+            affiliation_weights,
+            toolchain_weights,
+            shown_counts,
+        )
 
     recommendations = []
     for rank, result in enumerate(ranked, start=1):
@@ -132,10 +171,12 @@ def recommendation_payload(
         )
 
     resolved_run_date = run_date or date.today().isoformat()
+    section_labels = dict(resolved_profile.section_labels)
+    section_labels[EXPLORATION_SECTION] = EXPLORATION_LABEL
     return {
         "run_date": resolved_run_date,
         "profile_name": resolved_profile.name,
-        "section_labels": resolved_profile.section_labels,
+        "section_labels": section_labels,
         "profile_context": {
             "seed_papers": [seed.to_dict() for seed in resolved_profile.seed_papers],
         },
@@ -164,6 +205,7 @@ def write_recommendations_json(
     feedback_events: list[FeedbackEvent] | None = None,
     history_runs: list[RecommendationRun] | None = None,
     min_count: int = 0,
+    exploration_count: int = 0,
 ) -> dict[str, Any]:
     payload = recommendation_payload(
         papers,
@@ -173,6 +215,7 @@ def write_recommendations_json(
         feedback_events=feedback_events,
         history_runs=history_runs,
         min_count=min_count,
+        exploration_count=exploration_count,
     )
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -190,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--feedback", default=None, help="反馈事件 JSON 路径。")
     parser.add_argument("--history", default=None, help="推荐历史 JSON 路径。")
     parser.add_argument("--min-count", type=int, default=0, help="用探索性核心分类论文补足到该数量。")
+    parser.add_argument("--exploration-count", type=int, default=0, help="额外加入 AI/ML 体系结构探索候选数。")
     args = parser.parse_args(argv)
 
     papers = load_papers_jsonl(args.input)
@@ -205,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         feedback_events=feedback_events,
         history_runs=history_runs,
         min_count=args.min_count,
+        exploration_count=args.exploration_count,
     )
     print(f"已写入 {payload['count']} 条推荐到 {args.output}")
     return 0
@@ -383,6 +428,55 @@ def _with_exploratory_fill(
     return filled[:max(min_count, len(ranked))]
 
 
+def _exploration_candidates(
+    ranked: list[Classification],
+    papers: list[Paper],
+    profile: InterestProfile,
+    count: int,
+    section_weights: dict[str, float],
+    keyword_weights: dict[str, float],
+    author_weights: dict[str, float],
+    affiliation_weights: dict[str, float],
+    toolchain_weights: dict[str, float],
+    shown_counts: dict[str, int],
+) -> list[Classification]:
+    if count <= 0:
+        return []
+    ranked_ids = {result.paper.paper_id for result in ranked}
+    candidates = []
+    for paper in papers:
+        if paper.paper_id in ranked_ids:
+            continue
+        if not set(paper.categories) & EXPLORATION_CATEGORIES:
+            continue
+        result = classify_paper(paper, profile=profile)
+        if result.accepted or result.negative_matches:
+            continue
+        matches = _matching_exploration_keywords(paper)
+        if not matches:
+            continue
+        candidates.append(
+            Classification(
+                paper=paper,
+                accepted=True,
+                score=min(3.0, len(matches) * 0.25),
+                sections=(EXPLORATION_SECTION,),
+                positive_matches=tuple(f"{EXPLORATION_SECTION}:{match}" for match in matches),
+                negative_matches=(),
+            )
+        )
+    adjusted = _apply_feedback_weights(
+        candidates,
+        section_weights,
+        keyword_weights,
+        author_weights,
+        affiliation_weights,
+        toolchain_weights,
+        shown_counts,
+    )
+    return adjusted[:count]
+
+
 def _apply_feedback_weights(
     results,
     section_weights: dict[str, float],
@@ -424,6 +518,34 @@ def _apply_feedback_weights(
             )
         )
     return sorted(adjusted, key=lambda result: (-result.score, result.paper.paper_id))
+
+
+def _matching_exploration_keywords(paper: Paper) -> tuple[str, ...]:
+    text = _normalize_for_matching(
+        " ".join(
+            [
+                paper.title,
+                paper.abstract,
+                " ".join(paper.authors),
+                " ".join(paper.affiliations),
+                " ".join(paper.categories),
+            ]
+        )
+    )
+    return tuple(keyword for keyword in EXPLORATION_KEYWORDS if _keyword_matches_text(text, keyword))
+
+
+def _normalize_for_matching(value: str) -> str:
+    return re.sub(r"\s+", " ", value.lower()).strip()
+
+
+def _keyword_matches_text(text: str, keyword: str) -> bool:
+    normalized = _normalize_for_matching(keyword)
+    if not normalized:
+        return False
+    if re.fullmatch(r"[a-z0-9][a-z0-9.+#-]{0,4}", normalized):
+        return re.search(rf"\b{re.escape(normalized)}\b", text) is not None
+    return normalized in text
 
 
 if __name__ == "__main__":

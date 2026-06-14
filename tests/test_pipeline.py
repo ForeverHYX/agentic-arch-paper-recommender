@@ -271,6 +271,57 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual([item["paper_id"] for item in payload["recommendations"]], ["core", "clean-ai"])
         self.assertEqual(payload["recommendations"][1]["sections"], ["exploratory"])
 
+    def test_recommendation_payload_adds_extra_exploration_papers(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI", "cs.LG"}),
+            sections=(SectionRule("arch", "Architecture", 3.0, ("cache replacement",)),),
+        )
+        core_records = [
+            {
+                "paper_id": "core-1",
+                "title": "Cache Replacement for Architecture",
+                "abstract": "cache replacement for microarchitecture",
+                "authors": [],
+                "categories": ["cs.AR"],
+            },
+            {
+                "paper_id": "core-2",
+                "title": "Another Cache Replacement Study",
+                "abstract": "cache replacement for memory hierarchy",
+                "authors": [],
+                "categories": ["cs.AR"],
+            },
+        ]
+        exploration_records = [
+            {
+                "paper_id": f"explore-{index}",
+                "title": f"AI Systems Exploration {index}",
+                "abstract": "GPU accelerator runtime for machine learning systems.",
+                "authors": [],
+                "categories": ["cs.AI"],
+            }
+            for index in range(6)
+        ]
+        papers = [paper_from_record(record) for record in core_records + exploration_records]
+
+        payload = recommendation_payload(
+            papers,
+            "2026-06-14",
+            limit=2,
+            min_count=2,
+            exploration_count=5,
+            profile=profile,
+        )
+
+        self.assertEqual(payload["count"], 7)
+        self.assertEqual(
+            sum("exploration" in item["sections"] for item in payload["recommendations"]),
+            5,
+        )
+        self.assertEqual(payload["section_labels"]["exploration"], "Exploration / AI+体系结构探索")
+
 
 if __name__ == "__main__":
     unittest.main()
