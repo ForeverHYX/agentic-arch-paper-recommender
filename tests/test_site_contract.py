@@ -213,7 +213,7 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
     def test_index_busts_app_cache_for_affiliation_ui(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
 
-        self.assertIn("app.js?v=20260614-articles-redesign", html)
+        self.assertIn("app.js?v=20260614-articles-layout", html)
 
     def test_index_contains_run_health_placeholder_and_cache_bust(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -222,7 +222,7 @@ if (!withoutAffiliations.includes("未解析到作者单位")) {
         self.assertIn('class="run-health"', html)
         self.assertIn('id="statusDetails"', html)
         self.assertIn("反馈与系统细节", html)
-        self.assertIn("app.js?v=20260614-articles-redesign", html)
+        self.assertIn("app.js?v=20260614-articles-layout", html)
 
     def test_sidebar_keeps_secondary_status_in_collapsible_details(self):
         html = Path("site/index.html").read_text(encoding="utf-8")
@@ -630,7 +630,7 @@ if (!target.scrolled) {
         self.assertIn("编辑兴趣画像", html)
         self.assertLess(html.index('id="searchInput"'), html.index('id="profileSystemWorkspace"'))
         self.assertLess(html.index('id="profileSystemWorkspace"'), html.index('id="runHealth"'))
-        self.assertIn('class="filter-sidebar sidebar"', html)
+        self.assertIn('class="sidebar-card home-liquid-card home-news-card filter-sidebar"', html)
         self.assertIn('id="keywordFilters"', html)
         self.assertIn('id="summaryStats"', html)
         self.assertIn('id="sectionNav"', html)

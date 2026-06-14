@@ -7,6 +7,7 @@
   "use strict";
 
   function init() {
+    setFooterYear();
     initThemeToggle();
     initSearch();
   }
@@ -15,6 +16,12 @@
     document.addEventListener("DOMContentLoaded", init, { passive: true });
   } else {
     init();
+  }
+
+  /* --- Footer year --- */
+  function setFooterYear() {
+    var el = document.getElementById("footerYear");
+    if (el) el.textContent = String(new Date().getFullYear());
   }
 
   /* --- Theme toggle (mirrors Homepage) --- */

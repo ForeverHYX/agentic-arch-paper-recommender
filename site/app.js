@@ -203,11 +203,7 @@ function renderRecommendationGroups(recommendations, sectionLabels) {
   });
   renderSectionNav(groups, sectionLabels);
 
-  container.innerHTML = Array.from(groups.entries()).map(([section, papers]) => {
-    const label = sectionLabels[section] || "探索性但可能相关";
-    const items = papers.map(renderPaper).join("");
-    return `<section class="section" id="section-${escapeAttr(section)}"><div class="section-heading"><h2>${escapeHtml(label)}</h2><span>${papers.length} 篇</span></div>${items}</section>`;
-  }).join("");
+  container.innerHTML = recommendations.map(renderPaper).join("");
 }
 
 function collectFilterState() {
