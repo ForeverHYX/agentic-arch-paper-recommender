@@ -109,7 +109,7 @@ OPENAI_API_KEY=... python3 -m paper_recommender.summarizer \
   --output site/recommendations.json
 ```
 
-The default OpenAI-compatible provider is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. The judge uses the model to add `ai_judgement` and `ai_score`, rerank candidates by AI relevance, and truncate the final digest to 15 items. It understands both arXiv papers and GitHub repository items. If no API key is configured, local/offline runs can still use rule-score and Chinese fallback text. In GitHub Actions, once `OPENAI_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback TLDRs as if the API worked.
+The default OpenAI-compatible provider is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. The judge uses the model to add `ai_judgement` and `ai_score`, rerank candidates by AI relevance, and truncate the final digest to 15 items. It understands both arXiv papers and GitHub repository items. If no API key is configured, local/offline runs can still use rule-score and English fallback text. In GitHub Actions, once `OPENAI_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback TLDRs as if the API worked.
 
 `--min-count` fills with exploratory papers. Core arXiv categories are preferred first; if there still are not enough candidates, clean expansion-category papers without negative/noise matches are added as exploratory items.
 
@@ -134,7 +134,7 @@ OpenCode Go's official docs list `deepseek-v4-flash` with model ID `deepseek-v4-
 The daily pipeline uses the LLM twice:
 
 - `paper_recommender.judge`: applies the fixed interest profile, representative seed papers, and learned like/dislike feedback when scoring candidates.
-- `paper_recommender.summarizer`: generates concise Chinese TLDRs for the final papers.
+- `paper_recommender.summarizer`: generates concise English TLDRs for the final papers.
 
 ## Feedback Storage
 

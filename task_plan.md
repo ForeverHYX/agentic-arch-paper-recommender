@@ -138,7 +138,7 @@
 - [x] 每篇论文包含 GitHub Pages 详情、喜欢、不喜欢链接。
 - [x] 添加失败重试和空推荐处理。
 - [x] 增加 TLDR、AI 判断、Paper/PDF/Code/Code Search 直达链接。
-- [x] 将邮件系统文案中文化，并把 TLDR 改为较长的中文结构化核心解读。
+- [x] 将 TLDR 输出切换为英文结构化解读，便于主页 Daily 栏目统一展示英文摘要。
 - [x] 在邮件和页面中展示作者单位，供质量判断和后续反馈学习使用。
 - **状态：** in_progress
 
@@ -170,11 +170,23 @@
 - [x] 对 trending 仓库按当前兴趣画像过滤 agentic architecture、软硬件协同、微架构、模拟器、HPC/编译器/运行时方向。
 - [x] 将 stars today 等上涨趋势信号写入推荐 payload，并参与排序。
 - [x] 从仓库 README/元数据中抽取原始论文链接（arXiv、OpenReview、DOI 等）并在页面/邮件展示。
-- [x] 用同一套 LLM judge/TLDR 对仓库核心内容做中文总结。
+- [x] 用同一套 LLM judge/TLDR 对仓库核心内容做英文总结。
 - [x] 页面和邮件以与论文推荐一致的卡片/栏目/反馈格式展示仓库推荐。
 - [x] 喜欢仓库后，收藏仓库导出流程通过 git submodule 链接到上游 GitHub 仓库。
 - [x] 扩展 Supabase 反馈 schema，保留 repository 元数据，保证后续推荐学习和收藏导出可用。
 - **状态：** complete（本地实现与测试完成；线上 Supabase 需要按更新后的 schema 重新应用）
+
+### 阶段 10：主页 Daily 集成
+- [x] 在 `root@116.62.147.239:/root/newhomepage` 的顶部灵动岛导航中新增 `Daily`。
+- [x] 新增 `/daily` 页面，复用 `/articles` 左侧卡片 + 右侧筛选卡片布局。
+- [x] Daily 左侧同时展示论文和 GitHub 仓库推荐。
+- [x] Daily 右侧展示由推荐命中信号、topics 和分类派生的 AI keyword 筛选 chips。
+- [x] 主页 `/api/search-index` 纳入 Daily 条目，可按标题和关键词搜索论文/仓库。
+- [x] Daily 卡片标题下展示作者和关键词，不展示作者单位/机构。
+- [x] Daily 卡片底部使用英文 TLDR，并提供 Paper/PDF/Code/Code Search/Like/Dislike 按钮。
+- [x] Like/Dislike 按钮写入同一 Supabase `feedback_events` 表；liked 条目会进入现有 favorites archive workflow，后续自动推送到 GitHub 存储论文仓库。
+- [x] 新增 Daily payload cache，GitHub Pages 临时连接失败时主页仍使用最近一次成功推荐数据。
+- **状态：** complete（远端已部署并通过本地/远端契约测试与公网 smoke test）
 
 ## 关键问题
 1. `ASSASSYN` 的准确论文标题或链接需要用户补充，以便作为 full-stack co-design seed。
@@ -192,12 +204,12 @@
 | 邮件和页面共用同一反馈入口 | 避免维护两套反馈逻辑。 |
 | arXiv 抓取输出 JSONL 后交给现有 pipeline | 保持数据源、推荐排序和反馈学习解耦，便于后续替换或增加 Semantic Scholar/RSS。 |
 | 使用 `recommendation_runs` 做重复惩罚 | 不依赖浏览器本地状态，GitHub Actions 可跨天读取历史并减少重复推荐。 |
-| TLDR 使用 OpenAI-compatible enrichment 且有本地 fallback | 让邮件和页面更易扫读，同时避免 LLM 服务失败导致每日 workflow 失败。 |
+| TLDR 使用 OpenAI-compatible enrichment 且有本地 fallback | 让邮件、Pages 和主页 Daily 更易扫读，同时避免 LLM 服务失败导致每日 workflow 失败；输出语言为英文。 |
 | 推荐排序采用“规则召回 + LLM 判断重排” | 关键词规则保证召回和稳定兜底，LLM 判断负责理解论文是否真正贴合 agentic architecture、co-design、microarchitecture、simulator 和 HPC 交叉兴趣。 |
 | 作者单位只做展示和弱质量信号 | arXiv 经常不提供单位，因此不伪造单位；若数据源提供 `affiliations`，页面、邮件、反馈和 LLM judge 都会使用。 |
 | seed papers 作为无服务器个人语料锚点 | `config/interests.json` 中的 `seed_papers` 会写入推荐 JSON，并进入 LLM judge prompt，让代表性论文比单纯关键词更直接地约束相关性判断。 |
 | 反馈学习加入实体权重 | like/dislike 现在会学习作者、机构和体系结构/HPC 工具链权重，并同时影响规则排序和 LLM judge prompt。 |
-| GitHub Trending 仓库复用推荐 JSON | 前端、邮件、反馈、历史去重和 LLM 总结都已经围绕 `recommendations.json` 工作；仓库推荐以 `item_type=repository` 加入同一列表，避免维护第二套展示和反馈链路。 |
+| GitHub Trending 仓库复用推荐 JSON | 前端、邮件、反馈、历史去重、LLM 总结和主页 Daily 都围绕 `recommendations.json` 工作；仓库推荐以 `item_type=repository` 加入同一列表，避免维护第二套展示和反馈链路。 |
 
 ## 遇到的错误
 | 错误 | 尝试次数 | 解决方案 |

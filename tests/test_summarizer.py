@@ -38,7 +38,7 @@ class FakeErrorBody:
 
 
 class SummarizerTests(unittest.TestCase):
-    def test_fallback_tldr_is_structured_chinese_briefing(self):
+    def test_fallback_tldr_is_structured_english_briefing(self):
         text = fallback_tldr(
             {
                 "title": "Agentic Microarchitecture Exploration",
@@ -50,14 +50,14 @@ class SummarizerTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("研究问题：", text)
-        self.assertIn("核心方法：", text)
-        self.assertIn("关键结论：", text)
-        self.assertIn("推荐理由：", text)
+        self.assertIn("Problem:", text)
+        self.assertIn("Method:", text)
+        self.assertIn("Finding:", text)
+        self.assertIn("Why it matters:", text)
         self.assertGreaterEqual(len(text), 120)
-        self.assertLessEqual(len(text), 520)
-        self.assertNotIn("This paper studies", text)
-        self.assertNotIn("LLM agents can search", text)
+        self.assertNotIn("...", text)
+        self.assertNotIn("…", text)
+        self.assertNotRegex(text, r"[\u4e00-\u9fff]")
 
     def test_fallback_tldr_handles_repository_items(self):
         text = fallback_tldr(
@@ -70,10 +70,25 @@ class SummarizerTests(unittest.TestCase):
             }
         )
 
-        self.assertIn("仓库", text)
-        self.assertIn("今日新增 star", text)
-        self.assertIn("原始论文", text)
-        self.assertIn("研究问题：", text)
+        self.assertIn("repository", text.lower())
+        self.assertIn("stars today", text.lower())
+        self.assertIn("paper link", text.lower())
+        self.assertIn("Problem:", text)
+        self.assertNotRegex(text, r"[\u4e00-\u9fff]")
+
+    def test_fallback_tldr_does_not_truncate_with_ellipsis(self):
+        text = fallback_tldr(
+            {
+                "title": "Agentic Microarchitecture Exploration",
+                "abstract": "LLM agents explore cache replacement policies with simulator feedback.",
+                "sections": ["agentic_architecture", "microarchitecture_simulators"],
+            },
+            max_chars=120,
+        )
+
+        self.assertGreater(len(text), 120)
+        self.assertNotIn("...", text)
+        self.assertNotIn("…", text)
 
     def test_request_tldr_calls_openai_compatible_chat_completion(self):
         seen = {}
@@ -84,7 +99,7 @@ class SummarizerTests(unittest.TestCase):
             seen["authorization"] = request.headers["Authorization"]
             seen["user_agent"] = request.get_header("User-agent")
             seen["timeout"] = timeout
-            return FakeResponse({"choices": [{"message": {"content": "一句话总结。"}}]})
+            return FakeResponse({"choices": [{"message": {"content": "One sentence summary."}}]})
 
         tldr = request_tldr(
             {
@@ -97,7 +112,7 @@ class SummarizerTests(unittest.TestCase):
             opener=opener,
         )
 
-        self.assertEqual(tldr, "一句话总结。")
+        self.assertEqual(tldr, "One sentence summary.")
         self.assertEqual(seen["url"], "https://example.com/v1/chat/completions")
         self.assertEqual(seen["authorization"], "Bearer secret")
         self.assertIn("agentic-arch-paper-recommender", seen["user_agent"])
@@ -107,20 +122,20 @@ class SummarizerTests(unittest.TestCase):
         self.assertGreaterEqual(seen["body"]["max_tokens"], 8192)
         self.assertLessEqual(seen["body"]["max_tokens"], 9000)
         system_prompt = seen["body"]["messages"][0]["content"]
-        self.assertIn("简体中文", system_prompt)
-        self.assertIn("只输出最终答案", system_prompt)
-        self.assertIn("不要解释", system_prompt)
-        self.assertIn("研究问题", system_prompt)
-        self.assertIn("核心方法", system_prompt)
-        self.assertIn("关键结论", system_prompt)
-        self.assertIn("推荐理由", system_prompt)
+        self.assertIn("English", system_prompt)
+        self.assertIn("final answer only", system_prompt.lower())
+        self.assertIn("do not explain", system_prompt.lower())
+        self.assertIn("Problem", system_prompt)
+        self.assertIn("Method", system_prompt)
+        self.assertIn("Finding", system_prompt)
+        self.assertIn("Why it matters", system_prompt)
 
     def test_request_tldr_includes_repository_context_for_repo_items(self):
         seen = {}
 
         def opener(request, timeout=None):
             seen["body"] = json.loads(request.data.decode("utf-8"))
-            return FakeResponse({"choices": [{"message": {"content": "这是一个足够长的中文仓库总结，说明它实现了什么、为何相关、趋势如何以及对应论文线索。"}}]})
+            return FakeResponse({"choices": [{"message": {"content": "Problem: This repository is relevant to hardware design automation. Method: It packages the implementation and metadata needed to inspect the system. Finding: Its trend and links make it worth checking. Why it matters: It may connect software tooling with architecture research."}}]})
 
         request_tldr(
             {
@@ -139,8 +154,8 @@ class SummarizerTests(unittest.TestCase):
 
         system_prompt = seen["body"]["messages"][0]["content"]
         user_prompt = seen["body"]["messages"][1]["content"]
-        self.assertIn("仓库", system_prompt)
-        self.assertIn("核心内容", system_prompt)
+        self.assertIn("repository", system_prompt.lower())
+        self.assertIn("what it implements", system_prompt)
         self.assertIn("Stars today: 87", user_prompt)
         self.assertIn("Topics: gem5, microarchitecture", user_prompt)
         self.assertIn("Original paper links: arXiv https://arxiv.org/abs/2606.00001", user_prompt)
@@ -159,7 +174,7 @@ class SummarizerTests(unittest.TestCase):
         enriched = enrich_payload_with_tldrs(payload, api_key="")
 
         self.assertIn("tldr", enriched["recommendations"][0])
-        self.assertIn("研究问题：", enriched["recommendations"][0]["tldr"])
+        self.assertIn("Problem:", enriched["recommendations"][0]["tldr"])
 
     def test_enrich_payload_with_tldrs_falls_back_on_empty_model_response(self):
         payload = {
@@ -177,8 +192,8 @@ class SummarizerTests(unittest.TestCase):
 
         enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener)
 
-        self.assertIn("研究问题：", enriched["recommendations"][0]["tldr"])
-        self.assertIn("核心方法：", enriched["recommendations"][0]["tldr"])
+        self.assertIn("Problem:", enriched["recommendations"][0]["tldr"])
+        self.assertIn("Method:", enriched["recommendations"][0]["tldr"])
 
     def test_enrich_payload_with_tldrs_retries_short_model_response(self):
         payload = {
@@ -191,25 +206,24 @@ class SummarizerTests(unittest.TestCase):
             ]
         }
         long_tldr = (
-            "研究问题：这篇论文关注如何让 LLM agent 结合体系结构模拟器搜索微架构设计空间，"
-            "目标是在缓存和分支预测等部件上减少人工试错成本。核心方法：系统把候选设计生成、"
-            "仿真评估和反馈修正串成闭环，用性能计数器和规则约束指导下一轮候选。关键结论："
-            "摘要显示该流程能在典型 benchmark 上改善 IPC 和 miss-rate，但仍需核对实验规模。"
-            "推荐理由：它同时命中 agentic 架构探索和模拟器驱动优化，适合优先略读方法与实验。"
+            "Problem: The paper studies how an LLM agent can search microarchitecture design space with simulator feedback. "
+            "Method: It links candidate generation, gem5 evaluation, and feedback-guided refinement into a closed loop. "
+            "Finding: The abstract suggests the loop can improve cache and prefetcher choices, although the full experiment still needs checking. "
+            "Why it matters: It directly matches agentic architecture exploration and simulator-guided optimization."
         )
         calls = []
 
         def opener(request, timeout=None):
             calls.append(json.loads(request.data.decode("utf-8")))
             if len(calls) == 1:
-                return FakeResponse({"choices": [{"message": {"content": "一句话总结。"}}]})
+                return FakeResponse({"choices": [{"message": {"content": "Short summary."}}]})
             return FakeResponse({"choices": [{"message": {"content": long_tldr}}]})
 
         enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener, require_api=True)
 
         self.assertEqual(enriched["recommendations"][0]["tldr"], long_tldr)
         self.assertEqual(len(calls), 2)
-        self.assertIn("上一次输出过短", calls[1]["messages"][0]["content"])
+        self.assertIn("previous output was too short", calls[1]["messages"][0]["content"])
 
     def test_enrich_payload_with_tldrs_requires_api_without_leaking_key(self):
         payload = {
@@ -260,12 +274,12 @@ class SummarizerTests(unittest.TestCase):
         }
 
         def opener(request):
-            return FakeResponse({"choices": [{"message": {"content": "一句话总结。"}}]})
+            return FakeResponse({"choices": [{"message": {"content": "Short summary."}}]})
 
         with self.assertRaises(RuntimeError) as context:
             enrich_payload_with_tldrs(payload, api_key="secret", opener=opener, require_api=True)
 
-        self.assertIn("TLDR 过短", str(context.exception))
+        self.assertIn("TLDR is too short", str(context.exception))
 
     def test_cli_updates_recommendation_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -162,11 +162,12 @@
 | `LOCAL_FEEDBACK_JSON` 作为无数据库回灌 | 如果暂时不配置 Supabase，用户可以把 Pages 导出的本地反馈 JSON 放到 GitHub Secret，workflow 会在 Supabase 不可用时加载它并参与推荐学习。 |
 | `PROFILE_OVERRIDE_JSON` 作为无代码画像覆盖 | Pages 设置页编辑并导出与 `config/interests.json` 相同 schema 的 JSON；workflow 会在抓取 arXiv 前验证并使用该 Secret 覆盖默认 profile。 |
 | `status.json` 只暴露非敏感启用状态 | Pages 需要告诉用户 LLM、邮件、Supabase、fallback 和 profile override 是否启用；状态文件只写布尔值和公开模型/base URL，不写任何 Secret 内容。 |
-| TLDR 改为结构化中文核心解读 | 短英文截断式 TLDR 无法看出论文核心思想；新的 TLDR prompt 和 fallback 都要求覆盖研究问题、核心方法、关键结论和推荐理由。 |
+| TLDR 改为结构化英文解读 | 主页 Daily 栏目要求英文 TLDR；新的 TLDR prompt 和 fallback 都要求覆盖 Problem、Method、Finding 和 Why it matters，并避免中文质量门槛。 |
 | 左侧栏状态卡片置顶 | 运行状态、反馈持久化和学习画像是每日使用时最需要先看的信息；将这些卡片移动到筛选控件上方，并给 sidebar 设置视口内滚动，避免一直翻到底部才看到状态。 |
 | GitHub Trending 仓库推荐复用现有推荐 payload | `recommendations.json` 已被页面、邮件、反馈、历史和 LLM enrichment 共同消费。仓库推荐应作为 `item_type=repository` 的推荐项进入同一 payload，保留栏目、AI 判断、TLDR、喜欢/不喜欢和历史去重能力。 |
 | 仓库趋势信号以 `stars_today` 为主 | GitHub Trending daily 页面直接提供当日新增 star 文案；总 star 数和 fork 数用于辅助展示，不替代上涨趋势。 |
 | 收藏仓库用 submodule 链接上游 repo | 对 `item_type=repository` 的喜欢反馈，收藏导出流程应写入 metadata，并在收藏仓库中执行 `git submodule add <repo_url> repositories/<owner-repo>`；论文仍按 PDF/JSON 归档。 |
+| 主页 Daily 复用 Pages 推荐 JSON | `foreverhyx.top/daily` 直接消费 `https://foreverhyx.github.io/agentic-arch-paper-recommender/recommendations.json`，用同一套 Supabase 反馈表接入学习和 favorites archive；远端主页保留本地 cache 文件，避免 GitHub Pages 瞬时连接失败导致页面空白或 500。 |
 
 ## 初始数据表设想
 ### `feedback_events`
@@ -220,6 +221,7 @@
 | 真实 Supabase 写入探针被审批层拦截 | 未绕过审批限制；当前只确认配置链路、workflow 读取/发布步骤和公开 Pages 状态。真实点击写入 `feedback_events` 仍保留待验证。 |
 | GitHub 没有官方 Trending API | 使用 `https://github.com/trending?since=daily` 页面作为 trending 入口，并用 GitHub REST repo/readme API（有 token 则带 token）补充 topics、stars、README 内容和原始论文链接；解析失败时保留空仓库列表，不阻断 arXiv 推荐。 |
 | GitHub Trending 当前 smoke test 输出 | 2026-06-14 本地真实抓取 daily trending 时筛出 `LMCache/LMCache`，包含 `repository_stars_today=238`、`repository_stars=8980`、topics `amd/cuda/inference/rocm/vllm`，被归到 `hpc_cross_over`。 |
+| 主页远端直接拉取 GitHub Pages 偶发 reset | `app.daily.load_daily_payload` 现在会把成功拉到的推荐写入 `/root/newhomepage/content/daily/recommendations.json`，失败时读 cache；搜索索引也走 cache-backed loader。 |
 
 ## 资源
 - `daily-arXiv-ai-enhanced`: https://github.com/dw-dengwei/daily-arXiv-ai-enhanced

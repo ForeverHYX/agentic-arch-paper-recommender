@@ -37,7 +37,7 @@
         "cs.AR"
       ],
       "score": 36.0,
-      "tldr": "研究问题：这篇论文关注如何用 LLM agent 自动探索微架构设计空间。核心方法：它把候选生成、gem5 周期级仿真和下一轮设计改进串成闭环。关键结论：摘要显示该方法能围绕 cache replacement 与 data prefetcher 生成可评估方案。推荐理由：它直接命中 agentic architecture、Auto-DSE 和 simulator-guided search，是当前画像的核心方向。",
+      "tldr": "Problem: This paper studies how an LLM agent can automate microarchitecture design-space exploration. Method: It connects candidate generation, cycle-accurate gem5 simulation, and feedback-guided refinement into a closed loop. Finding: The abstract indicates that the loop can generate evaluable cache replacement and data prefetcher designs. Why it matters: It directly matches agentic architecture, Auto-DSE, and simulator-guided search.",
       "sections": [
         "agentic_architecture",
         "microarchitecture_simulators"
@@ -72,7 +72,7 @@
         "cs.AR"
       ],
       "score": 21.0,
-      "tldr": "研究问题：这篇论文关注 RISC-V 自定义加速器如何与编译器和运行时协同设计。核心方法：它把 MLIR、runtime scheduling、workload mapping 与 ISA extension 放在同一优化链路。关键结论：摘要显示全栈协同能让领域专用加速器更贴近 workload。推荐理由：它命中 full-stack HW/SW co-design、compiler architecture co-design 和 domain-specific accelerator。",
+      "tldr": "Problem: This paper asks how RISC-V custom accelerators should be co-designed with compilers and runtimes. Method: It places MLIR, runtime scheduling, workload mapping, and ISA extension design inside one optimization path. Finding: The abstract suggests that full-stack coordination can make domain-specific accelerators better aligned with workloads. Why it matters: It matches full-stack hardware/software co-design, compiler-architecture co-design, and domain-specific acceleration.",
       "sections": [
         "full_stack_codesign"
       ],

@@ -91,7 +91,7 @@ def _render_recommendation_item(
         {f'<div style="color: #555;"><strong>单位:</strong> {affiliations}</div>' if affiliations else ''}
         {repository_meta}
         <div style="color: #777;">规则分：{score}</div>
-        {f'<p><strong>核心解读:</strong> {tldr}</p>' if tldr else ''}
+        {f'<p><strong>TLDR:</strong> {tldr}</p>' if tldr else ''}
         {f'<p><strong>AI 判断:</strong> {ai_score} - {ai_reason}</p>' if ai_reason else ''}
         <p>{abstract}</p>
         {paper_links}

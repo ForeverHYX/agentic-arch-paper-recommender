@@ -820,3 +820,52 @@
 
 ---
 *每个阶段完成后或遇到错误时更新此文件*
+
+## 会话补充：主页 Daily 集成与英文 TLDR
+- **状态：** complete
+- 执行的操作：
+  - 将 `paper_recommender.summarizer` 的 TLDR 生成和本地 fallback 从中文切换为英文结构化输出，覆盖 `Problem / Method / Finding / Why it matters`。
+  - 将 Pages reader 的 TLDR 标签从“核心解读”改为 `TLDR`，并更新示例 `site/recommendations.json` 的 TLDR 为英文。
+  - 在远端 `root@116.62.147.239:/root/newhomepage` 新增 `app/daily.py`，从当前项目 GitHub Pages 的 `recommendations.json` 读取 Daily 数据，归一化为主页可消费 payload。
+  - 在远端主页顶部灵动岛导航和移动导航新增 `Daily`。
+  - 新增远端 `/daily` Jinja 页面：复用 `/articles` 左侧卡片 + 右侧筛选卡片布局；左侧展示论文和仓库，右侧展示 AI keywords；标题下展示作者和关键词，不展示机构/作者单位。
+  - Daily 卡片底部提供 `Paper`、`PDF`、`Code`、`Code Search`、`Like`、`Dislike` 按钮，替代 articles 风格的 `Read more` 动作。
+  - 新增 `static/js/components/daily-feedback.js`，Like/Dislike 写入同一 Supabase `feedback_events` 表；现有 favorites archive workflow 会读取 liked feedback 并推送到 GitHub 存储论文仓库。
+  - 将远端 `/api/search-index` 接入 Daily 条目，使主页搜索可按论文/仓库标题和关键词搜到 Daily。
+  - 给远端主页增加 Daily payload cache：成功读取推荐后写入 `/root/newhomepage/content/daily/recommendations.json`，GitHub Pages 拉取失败时使用 cache，避免 `/daily` 500 或空页面。
+- 创建/修改的本地文件：
+  - `paper_recommender/summarizer.py`
+  - `site/app.js`
+  - `site/recommendations.json`
+  - `tests/test_summarizer.py`
+  - `tests/test_site_contract.py`
+  - `README.md`
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- 创建/修改的远端文件：
+  - `/root/newhomepage/app/daily.py`
+  - `/root/newhomepage/app/routers/pages.py`
+  - `/root/newhomepage/app/templates/base.html`
+  - `/root/newhomepage/app/templates/pages/daily.html`
+  - `/root/newhomepage/static/css/styles.css`
+  - `/root/newhomepage/static/js/components/daily-feedback.js`
+  - `/root/newhomepage/content/daily/recommendations.json`
+  - `/root/newhomepage/frontend/app/daily/*`
+  - `/root/newhomepage/frontend/lib/api.ts`
+  - `/root/newhomepage/frontend/lib/types.ts`
+  - `/root/newhomepage/frontend/components/site-header.tsx`
+  - `/root/newhomepage/tests/test_daily_integration.py`
+
+| 英文 TLDR RED 测试 | `python3 -m unittest tests.test_summarizer` | 旧 summarizer 仍要求中文 TLDR，应失败 | 7 failures + 1 error，均指向中文 fallback/prompt/quality gate | expected-fail |
+| 英文 TLDR 测试 | `python3 -m unittest tests.test_summarizer` | TLDR fallback/prompt/quality gate 切换英文 | 10 个测试通过 | pass |
+| Pages TLDR 标签 RED 测试 | `python3 -m unittest tests.test_site_contract.SiteContractTests.test_recommendation_page_renders_tldr_and_chinese_actions` | 旧页面仍含“核心解读”，应失败 | 断言发现 `核心解读` | expected-fail |
+| Pages TLDR 标签测试 | 同上 | 使用 `TLDR` 标签，不再出现“核心解读” | 通过 | pass |
+| 远端 Daily payload RED 测试 | `PYTHONPATH=/tmp/newhomepage-work python3 -m unittest discover -s /tmp/newhomepage-work/tests -p test_daily_integration.py` | `app.daily` 不存在时失败 | `ModuleNotFoundError: No module named 'app.daily'` | expected-fail |
+| 远端 Daily payload/template/cache 测试 | `cd /root/newhomepage && PYTHONPATH=/root/newhomepage python3 -m unittest tests/test_daily_integration.py` | Daily normalizer、搜索条目、Jinja hooks、cache fallback 均通过 | 6 个测试通过 | pass |
+| 远端 Python 编译 | `/root/newhomepage/.venv/bin/python -m py_compile app/daily.py app/routers/pages.py` | 无语法错误 | 通过 | pass |
+| 远端 Next build | `cd /root/newhomepage/frontend && npm run build` | Next 源码仍可构建，包含 `/daily` | 通过；`/daily` route included | pass |
+| 服务重启 | `systemctl restart foreverhyx-homepage` | FastAPI/gunicorn 使用新路由和模板 | 服务 active | pass |
+| 公网 Daily smoke test | `curl https://foreverhyx.top/daily` | 返回 200，页面含 Daily nav、TLDR、AI Keywords、反馈按钮和 16 张卡片 | `200`，16 个 card title，32 个 feedback button | pass |
+| 公网搜索 smoke test | `curl https://foreverhyx.top/api/search-index` | 搜索索引包含 Daily 条目 | 16 个 `type=Daily` 条目 | pass |
+| 机构隐藏检查 | `grep -E "作者单位|affiliations|University|Institute" /tmp/public-daily.html` | Daily 页面不显示机构/作者单位 | 无匹配 | pass |

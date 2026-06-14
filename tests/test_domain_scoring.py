@@ -79,7 +79,7 @@ class DomainScoringTests(unittest.TestCase):
         self.assertIn("full_stack_codesign", result.sections)
         self.assertNotIn("generic-nas-noise", result.negative_matches)
 
-    def test_rank_papers_orders_highly_specific_agentic_architecture_first(self):
+    def test_rank_papers_prioritizes_agentic_architecture_over_generic_hpc(self):
         agentic = Paper(
             paper_id="agentic",
             title="LLM-Driven Architecture Idea Factory for Branch Predictor Design",
@@ -103,7 +103,43 @@ class DomainScoringTests(unittest.TestCase):
 
         ranked = rank_papers([hpc, agentic])
 
-        self.assertEqual([item.paper.paper_id for item in ranked], ["agentic", "hpc"])
+        self.assertEqual([item.paper.paper_id for item in ranked], ["agentic"])
+
+    def test_generic_hpc_without_architecture_signal_is_not_accepted(self):
+        paper = Paper(
+            paper_id="generic-hpc",
+            title="Communication-Avoiding Sparse Linear Algebra on Exascale Systems",
+            abstract=(
+                "We optimize MPI and OpenMP sparse linear algebra kernels for large "
+                "HPC clusters using NUMA placement and memory bandwidth tuning."
+            ),
+            authors=["H. Compute"],
+            categories=["cs.DC", "cs.PF"],
+        )
+
+        result = classify_paper(paper)
+
+        self.assertFalse(result.accepted)
+        self.assertIn("generic-hpc-noise", result.negative_matches)
+
+    def test_hpc_with_microarchitecture_signal_is_still_accepted(self):
+        paper = Paper(
+            paper_id="architecture-hpc",
+            title="GPU Microarchitecture Simulation for Exascale HPC Workloads",
+            abstract=(
+                "We use Accel-Sim to study SIMT warp scheduling, cache hierarchy, "
+                "interconnect pressure, and GPU microarchitecture bottlenecks."
+            ),
+            authors=["A. Systems"],
+            categories=["cs.AR", "cs.DC"],
+        )
+
+        result = classify_paper(paper)
+
+        self.assertTrue(result.accepted)
+        self.assertIn("microarchitecture_simulators", result.sections)
+        self.assertIn("hpc_cross_over", result.sections)
+        self.assertNotIn("generic-hpc-noise", result.negative_matches)
 
     def test_short_keywords_do_not_match_inside_longer_words(self):
         paper = Paper(
