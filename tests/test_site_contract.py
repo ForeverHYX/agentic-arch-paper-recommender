@@ -217,11 +217,33 @@ if (!withoutAffiliations.includes("作者单位")) {
         html = Path("site/index.html").read_text(encoding="utf-8")
         styles = Path("site/styles.css").read_text(encoding="utf-8")
 
-        self.assertIn('<details id="statusDetails" class="sidebar-details">', html)
+        self.assertIn('id="profileSystemWorkspace"', html)
+        self.assertIn('id="statusDetails"', html)
+        self.assertLess(html.index('id="profileSystemWorkspace"'), html.index('id="runHealth"'))
         self.assertLess(html.index('id="runHealth"'), html.index('id="statusDetails"'))
-        self.assertLess(html.index('id="statusDetails"'), html.index('id="searchInput"'))
+        self.assertLess(html.index('id="statusDetails"'), html.index('id="feedbackStatus"'))
         self.assertIn(".sidebar-details", styles)
         self.assertIn(".sidebar-details summary", styles)
+        self.assertIn(".profile-system-grid", styles)
+
+    def test_index_uses_reader_tabs_and_keyword_filter_layout(self):
+        html = Path("site/index.html").read_text(encoding="utf-8")
+        styles = Path("site/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="nav-island"', html)
+        self.assertIn('id="readerTabs"', html)
+        self.assertIn('data-tab="all"', html)
+        self.assertIn('data-tab="paper"', html)
+        self.assertIn('data-tab="repository"', html)
+        self.assertIn('data-tab="profile"', html)
+        self.assertIn('id="recommendationWorkspace"', html)
+        self.assertIn('id="profileSystemWorkspace"', html)
+        self.assertIn('id="keywordFilters"', html)
+        self.assertIn('id="typeKeywordFilters"', html)
+        self.assertIn('id="contentKeywordFilters"', html)
+        self.assertIn(".nav-island", styles)
+        self.assertIn(".article-grid", styles)
+        self.assertIn(".keyword-chip", styles)
 
     def test_reader_shows_run_health_for_local_feedback_mode(self):
         self.run_app_script(
@@ -493,9 +515,10 @@ if (!target.scrolled) {
         self.assertIn("有代码仓库", html)
         self.assertIn("有作者单位", html)
         self.assertIn("编辑兴趣画像", html)
-        self.assertLess(html.index('id="runHealth"'), html.index('id="searchInput"'))
-        self.assertLess(html.index('id="feedbackStatus"'), html.index('id="searchInput"'))
-        self.assertIn('class="sidebar-status-stack"', html)
+        self.assertLess(html.index('id="searchInput"'), html.index('id="profileSystemWorkspace"'))
+        self.assertLess(html.index('id="profileSystemWorkspace"'), html.index('id="runHealth"'))
+        self.assertIn('class="filter-sidebar sidebar"', html)
+        self.assertIn('id="keywordFilters"', html)
         self.assertIn('id="summaryStats"', html)
         self.assertIn('id="sectionNav"', html)
         self.assertIn('id="searchInput"', html)
@@ -524,12 +547,13 @@ if (!target.scrolled) {
         self.assertIn(".paper-tldr", styles)
         self.assertIn(".ai-judgement", styles)
         self.assertIn(".controls", styles)
-        self.assertIn(".sidebar-status-stack", styles)
+        self.assertIn(".profile-system-grid", styles)
         self.assertIn("max-height: calc(100vh - 32px)", styles)
         self.assertIn("overflow-y: auto", styles)
         self.assertIn(".filter-row", styles)
         self.assertIn(".link-button", styles)
         self.assertIn(".section-nav", styles)
+        self.assertIn(".keyword-chip", styles)
 
 
 if __name__ == "__main__":
