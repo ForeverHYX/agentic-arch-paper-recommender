@@ -189,13 +189,26 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python -m paper_recommender.history publish --recommendations site/recommendations.json
 
-      - name: Checkout liked papers archive
+      - name: Prepare liked papers archive checkout
         if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.LIKED_PAPERS_REPO }}
-          token: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}
-          path: favorites-archive
+        env:
+          LIKED_PAPERS_REPO: ${{ vars.LIKED_PAPERS_REPO }}
+          LIKED_PAPERS_REPO_TOKEN: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          ARCHIVE_URL="https://github.com/${LIKED_PAPERS_REPO}.git"
+          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$LIKED_PAPERS_REPO_TOKEN" | base64 -w 0)"
+          if git -c "http.https://github.com/.extraheader=$AUTH_HEADER" ls-remote --exit-code --heads "$ARCHIVE_URL" main >/dev/null 2>&1; then
+            git -c "http.https://github.com/.extraheader=$AUTH_HEADER" clone --depth 1 --branch main "$ARCHIVE_URL" favorites-archive
+          else
+            archive_status=$?
+            if [ "$archive_status" -ne 2 ]; then
+              exit "$archive_status"
+            fi
+            git init -b main favorites-archive
+            git -C favorites-archive remote add origin "$ARCHIVE_URL"
+          fi
+          git -C favorites-archive config --local "http.https://github.com/.extraheader" "$AUTH_HEADER"
 
       - name: Export liked papers archive
         if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true'
@@ -215,7 +228,7 @@ jobs:
           if [ -n "$(git status --porcelain)" ]; then
             git add .
             git commit -m "Update liked paper archive"
-            git push
+            git push origin HEAD:main
           else
             echo "No liked paper archive changes"
           fi
