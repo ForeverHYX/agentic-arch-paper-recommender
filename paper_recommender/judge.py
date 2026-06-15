@@ -15,6 +15,7 @@ from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAUL
 
 
 Judgement = dict[str, Any]
+REPOSITORY_LIMIT = 5
 
 
 def parse_judgement_response(content: str) -> Judgement:
@@ -146,6 +147,8 @@ def enrich_payload_with_judgements(
                 opener=opener,
                 require_api=require_api,
             )
+        if _is_rule_relevant_repository(updated) and judgement["decision"] == "drop":
+            judgement = _preserved_repository_judgement(judgement)
         updated["ai_judgement"] = judgement
         updated["ai_score"] = judgement["score"]
         judged.append(updated)
@@ -153,15 +156,25 @@ def enrich_payload_with_judgements(
     judged.sort(key=_ranking_key)
     kept = [item for item in judged if item["ai_judgement"]["decision"] != "drop"]
     dropped = [item for item in judged if item["ai_judgement"]["decision"] == "drop"]
+    repositories = [item for item in kept if _is_repository_item(item)]
+    selected_repositories = repositories[:REPOSITORY_LIMIT]
+    selected_repository_ids = {str(item.get("paper_id", "")) for item in selected_repositories}
+    non_repository_kept = [
+        item
+        for item in kept
+        if not _is_repository_item(item) and str(item.get("paper_id", "")) not in selected_repository_ids
+    ]
+    core_limit = max(0, limit - len(selected_repositories))
     if exploration_limit > 0:
-        exploration = [item for item in kept if _is_exploration_item(item)]
-        core = [item for item in kept if not _is_exploration_item(item)]
-        selected = core[:limit] + exploration[:exploration_limit]
+        exploration = [item for item in non_repository_kept if _is_exploration_item(item)]
+        core = [item for item in non_repository_kept if not _is_exploration_item(item)]
+        selected = selected_repositories + core[:core_limit] + exploration[:exploration_limit]
         selected.sort(key=_ranking_key)
     else:
-        exploration = [item for item in kept if _is_exploration_item(item)]
-        core = [item for item in kept if not _is_exploration_item(item)]
-        selected = kept[:limit]
+        exploration = [item for item in non_repository_kept if _is_exploration_item(item)]
+        core = [item for item in non_repository_kept if not _is_exploration_item(item)]
+        selected = selected_repositories + core[:core_limit]
+        selected.sort(key=_ranking_key)
     for rank, item in enumerate(selected, start=1):
         item["rank"] = rank
 
@@ -178,6 +191,9 @@ def enrich_payload_with_judgements(
         "exploration_limit": exploration_limit,
         "core_kept_count": len(core),
         "exploration_kept_count": len(exploration),
+        "repository_limit": REPOSITORY_LIMIT,
+        "repository_kept_count": len(repositories),
+        "repository_selected_count": len(selected_repositories),
     }
     return enriched
 
@@ -293,6 +309,24 @@ def _system_prompt_for_item(item: dict[str, Any]) -> str:
 
 def _is_repository_item(item: dict[str, Any]) -> bool:
     return str(item.get("item_type", "")).strip().lower() == "repository"
+
+
+def _is_rule_relevant_repository(item: dict[str, Any]) -> bool:
+    if not _is_repository_item(item):
+        return False
+    sections = {str(section) for section in item.get("sections", [])}
+    if "github_arch_ai_infra" in sections:
+        return True
+    return any(str(match).startswith("repository:") for match in item.get("positive_matches", []))
+
+
+def _preserved_repository_judgement(judgement: Judgement) -> Judgement:
+    score = max(4.0, _float_value(judgement.get("score"), 0.0))
+    return {
+        "score": score,
+        "reason": "仓库已通过 arch/AI infra 规则，按宽松仓库策略保留。",
+        "decision": "keep",
+    }
 
 
 def _repository_text(item: dict[str, Any]) -> str:

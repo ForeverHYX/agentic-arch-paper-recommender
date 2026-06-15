@@ -530,6 +530,65 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(exploration_count, 5)
         self.assertEqual(enriched["judge_summary"]["exploration_limit"], 5)
 
+    def test_enrich_payload_with_judgements_preserves_relevant_repository_items(self):
+        payload = {
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "paper_id": "repo:example/gpu-inference",
+                    "item_type": "repository",
+                    "title": "example/gpu-inference",
+                    "abstract": "LLM inference serving runtime with CUDA GPU scheduling.",
+                    "score": 6.0,
+                    "sections": ["github_arch_ai_infra"],
+                    "repository_url": "https://github.com/example/gpu-inference",
+                    "ai_judgement": {"score": 1, "reason": "不是论文。", "decision": "drop"},
+                },
+                {
+                    "rank": 2,
+                    "paper_id": "paper",
+                    "title": "Architecture Paper",
+                    "abstract": "A microarchitecture simulator paper.",
+                    "score": 5.0,
+                    "ai_judgement": {"score": 8, "reason": "相关。", "decision": "keep"},
+                },
+            ],
+        }
+
+        enriched = enrich_payload_with_judgements(payload, api_key="secret", limit=15)
+
+        ids = [item["paper_id"] for item in enriched["recommendations"]]
+        self.assertIn("repo:example/gpu-inference", ids)
+        repo = next(item for item in enriched["recommendations"] if item.get("item_type") == "repository")
+        self.assertEqual(repo["ai_judgement"]["decision"], "keep")
+        self.assertGreaterEqual(repo["ai_score"], 4.0)
+        self.assertIn("仓库", repo["ai_judgement"]["reason"])
+
+    def test_enrich_payload_with_judgements_caps_repository_items_at_five(self):
+        payload = {
+            "recommendations": [
+                {
+                    "rank": index + 1,
+                    "paper_id": f"repo:example/repo-{index}",
+                    "item_type": "repository",
+                    "title": f"example/repo-{index}",
+                    "abstract": "AI infrastructure runtime for GPU inference.",
+                    "score": 10 - index,
+                    "sections": ["github_arch_ai_infra"],
+                    "repository_url": f"https://github.com/example/repo-{index}",
+                    "ai_judgement": {"score": 9 - index * 0.1, "reason": "相关仓库。", "decision": "keep"},
+                }
+                for index in range(6)
+            ]
+        }
+
+        enriched = enrich_payload_with_judgements(payload, api_key="secret", limit=15)
+
+        repo_count = sum(item.get("item_type") == "repository" for item in enriched["recommendations"])
+        self.assertEqual(repo_count, 5)
+        self.assertEqual(enriched["judge_summary"]["repository_limit"], 5)
+        self.assertEqual(enriched["judge_summary"]["repository_kept_count"], 6)
+
     def test_enrich_payload_with_judgements_requires_api_without_leaking_key(self):
         payload = {
             "recommendations": [
