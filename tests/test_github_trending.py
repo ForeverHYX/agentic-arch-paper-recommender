@@ -1,10 +1,14 @@
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from paper_recommender.domain import InterestProfile, NegativeRule, SectionRule
 from paper_recommender.github_trending import (
     extract_paper_links,
+    main,
     parse_trending_repositories,
-    repository_records_from_search_results,
     repository_records_from_trending_html,
 )
 
@@ -222,55 +226,20 @@ class GitHubTrendingTests(unittest.TestCase):
         )
         self.assertEqual(len(records), 5)
 
-    def test_repository_records_from_search_results_cover_dynamic_trending_fallback(self):
-        profile = InterestProfile(
-            name="Strict Paper Profile",
-            core_categories=frozenset({"cs.AR"}),
-            expansion_categories=frozenset({"cs.AI"}),
-            expansion_accept_score=100.0,
-            sections=(
-                SectionRule(
-                    "paper_only",
-                    "Paper-only",
-                    10.0,
-                    ("unrelated paper phrase",),
-                ),
-            ),
-        )
-        search_results = [
-            {
-                "full_name": "example/gpu-inference",
-                "html_url": "https://github.com/example/gpu-inference",
-                "description": "LLM inference serving runtime for CUDA GPUs.",
-                "language": "Python",
-                "stargazers_count": 1800,
-                "forks_count": 90,
-                "topics": ["llm", "inference", "cuda"],
-                "pushed_at": "2026-06-15T00:00:00Z",
-            },
-            {
-                "full_name": "example/web-agent",
-                "html_url": "https://github.com/example/web-agent",
-                "description": "RAG browser task automation.",
-                "language": "TypeScript",
-                "stargazers_count": 3000,
-                "forks_count": 300,
-                "topics": ["rag", "browser-agent"],
-                "pushed_at": "2026-06-15T00:00:00Z",
-            },
-        ]
+    def test_cli_does_not_use_search_fallback_when_trending_is_empty(self):
+        with TemporaryDirectory() as tmpdir:
+            output_path = f"{tmpdir}/repos.jsonl"
+            with patch("paper_recommender.github_trending.fetch_trending_html", return_value="<html></html>"):
+                with patch("paper_recommender.github_trending.urlopen") as network:
+                    stdout = StringIO()
+                    with redirect_stdout(stdout):
+                        exit_code = main(["--output", output_path, "--limit", "5"])
 
-        records = repository_records_from_search_results(
-            search_results,
-            profile=profile,
-            readme_fetcher=lambda full_name: "CUDA GPU batching for LLM inference serving."
-            if full_name == "example/gpu-inference"
-            else "Browser RAG agent templates.",
-            limit=5,
-        )
-
-        self.assertEqual([record["paper_id"] for record in records], ["repo:example/gpu-inference"])
-        self.assertEqual(records[0]["repository_topics"], ["llm", "inference", "cuda"])
+            self.assertEqual(exit_code, 0)
+            self.assertFalse(network.called)
+            self.assertNotIn("Search", stdout.getvalue())
+            with open(output_path, encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), "")
 
 
 if __name__ == "__main__":
