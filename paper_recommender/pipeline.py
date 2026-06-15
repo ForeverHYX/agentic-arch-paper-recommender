@@ -10,7 +10,16 @@ import re
 from typing import Any
 from urllib.parse import quote_plus
 
-from paper_recommender.domain import Classification, InterestProfile, Paper, classify_paper, load_interest_profile, rank_papers
+from paper_recommender.domain import (
+    Classification,
+    InterestProfile,
+    Paper,
+    REPOSITORY_ARCH_AI_INFRA_LABEL,
+    REPOSITORY_ARCH_AI_INFRA_SECTION,
+    classify_paper,
+    load_interest_profile,
+    rank_papers,
+)
 from paper_recommender.feedback import (
     affiliation_feedback_weights,
     author_feedback_weights,
@@ -228,6 +237,7 @@ def recommendation_payload(
     resolved_run_date = run_date or date.today().isoformat()
     section_labels = dict(resolved_profile.section_labels)
     section_labels[EXPLORATION_SECTION] = EXPLORATION_LABEL
+    section_labels[REPOSITORY_ARCH_AI_INFRA_SECTION] = REPOSITORY_ARCH_AI_INFRA_LABEL
     return {
         "run_date": resolved_run_date,
         "profile_name": resolved_profile.name,

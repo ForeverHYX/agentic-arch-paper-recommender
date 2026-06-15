@@ -189,6 +189,51 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(item["repository_stars_today"], 87)
         self.assertEqual(item["paper_links"], [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}])
 
+    def test_recommendation_payload_accepts_ai_infra_repository_with_looser_threshold(self):
+        profile = InterestProfile(
+            name="Strict Paper Profile",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI"}),
+            expansion_accept_score=100.0,
+            sections=(
+                SectionRule(
+                    "paper_only",
+                    "Paper-only",
+                    10.0,
+                    ("unrelated paper phrase",),
+                ),
+            ),
+        )
+        repository = paper_from_record(
+            {
+                "item_type": "repository",
+                "source": "github_trending",
+                "paper_id": "repo:example/gpu-inference",
+                "title": "example/gpu-inference",
+                "abstract": "LLM inference serving runtime with batching and CUDA GPU scheduling.",
+                "authors": ["example"],
+                "categories": ["github", "Python", "llm", "inference", "cuda"],
+                "url": "https://github.com/example/gpu-inference",
+                "code_urls": ["https://github.com/example/gpu-inference"],
+                "repository_url": "https://github.com/example/gpu-inference",
+                "repository_full_name": "example/gpu-inference",
+                "repository_stars": 1800,
+                "repository_forks": 90,
+                "repository_stars_today": 55,
+                "repository_language": "Python",
+                "repository_topics": ["llm", "inference", "cuda"],
+            }
+        )
+
+        payload = recommendation_payload([repository], "2026-06-15", profile=profile)
+
+        self.assertEqual(payload["count"], 1)
+        item = payload["recommendations"][0]
+        self.assertEqual(item["item_type"], "repository")
+        self.assertEqual(item["paper_id"], "repo:example/gpu-inference")
+        self.assertIn("github_arch_ai_infra", item["sections"])
+        self.assertIn("repository:inference", item["positive_matches"])
+
     def test_recommendation_payload_includes_profile_metadata(self):
         profile = InterestProfile(
             name="Quantum Systems",

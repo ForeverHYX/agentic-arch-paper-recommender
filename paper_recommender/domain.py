@@ -9,6 +9,48 @@ import re
 
 
 DEFAULT_PROFILE_PATH = Path(__file__).resolve().parents[1] / "config" / "interests.json"
+REPOSITORY_ARCH_AI_INFRA_SECTION = "github_arch_ai_infra"
+REPOSITORY_ARCH_AI_INFRA_LABEL = "GitHub Arch / AI Infra"
+REPOSITORY_ARCH_AI_INFRA_KEYWORDS = (
+    "accelerator",
+    "ai accelerator",
+    "ai infra",
+    "ai infrastructure",
+    "asic",
+    "batching",
+    "cache",
+    "cuda",
+    "distributed training",
+    "fpga",
+    "gem5",
+    "gpu",
+    "hardware",
+    "inference",
+    "inference serving",
+    "llm serving",
+    "memory hierarchy",
+    "memory system",
+    "microarchitecture",
+    "ml compiler",
+    "mlir",
+    "npu",
+    "quantization",
+    "ramulator",
+    "risc-v",
+    "runtime",
+    "scheduler",
+    "serving",
+    "simulator",
+    "systemverilog",
+    "tensor",
+    "tensorrt",
+    "training scheduler",
+    "triton",
+    "tvm",
+    "vhdl",
+    "vllm",
+    "xla",
+)
 
 
 @dataclass(frozen=True)
@@ -141,6 +183,7 @@ def classify_paper(paper: Paper, profile: InterestProfile | None = None) -> Clas
     positive_matches: list[str] = []
     negative_matches: list[str] = []
     section_scores: dict[str, float] = {}
+    repository_matches: tuple[str, ...] = ()
 
     for rule in resolved_profile.sections:
         matches = _matching_keywords(text, rule.keywords)
@@ -149,10 +192,18 @@ def classify_paper(paper: Paper, profile: InterestProfile | None = None) -> Clas
         section_scores[rule.id] = len(matches) * rule.weight
         positive_matches.extend(f"{rule.id}:{match}" for match in matches)
 
+    if paper.item_type == "repository":
+        repository_matches = tuple(_matching_keywords(text, REPOSITORY_ARCH_AI_INFRA_KEYWORDS))
+        if repository_matches:
+            section_scores[REPOSITORY_ARCH_AI_INFRA_SECTION] = min(8.0, len(repository_matches) * 1.25)
+            positive_matches.extend(f"repository:{match}" for match in repository_matches)
+
     score = sum(section_scores.values())
 
     for rule in resolved_profile.negative_rules:
         if _negative_rule_matches(text, rule):
+            if paper.item_type == "repository" and repository_matches:
+                continue
             negative_matches.append(rule.id)
             score -= rule.penalty
 
@@ -172,7 +223,7 @@ def classify_paper(paper: Paper, profile: InterestProfile | None = None) -> Clas
 
     accepted = False
     if paper.item_type == "repository":
-        accepted = content_score >= resolved_profile.expansion_accept_score and content_score > 0
+        accepted = bool(repository_matches) and content_score > 0
     elif score > 0 and in_core_category:
         accepted = True
     elif score >= resolved_profile.expansion_accept_score and in_expansion_category and score > 0:

@@ -64,7 +64,7 @@ jobs:
           python -m paper_recommender.github_trending \
             --profile output/interests.json \
             --output output/github_repos.jsonl \
-            --limit 30
+            --limit 5
 
       - name: Fetch Supabase feedback
         if: env.HAS_SUPABASE == 'true'

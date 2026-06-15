@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 import base64
 from dataclasses import dataclass
+from datetime import date, timedelta
 from html import unescape
 import json
 import os
 from pathlib import Path
 import re
 from typing import Any, Callable
+from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 from paper_recommender.domain import InterestProfile, classify_paper, load_interest_profile
@@ -20,6 +22,18 @@ from paper_recommender.summarizer import DEFAULT_USER_AGENT
 
 TRENDING_URL = "https://github.com/trending"
 GITHUB_API_URL = "https://api.github.com"
+SEARCH_FALLBACK_QUERIES = (
+    "llm inference serving",
+    "cuda gpu inference",
+    "ai infrastructure runtime",
+    "mlir compiler accelerator",
+    "triton quantization inference",
+    "distributed training gpu",
+    "gem5 microarchitecture",
+    "risc-v accelerator",
+    "systemverilog rtl",
+    "memory hierarchy simulator",
+)
 
 
 @dataclass(frozen=True)
@@ -88,11 +102,54 @@ def repository_records_from_trending_html(
     limit: int = 25,
     readme_chars: int = 6000,
 ) -> list[dict[str, Any]]:
+    return repository_records_from_repositories(
+        parse_trending_repositories(html),
+        profile=profile,
+        metadata_fetcher=metadata_fetcher,
+        readme_fetcher=readme_fetcher,
+        limit=limit,
+        readme_chars=readme_chars,
+    )
+
+
+def repository_records_from_search_results(
+    results: list[dict[str, Any]],
+    profile: InterestProfile | None = None,
+    readme_fetcher: Callable[[str], str] | None = None,
+    limit: int = 25,
+    readme_chars: int = 6000,
+) -> list[dict[str, Any]]:
+    repositories = []
+    metadata_by_name: dict[str, dict[str, Any]] = {}
+    for item in results:
+        repo = _repository_from_search_result(item)
+        if not repo:
+            continue
+        repositories.append(repo)
+        metadata_by_name[repo.full_name] = item
+    return repository_records_from_repositories(
+        repositories,
+        profile=profile,
+        metadata_fetcher=lambda full_name: metadata_by_name.get(full_name, {}),
+        readme_fetcher=readme_fetcher,
+        limit=limit,
+        readme_chars=readme_chars,
+    )
+
+
+def repository_records_from_repositories(
+    repositories: list[TrendingRepository],
+    profile: InterestProfile | None = None,
+    metadata_fetcher: Callable[[str], dict[str, Any]] | None = None,
+    readme_fetcher: Callable[[str], str] | None = None,
+    limit: int = 25,
+    readme_chars: int = 6000,
+) -> list[dict[str, Any]]:
     resolved_profile = profile or load_interest_profile()
     fetch_metadata = metadata_fetcher or (lambda full_name: {})
     fetch_readme = readme_fetcher or (lambda full_name: "")
     records: list[dict[str, Any]] = []
-    for repo in parse_trending_repositories(html):
+    for repo in repositories:
         metadata = _safe_fetch_metadata(repo.full_name, fetch_metadata)
         readme = _safe_fetch_readme(repo.full_name, fetch_readme)
         record = repository_record(repo, metadata=metadata, readme_text=readme, readme_chars=readme_chars)
@@ -189,6 +246,40 @@ def fetch_repository_readme(
     return base64.b64decode(str(payload["content"])).decode("utf-8", "replace")
 
 
+def fetch_repository_search_results(
+    token: str = "",
+    limit: int = 40,
+    days: int = 7,
+    opener: Callable[..., Any] = urlopen,
+    timeout: int = 60,
+) -> list[dict[str, Any]]:
+    pushed_since = (date.today() - timedelta(days=days)).isoformat()
+    results: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    per_page = min(10, max(5, limit))
+    for query in SEARCH_FALLBACK_QUERIES:
+        search_query = quote_plus(f"{query} pushed:>={pushed_since}")
+        payload = _fetch_github_json(
+            f"{GITHUB_API_URL}/search/repositories?q={search_query}&sort=stars&order=desc&per_page={per_page}",
+            token=token,
+            opener=opener,
+            timeout=timeout,
+        )
+        if not isinstance(payload, dict):
+            continue
+        for item in payload.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            full_name = str(item.get("full_name", "")).strip()
+            if not full_name or full_name in seen:
+                continue
+            seen.add(full_name)
+            results.append(item)
+            if len(results) >= limit:
+                return results
+    return results
+
+
 def write_records_jsonl(records: list[dict[str, Any]], output_path: str | Path) -> None:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -209,19 +300,36 @@ def main(argv: list[str] | None = None) -> int:
 
     profile = load_interest_profile(args.profile) if args.profile else None
     token = os.environ.get("GITHUB_TOKEN", "")
+    records: list[dict[str, Any]] = []
     try:
         html = Path(args.source_file).read_text(encoding="utf-8") if args.source_file else fetch_trending_html(args.since)
-        records = repository_records_from_trending_html(
-            html,
-            profile=profile,
-            metadata_fetcher=lambda full_name: fetch_repository_metadata(full_name, token=token),
-            readme_fetcher=lambda full_name: fetch_repository_readme(full_name, token=token),
-            limit=args.limit,
-            readme_chars=args.readme_chars,
-        )
+        repositories = parse_trending_repositories(html)
+        if repositories:
+            records = repository_records_from_repositories(
+                repositories,
+                profile=profile,
+                metadata_fetcher=lambda full_name: fetch_repository_metadata(full_name, token=token),
+                readme_fetcher=lambda full_name: fetch_repository_readme(full_name, token=token),
+                limit=args.limit,
+                readme_chars=args.readme_chars,
+            )
+        else:
+            print("GitHub Trending 页面未返回仓库列表，尝试 GitHub Search fallback。")
     except Exception as exc:
-        print(f"GitHub Trending 抓取失败，写入空仓库候选：{exc}")
-        records = []
+        print(f"GitHub Trending 抓取失败，尝试 GitHub Search fallback：{exc}")
+    if not records:
+        try:
+            search_results = fetch_repository_search_results(token=token, limit=max(args.limit * 6, args.limit))
+            records = repository_records_from_search_results(
+                search_results,
+                profile=profile,
+                readme_fetcher=lambda full_name: fetch_repository_readme(full_name, token=token),
+                limit=args.limit,
+                readme_chars=args.readme_chars,
+            )
+        except Exception as exc:
+            print(f"GitHub Search fallback 抓取失败，写入空仓库候选：{exc}")
+            records = []
     write_records_jsonl(records, args.output)
     print(f"已写入 {len(records)} 个 GitHub Trending 仓库候选到 {args.output}")
     return 0
@@ -287,6 +395,21 @@ def _safe_fetch_readme(full_name: str, fetcher: Callable[[str], str]) -> str:
         return str(fetcher(full_name) or "")
     except Exception:
         return ""
+
+
+def _repository_from_search_result(item: dict[str, Any]) -> TrendingRepository | None:
+    full_name = str(item.get("full_name", "")).strip()
+    if "/" not in full_name:
+        return None
+    return TrendingRepository(
+        full_name=full_name,
+        url=str(item.get("html_url") or f"https://github.com/{full_name}"),
+        description=_clean_text(str(item.get("description") or "")),
+        language=str(item.get("language") or "").strip(),
+        stars=_int_value(item.get("stargazers_count"), 0),
+        forks=_int_value(item.get("forks_count"), 0),
+        stars_today=0,
+    )
 
 
 def _fetch_github_json(

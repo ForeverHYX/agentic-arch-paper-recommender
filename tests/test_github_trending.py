@@ -4,6 +4,7 @@ from paper_recommender.domain import InterestProfile, NegativeRule, SectionRule
 from paper_recommender.github_trending import (
     extract_paper_links,
     parse_trending_repositories,
+    repository_records_from_search_results,
     repository_records_from_trending_html,
 )
 
@@ -28,6 +29,23 @@ TRENDING_HTML = """
   <a href="/example/web-agent/stargazers">2,000</a>
   <a href="/example/web-agent/forks">200</a>
   <span>120 stars today</span>
+</article>
+"""
+
+
+def trending_article(full_name: str, description: str, language: str = "Python", stars_today: int = 40) -> str:
+    stars = 1000 + stars_today
+    forks = 50 + stars_today
+    return f"""
+<article class="Box-row">
+  <h2 class="h3 lh-condensed">
+    <a href="/{full_name}"><span>{full_name.split('/')[0]} /</span> {full_name.split('/')[1]}</a>
+  </h2>
+  <p class="col-9 color-fg-muted my-1">{description}</p>
+  <span itemprop="programmingLanguage">{language}</span>
+  <a href="/{full_name}/stargazers">{stars:,}</a>
+  <a href="/{full_name}/forks">{forks:,}</a>
+  <span>{stars_today} stars today</span>
 </article>
 """
 
@@ -131,6 +149,128 @@ class GitHubTrendingTests(unittest.TestCase):
         self.assertEqual(record["repository_stars_today"], 87)
         self.assertEqual(record["repository_topics"], ["gem5", "microarchitecture"])
         self.assertEqual(record["paper_links"], [{"label": "arXiv", "url": "https://arxiv.org/abs/2606.00001"}])
+
+    def test_repository_records_use_looser_arch_ai_infra_filter_and_cap_at_five(self):
+        html = "\n".join(
+            [
+                trending_article("example/gpu-inference", "LLM inference serving runtime for CUDA GPUs."),
+                trending_article("example/web-agent", "RAG agent for browser task automation."),
+                trending_article("example/rtl-lab", "SystemVerilog RTL toolkit for RISC-V accelerators."),
+                trending_article("example/mlir-runtime", "MLIR compiler runtime for AI accelerator deployment."),
+                trending_article("example/gem5-tools", "gem5 workflows for memory hierarchy simulation."),
+                trending_article("example/training-scheduler", "Distributed training scheduler for GPU clusters."),
+                trending_article("example/tensor-kernels", "Triton tensor kernels for quantized transformer inference."),
+            ]
+        )
+        strict_paper_profile = InterestProfile(
+            name="Strict Paper Profile",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI"}),
+            expansion_accept_score=100.0,
+            sections=(
+                SectionRule(
+                    "paper_only",
+                    "Paper-only",
+                    10.0,
+                    ("unrelated paper phrase",),
+                ),
+            ),
+            negative_rules=(
+                NegativeRule(
+                    "generic-agent-noise",
+                    6.0,
+                    ("browser task", "rag agent"),
+                ),
+            ),
+        )
+        metadata = {
+            "example/gpu-inference": {"topics": ["llm", "inference", "cuda"], "language": "Python"},
+            "example/web-agent": {"topics": ["rag", "browser-agent"], "language": "TypeScript"},
+            "example/rtl-lab": {"topics": ["systemverilog", "risc-v", "accelerator"], "language": "SystemVerilog"},
+            "example/mlir-runtime": {"topics": ["mlir", "compiler", "runtime"], "language": "C++"},
+            "example/gem5-tools": {"topics": ["gem5", "memory-hierarchy", "simulation"], "language": "Python"},
+            "example/training-scheduler": {"topics": ["distributed-training", "gpu"], "language": "Go"},
+            "example/tensor-kernels": {"topics": ["triton", "quantization", "transformer"], "language": "Python"},
+        }
+        readmes = {
+            "example/gpu-inference": "Serves LLM inference workloads on CUDA GPUs with batching and scheduling.",
+            "example/web-agent": "RAG browser task automation templates.",
+            "example/rtl-lab": "RTL and SystemVerilog components for RISC-V accelerator experiments.",
+            "example/mlir-runtime": "Compiler runtime and MLIR lowering paths for AI accelerators.",
+            "example/gem5-tools": "Tools for gem5 and DRAM memory hierarchy simulation.",
+            "example/training-scheduler": "GPU cluster scheduler for distributed training workloads.",
+            "example/tensor-kernels": "Triton kernels for low-bit transformer inference.",
+        }
+
+        records = repository_records_from_trending_html(
+            html,
+            profile=strict_paper_profile,
+            metadata_fetcher=lambda full_name: metadata[full_name],
+            readme_fetcher=lambda full_name: readmes[full_name],
+            limit=5,
+        )
+
+        self.assertEqual(
+            [record["paper_id"] for record in records],
+            [
+                "repo:example/gpu-inference",
+                "repo:example/rtl-lab",
+                "repo:example/mlir-runtime",
+                "repo:example/gem5-tools",
+                "repo:example/training-scheduler",
+            ],
+        )
+        self.assertEqual(len(records), 5)
+
+    def test_repository_records_from_search_results_cover_dynamic_trending_fallback(self):
+        profile = InterestProfile(
+            name="Strict Paper Profile",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI"}),
+            expansion_accept_score=100.0,
+            sections=(
+                SectionRule(
+                    "paper_only",
+                    "Paper-only",
+                    10.0,
+                    ("unrelated paper phrase",),
+                ),
+            ),
+        )
+        search_results = [
+            {
+                "full_name": "example/gpu-inference",
+                "html_url": "https://github.com/example/gpu-inference",
+                "description": "LLM inference serving runtime for CUDA GPUs.",
+                "language": "Python",
+                "stargazers_count": 1800,
+                "forks_count": 90,
+                "topics": ["llm", "inference", "cuda"],
+                "pushed_at": "2026-06-15T00:00:00Z",
+            },
+            {
+                "full_name": "example/web-agent",
+                "html_url": "https://github.com/example/web-agent",
+                "description": "RAG browser task automation.",
+                "language": "TypeScript",
+                "stargazers_count": 3000,
+                "forks_count": 300,
+                "topics": ["rag", "browser-agent"],
+                "pushed_at": "2026-06-15T00:00:00Z",
+            },
+        ]
+
+        records = repository_records_from_search_results(
+            search_results,
+            profile=profile,
+            readme_fetcher=lambda full_name: "CUDA GPU batching for LLM inference serving."
+            if full_name == "example/gpu-inference"
+            else "Browser RAG agent templates.",
+            limit=5,
+        )
+
+        self.assertEqual([record["paper_id"] for record in records], ["repo:example/gpu-inference"])
+        self.assertEqual(records[0]["repository_topics"], ["llm", "inference", "cuda"])
 
 
 if __name__ == "__main__":

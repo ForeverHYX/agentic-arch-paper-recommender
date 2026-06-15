@@ -36,6 +36,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--max-results 500", workflow)
         self.assertIn("python -m paper_recommender.github_trending", workflow)
         self.assertIn("--output output/github_repos.jsonl", workflow)
+        self.assertIn("--limit 5", workflow)
+        self.assertNotIn("--limit 30", workflow)
         self.assertIn("GITHUB_TOKEN: ${{ github.token }}", workflow)
         self.assertIn("cat output/papers.jsonl output/github_repos.jsonl > output/candidates.jsonl", workflow)
         self.assertIn("--input output/candidates.jsonl", workflow)
