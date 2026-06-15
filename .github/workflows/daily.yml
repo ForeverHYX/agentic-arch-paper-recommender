@@ -189,26 +189,48 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python -m paper_recommender.history publish --recommendations site/recommendations.json
 
-      - name: Prepare liked papers archive checkout
+      - name: Check liked papers archive branch
+        id: favorites_archive_branch
         if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true'
         env:
           LIKED_PAPERS_REPO: ${{ vars.LIKED_PAPERS_REPO }}
           LIKED_PAPERS_REPO_TOKEN: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}
         run: |
           set -euo pipefail
-          ARCHIVE_URL="https://github.com/${LIKED_PAPERS_REPO}.git"
-          AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$LIKED_PAPERS_REPO_TOKEN" | base64 -w 0)"
-          if git -c "http.https://github.com/.extraheader=$AUTH_HEADER" ls-remote --exit-code --heads "$ARCHIVE_URL" main >/dev/null 2>&1; then
-            git -c "http.https://github.com/.extraheader=$AUTH_HEADER" clone --depth 1 --branch main "$ARCHIVE_URL" favorites-archive
+          status="$(curl -sS -o /tmp/favorites-archive-branch.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${LIKED_PAPERS_REPO_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${LIKED_PAPERS_REPO}/branches/main")"
+          if [ "$status" = "200" ]; then
+            echo "has_main=true" >> "$GITHUB_OUTPUT"
+          elif [ "$status" = "404" ]; then
+            echo "has_main=false" >> "$GITHUB_OUTPUT"
           else
-            archive_status=$?
-            if [ "$archive_status" -ne 2 ]; then
-              exit "$archive_status"
-            fi
-            git init -b main favorites-archive
-            git -C favorites-archive remote add origin "$ARCHIVE_URL"
+            cat /tmp/favorites-archive-branch.json
+            exit 1
           fi
-          git -C favorites-archive config --local "http.https://github.com/.extraheader" "$AUTH_HEADER"
+
+      - name: Checkout liked papers archive
+        if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true' && steps.favorites_archive_branch.outputs.has_main == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.LIKED_PAPERS_REPO }}
+          token: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}
+          ref: main
+          path: favorites-archive
+
+      - name: Initialize liked papers archive checkout
+        if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true' && steps.favorites_archive_branch.outputs.has_main != 'true'
+        env:
+          LIKED_PAPERS_REPO: ${{ vars.LIKED_PAPERS_REPO }}
+          LIKED_PAPERS_REPO_TOKEN: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          ARCHIVE_URL="https://github.com/${LIKED_PAPERS_REPO}.git"
+          git init -b main favorites-archive
+          git -C favorites-archive remote add origin "$ARCHIVE_URL"
+          git -C favorites-archive remote set-url origin "https://x-access-token:${LIKED_PAPERS_REPO_TOKEN}@github.com/${LIKED_PAPERS_REPO}.git"
 
       - name: Export liked papers archive
         if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true'
