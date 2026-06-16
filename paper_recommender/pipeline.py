@@ -39,6 +39,33 @@ from paper_recommender.history import RecommendationRun, history_counts, load_hi
 EXPLORATION_SECTION = "exploration"
 EXPLORATION_LABEL = "Exploration / AI+体系结构探索"
 EXPLORATION_CATEGORIES = frozenset({"cs.AI", "cs.LG", "cs.AR", "cs.PF", "cs.DC", "cs.PL"})
+PROFILE_RADAR_AXIS_LIMIT = 8
+PROFILE_RADAR_LABELS = {
+    "ai": "AI",
+    "asic": "ASIC",
+    "cpu": "CPU",
+    "cuda": "CUDA",
+    "fpga": "FPGA",
+    "gem5": "Gem5",
+    "gpu": "GPU",
+    "gpus": "GPUs",
+    "hpc": "HPC",
+    "isa": "ISA",
+    "llm": "LLM",
+    "llms": "LLMs",
+    "llvm": "LLVM",
+    "mlir": "MLIR",
+    "mpi": "MPI",
+    "npu": "NPU",
+    "openmp": "OpenMP",
+    "rag": "RAG",
+    "risc-v": "RISC-V",
+    "rocm": "ROCm",
+    "sycl": "SYCL",
+    "tvm": "TVM",
+    "vllm": "VLLM",
+    "xla": "XLA",
+}
 EXPLORATION_AI_ML_KEYWORDS = (
     "ai model",
     "attention",
@@ -245,6 +272,7 @@ def recommendation_payload(
         "profile_context": {
             "seed_papers": [seed.to_dict() for seed in resolved_profile.seed_papers],
         },
+        "profile_radar": _profile_radar_from_feedback(resolved_feedback_events),
         "feedback_summary": {
             "section_weights": feedback_weights,
             "keyword_weights": keyword_weights,
@@ -259,6 +287,43 @@ def recommendation_payload(
         "count": len(recommendations),
         "recommendations": recommendations,
     }
+
+
+def _profile_radar_from_feedback(events: list[FeedbackEvent], limit: int = PROFILE_RADAR_AXIS_LIMIT) -> dict[str, Any]:
+    keyword_weights = text_feedback_weights(events)
+    toolchain_weights = toolchain_feedback_weights(events)
+    axis_weights: dict[str, float] = {}
+    for source_weights in (keyword_weights, toolchain_weights):
+        for raw_name, weight in source_weights.items():
+            if weight <= 0:
+                continue
+            key = _profile_axis_key(raw_name)
+            if not key:
+                continue
+            axis_weights[key] = axis_weights.get(key, 0.0) + float(weight)
+    axes = [
+        {"label": _profile_axis_label(key), "value": _profile_axis_value(weight)}
+        for key, weight in sorted(axis_weights.items(), key=lambda item: (-item[1], item[0]))[:limit]
+    ]
+    return {
+        "source": "feedback_events",
+        "total_likes": sum(1 for event in events if event.rating == "like"),
+        "axes": axes,
+    }
+
+
+def _profile_axis_key(value: str) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().casefold())
+
+
+def _profile_axis_label(key: str) -> str:
+    if key in PROFILE_RADAR_LABELS:
+        return PROFILE_RADAR_LABELS[key]
+    return " ".join(part[:1].upper() + part[1:] for part in key.replace("-", " ").split())
+
+
+def _profile_axis_value(value: float) -> int | float:
+    return int(value) if float(value).is_integer() else round(float(value), 2)
 
 
 def write_recommendations_json(

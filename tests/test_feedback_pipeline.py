@@ -176,6 +176,61 @@ class FeedbackPipelineTests(unittest.TestCase):
         self.assertIn("gem5", metrics["top_liked_keywords"])
         self.assertIn("browser", metrics["top_disliked_keywords"])
 
+    def test_recommendation_payload_includes_long_term_profile_radar_from_liked_feedback(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.TEST"}),
+            expansion_categories=frozenset(),
+            sections=(SectionRule("arch", "Architecture", 1.0, ("architecture",)),),
+        )
+        current_runtime_paper = Paper(
+            "current-runtime",
+            "Runtime LLM Serving",
+            "runtime inference scheduling for current recommendations",
+            [],
+            ["cs.TEST"],
+        )
+
+        payload = recommendation_payload(
+            [current_runtime_paper],
+            run_date="2026-06-12",
+            profile=profile,
+            feedback_events=[
+                FeedbackEvent(
+                    "old-liked-cache",
+                    "like",
+                    "arch",
+                    title="GPU cache architecture simulation",
+                    abstract="gem5 cache and accelerator memory hierarchy.",
+                ),
+                FeedbackEvent(
+                    "old-liked-systems",
+                    "like",
+                    "arch",
+                    title="Distributed exascale workload scheduling",
+                    abstract="HPC scheduling for distributed workloads.",
+                ),
+                FeedbackEvent(
+                    "old-disliked-runtime",
+                    "dislike",
+                    "arch",
+                    title="Runtime LLM serving",
+                    abstract="runtime inference that should not define positive interests.",
+                ),
+            ],
+        )
+
+        radar = payload["profile_radar"]
+        self.assertEqual(radar["source"], "feedback_events")
+        self.assertEqual(radar["total_likes"], 2)
+        labels = [axis["label"] for axis in radar["axes"]]
+        self.assertGreaterEqual(len(labels), 4)
+        self.assertLessEqual(len(labels), 8)
+        self.assertIn("Cache", labels)
+        self.assertIn("Gem5", labels)
+        self.assertIn("HPC", labels)
+        self.assertNotIn("Runtime", labels)
+
     def test_recommendation_history_penalizes_repeated_papers(self):
         profile = InterestProfile(
             name="Custom",
