@@ -477,6 +477,54 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual([item["paper_id"] for item in enriched["recommendations"]], ["keep"])
         self.assertEqual(enriched["judge_summary"]["dropped_count"], 1)
 
+    def test_enrich_payload_with_judgements_rescues_strong_core_items_dropped_by_model(self):
+        payload = {
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "paper_id": "core-kept",
+                    "title": "Kept Core Architecture Paper",
+                    "abstract": "A microarchitecture simulator paper.",
+                    "score": 8.0,
+                    "sections": ["microarchitecture_simulators"],
+                    "learning_scope": "core",
+                    "ai_judgement": {"score": 8, "reason": "相关。", "decision": "keep"},
+                },
+                {
+                    "rank": 2,
+                    "paper_id": "core-rescue",
+                    "title": "Dropped Core Architecture Paper",
+                    "abstract": "A cycle accurate simulator studies cache hierarchy behavior.",
+                    "score": 7.0,
+                    "sections": ["microarchitecture_simulators"],
+                    "learning_scope": "core",
+                    "negative_matches": [],
+                    "ai_judgement": {"score": 1, "reason": "模型误判为无关。", "decision": "drop"},
+                },
+                {
+                    "rank": 3,
+                    "paper_id": "generic-drop",
+                    "title": "Generic Web Agent",
+                    "abstract": "A browser task benchmark.",
+                    "score": 9.0,
+                    "sections": [],
+                    "learning_scope": "core",
+                    "ai_judgement": {"score": 1, "reason": "泛 agent。", "decision": "drop"},
+                },
+            ],
+        }
+
+        enriched = enrich_payload_with_judgements(payload, api_key="secret", limit=15)
+
+        ids = [item["paper_id"] for item in enriched["recommendations"]]
+        self.assertEqual(ids, ["core-kept", "core-rescue"])
+        rescued = enriched["recommendations"][1]
+        self.assertEqual(rescued["ai_judgement"]["decision"], "keep")
+        self.assertEqual(rescued["ai_score"], 4.0)
+        self.assertTrue(rescued["core_rescued"])
+        self.assertIn("core 保底", rescued["ai_judgement"]["reason"])
+        self.assertEqual(enriched["judge_summary"]["core_rescued_count"], 1)
+
     def test_enrich_payload_with_judgements_caps_ai_infra_inside_final_limit(self):
         recommendations = [
             {

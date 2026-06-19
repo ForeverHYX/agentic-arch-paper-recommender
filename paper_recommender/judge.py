@@ -17,6 +17,9 @@ from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAUL
 
 Judgement = dict[str, Any]
 REPOSITORY_LIMIT = 2
+CORE_RESCUE_MIN_RULE_SCORE = 4.0
+CORE_RESCUE_AI_SCORE = 4.0
+CORE_RESCUE_SECTIONS = frozenset({"agentic_architecture", "full_stack_codesign", "microarchitecture_simulators"})
 
 
 def parse_judgement_response(content: str) -> Judgement:
@@ -156,7 +159,9 @@ def enrich_payload_with_judgements(
     kept = [item for item in judged if item["ai_judgement"]["decision"] != "drop"]
     dropped = [item for item in judged if item["ai_judgement"]["decision"] == "drop"]
     ai_infra_kept = [item for item in kept if _is_ai_infra_item(item)]
-    core = [item for item in kept if not _is_ai_infra_item(item)]
+    core_rescued = [_rescued_core_item(item) for item in dropped if _is_rescuable_core_item(item)]
+    core = [item for item in kept if not _is_ai_infra_item(item)] + core_rescued
+    core.sort(key=_ranking_key)
     repositories = [item for item in ai_infra_kept if _is_repository_item(item)]
     selected_repositories = repositories[:REPOSITORY_LIMIT]
     selected_repository_ids = {str(item.get("paper_id", "")) for item in selected_repositories}
@@ -187,6 +192,7 @@ def enrich_payload_with_judgements(
         "core_kept_count": len(core),
         "exploration_kept_count": len(ai_infra_kept),
         "exploration_selected_count": len(selected_ai_infra),
+        "core_rescued_count": len(core_rescued),
         "repository_limit": REPOSITORY_LIMIT,
         "repository_kept_count": len(repositories),
         "repository_selected_count": len(selected_repositories),
@@ -452,6 +458,33 @@ def _is_ai_infra_item(item: dict[str, Any]) -> bool:
         return True
     sections = {str(section) for section in item.get("sections", [])}
     return bool(sections & {"exploration", "github_arch_ai_infra", "exploratory"})
+
+
+def _is_rescuable_core_item(item: dict[str, Any]) -> bool:
+    if _is_ai_infra_item(item) or _is_repository_item(item):
+        return False
+    sections = {str(section) for section in item.get("sections", [])}
+    if not sections & CORE_RESCUE_SECTIONS:
+        return False
+    if item.get("negative_matches"):
+        return False
+    return _float_value(item.get("score"), 0.0) >= CORE_RESCUE_MIN_RULE_SCORE
+
+
+def _rescued_core_item(item: dict[str, Any]) -> dict[str, Any]:
+    updated = dict(item)
+    original_reason = str((updated.get("ai_judgement") or {}).get("reason", "")).strip()
+    reason = "规则层 core 保底保留"
+    if original_reason:
+        reason = f"{reason}；模型原判断：{original_reason}"
+    updated["ai_judgement"] = {
+        "score": CORE_RESCUE_AI_SCORE,
+        "reason": reason[:240],
+        "decision": "keep",
+    }
+    updated["ai_score"] = CORE_RESCUE_AI_SCORE
+    updated["core_rescued"] = True
+    return updated
 
 
 def _feedback_summary_for_item(item: dict[str, Any], feedback_summary: dict[str, Any]) -> dict[str, Any]:
