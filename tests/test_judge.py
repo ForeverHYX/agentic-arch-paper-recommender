@@ -314,7 +314,8 @@ class JudgeTests(unittest.TestCase):
         system_prompt = seen["body"]["messages"][0]["content"]
         user_prompt = seen["body"]["messages"][1]["content"]
         self.assertIn("exploration", system_prompt)
-        self.assertIn("不要按核心画像过严丢弃", system_prompt)
+        self.assertIn("隔离的小配额探索通道", system_prompt)
+        self.assertIn("纯 LLM 理论", system_prompt)
         self.assertIn("Exploration / AI+体系结构探索", user_prompt)
 
     def test_request_judgement_includes_repository_guidance(self):
@@ -476,7 +477,7 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual([item["paper_id"] for item in enriched["recommendations"]], ["keep"])
         self.assertEqual(enriched["judge_summary"]["dropped_count"], 1)
 
-    def test_enrich_payload_with_judgements_preserves_exploration_quota(self):
+    def test_enrich_payload_with_judgements_caps_ai_infra_inside_final_limit(self):
         recommendations = [
             {
                 "rank": index + 1,
@@ -485,6 +486,7 @@ class JudgeTests(unittest.TestCase):
                 "abstract": "A core microarchitecture paper.",
                 "score": 20 - index,
                 "sections": ["microarchitecture_simulators"],
+                "learning_scope": "core",
             }
             for index in range(17)
         ]
@@ -496,6 +498,7 @@ class JudgeTests(unittest.TestCase):
                 "abstract": "A GPU accelerator runtime for machine learning systems.",
                 "score": 1.0,
                 "sections": ["exploration"],
+                "learning_scope": "ai_infra_exploration",
             }
             for index in range(6)
         )
@@ -518,19 +521,19 @@ class JudgeTests(unittest.TestCase):
             payload,
             api_key="secret",
             limit=15,
-            exploration_limit=5,
+            exploration_limit=3,
             opener=opener,
         )
 
         kept = enriched["recommendations"]
         exploration_count = sum("exploration" in item.get("sections", []) for item in kept)
         core_count = len(kept) - exploration_count
-        self.assertEqual(enriched["count"], 20)
-        self.assertEqual(core_count, 15)
-        self.assertEqual(exploration_count, 5)
-        self.assertEqual(enriched["judge_summary"]["exploration_limit"], 5)
+        self.assertEqual(enriched["count"], 15)
+        self.assertEqual(core_count, 12)
+        self.assertEqual(exploration_count, 3)
+        self.assertEqual(enriched["judge_summary"]["exploration_limit"], 3)
 
-    def test_enrich_payload_with_judgements_preserves_relevant_repository_items(self):
+    def test_enrich_payload_with_judgements_drops_repository_items_when_judge_drops_them(self):
         payload = {
             "recommendations": [
                 {
@@ -541,6 +544,7 @@ class JudgeTests(unittest.TestCase):
                     "abstract": "LLM inference serving runtime with CUDA GPU scheduling.",
                     "score": 6.0,
                     "sections": ["github_arch_ai_infra"],
+                    "learning_scope": "ai_infra_exploration",
                     "repository_url": "https://github.com/example/gpu-inference",
                     "ai_judgement": {"score": 1, "reason": "不是论文。", "decision": "drop"},
                 },
@@ -550,6 +554,7 @@ class JudgeTests(unittest.TestCase):
                     "title": "Architecture Paper",
                     "abstract": "A microarchitecture simulator paper.",
                     "score": 5.0,
+                    "learning_scope": "core",
                     "ai_judgement": {"score": 8, "reason": "相关。", "decision": "keep"},
                 },
             ],
@@ -558,13 +563,10 @@ class JudgeTests(unittest.TestCase):
         enriched = enrich_payload_with_judgements(payload, api_key="secret", limit=15)
 
         ids = [item["paper_id"] for item in enriched["recommendations"]]
-        self.assertIn("repo:example/gpu-inference", ids)
-        repo = next(item for item in enriched["recommendations"] if item.get("item_type") == "repository")
-        self.assertEqual(repo["ai_judgement"]["decision"], "keep")
-        self.assertGreaterEqual(repo["ai_score"], 4.0)
-        self.assertIn("仓库", repo["ai_judgement"]["reason"])
+        self.assertNotIn("repo:example/gpu-inference", ids)
+        self.assertEqual(ids, ["paper"])
 
-    def test_enrich_payload_with_judgements_caps_repository_items_at_five(self):
+    def test_enrich_payload_with_judgements_caps_ai_infra_repository_items(self):
         payload = {
             "recommendations": [
                 {
@@ -575,6 +577,7 @@ class JudgeTests(unittest.TestCase):
                     "abstract": "AI infrastructure runtime for GPU inference.",
                     "score": 10 - index,
                     "sections": ["github_arch_ai_infra"],
+                    "learning_scope": "ai_infra_exploration",
                     "repository_url": f"https://github.com/example/repo-{index}",
                     "ai_judgement": {"score": 9 - index * 0.1, "reason": "相关仓库。", "decision": "keep"},
                 }
@@ -582,12 +585,13 @@ class JudgeTests(unittest.TestCase):
             ]
         }
 
-        enriched = enrich_payload_with_judgements(payload, api_key="secret", limit=15)
+        enriched = enrich_payload_with_judgements(payload, api_key="secret", limit=15, exploration_limit=3)
 
         repo_count = sum(item.get("item_type") == "repository" for item in enriched["recommendations"])
-        self.assertEqual(repo_count, 5)
-        self.assertEqual(enriched["judge_summary"]["repository_limit"], 5)
+        self.assertEqual(repo_count, 2)
+        self.assertEqual(enriched["judge_summary"]["repository_limit"], 2)
         self.assertEqual(enriched["judge_summary"]["repository_kept_count"], 6)
+        self.assertEqual(enriched["judge_summary"]["repository_selected_count"], 2)
 
     def test_enrich_payload_with_judgements_requires_api_without_leaking_key(self):
         payload = {

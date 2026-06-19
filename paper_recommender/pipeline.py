@@ -21,10 +21,13 @@ from paper_recommender.domain import (
     rank_papers,
 )
 from paper_recommender.feedback import (
+    AI_INFRA_LEARNING_SCOPE,
     affiliation_feedback_weights,
     author_feedback_weights,
+    CORE_LEARNING_SCOPE,
     entity_feedback_adjustment,
     FeedbackEvent,
+    feedback_events_for_learning_scope,
     feedback_metrics,
     load_feedback_json,
     section_feedback_weights,
@@ -39,6 +42,7 @@ from paper_recommender.history import RecommendationRun, history_counts, load_hi
 EXPLORATION_SECTION = "exploration"
 EXPLORATION_LABEL = "Exploration / AI+体系结构探索"
 EXPLORATION_CATEGORIES = frozenset({"cs.AI", "cs.LG", "cs.AR", "cs.PF", "cs.DC", "cs.PL"})
+STRONG_CORE_SECTION_IDS = frozenset({"agentic_architecture", "full_stack_codesign", "microarchitecture_simulators"})
 PROFILE_RADAR_AXIS_LIMIT = 8
 PROFILE_RADAR_LABELS = {
     "ai": "AI",
@@ -96,18 +100,74 @@ EXPLORATION_SYSTEMS_KEYWORDS = (
     "interconnect",
     "int8",
     "bitwidth",
+    "cxl",
+    "distributed inference",
+    "distributed training",
     "low-bit",
     "machine learning systems",
     "memory hierarchy",
+    "model parallelism",
+    "model-parallelism",
     "ml compiler",
+    "multi-gpu",
     "performance model",
     "quantization",
+    "rdma",
     "runtime",
+    "scheduler",
     "serving system",
     "systolic",
     "systems for machine learning",
     "tensor",
+    "triton",
     "training system",
+)
+EXPLORATION_HARD_SYSTEMS_KEYWORDS = (
+    "accelerator",
+    "asic",
+    "compiler",
+    "consumer gpu",
+    "cuda",
+    "cxl",
+    "distributed inference",
+    "distributed training",
+    "energy efficient",
+    "fpga",
+    "gpu",
+    "hardware",
+    "hardware aware",
+    "hardware-aware",
+    "inference serving",
+    "interconnect",
+    "machine learning systems",
+    "memory hierarchy",
+    "ml compiler",
+    "model parallelism",
+    "model-parallelism",
+    "multi-gpu",
+    "performance model",
+    "rdma",
+    "runtime",
+    "scheduler",
+    "serving system",
+    "systems for machine learning",
+    "training system",
+    "triton",
+)
+AI_INFRA_TOPIC_KEYWORDS = (
+    "attention",
+    "foundation model",
+    "inference",
+    "inference serving",
+    "kv cache",
+    "language model",
+    "llm",
+    "llms",
+    "model parallelism",
+    "model-parallelism",
+    "serving",
+    "transformer",
+    "vllm",
 )
 
 
@@ -182,11 +242,18 @@ def recommendation_payload(
 ) -> dict[str, Any]:
     resolved_profile = profile or load_interest_profile()
     resolved_feedback_events = feedback_events or []
-    feedback_weights = section_feedback_weights(resolved_feedback_events)
-    keyword_weights = text_feedback_weights(resolved_feedback_events)
-    author_weights = author_feedback_weights(resolved_feedback_events)
-    affiliation_weights = affiliation_feedback_weights(resolved_feedback_events)
-    toolchain_weights = toolchain_feedback_weights(resolved_feedback_events)
+    core_feedback_events = feedback_events_for_learning_scope(resolved_feedback_events, CORE_LEARNING_SCOPE)
+    ai_infra_feedback_events = feedback_events_for_learning_scope(resolved_feedback_events, AI_INFRA_LEARNING_SCOPE)
+    feedback_weights = section_feedback_weights(core_feedback_events)
+    keyword_weights = text_feedback_weights(core_feedback_events)
+    author_weights = author_feedback_weights(core_feedback_events)
+    affiliation_weights = affiliation_feedback_weights(core_feedback_events)
+    toolchain_weights = toolchain_feedback_weights(core_feedback_events)
+    ai_infra_feedback_weights = section_feedback_weights(ai_infra_feedback_events)
+    ai_infra_keyword_weights = text_feedback_weights(ai_infra_feedback_events)
+    ai_infra_author_weights = author_feedback_weights(ai_infra_feedback_events)
+    ai_infra_affiliation_weights = affiliation_feedback_weights(ai_infra_feedback_events)
+    ai_infra_toolchain_weights = toolchain_feedback_weights(ai_infra_feedback_events)
     shown_counts = history_counts(history_runs or [])
     ranked = _apply_feedback_weights(
         rank_papers(papers, profile=resolved_profile),
@@ -218,11 +285,11 @@ def recommendation_payload(
             papers,
             resolved_profile,
             exploration_count,
-            feedback_weights,
-            keyword_weights,
-            author_weights,
-            affiliation_weights,
-            toolchain_weights,
+            ai_infra_feedback_weights,
+            ai_infra_keyword_weights,
+            ai_infra_author_weights,
+            ai_infra_affiliation_weights,
+            ai_infra_toolchain_weights,
             shown_counts,
         )
 
@@ -258,6 +325,7 @@ def recommendation_payload(
                 "sections": list(result.sections),
                 "positive_matches": list(result.positive_matches),
                 "negative_matches": list(result.negative_matches),
+                "learning_scope": _learning_scope_for_classification(result, resolved_profile),
             }
         )
 
@@ -272,14 +340,25 @@ def recommendation_payload(
         "profile_context": {
             "seed_papers": [seed.to_dict() for seed in resolved_profile.seed_papers],
         },
-        "profile_radar": _profile_radar_from_feedback(resolved_feedback_events),
+        "profile_radar": _profile_radar_from_feedback(core_feedback_events),
         "feedback_summary": {
+            "learning_scope": CORE_LEARNING_SCOPE,
             "section_weights": feedback_weights,
             "keyword_weights": keyword_weights,
             "author_weights": author_weights,
             "affiliation_weights": affiliation_weights,
             "toolchain_weights": toolchain_weights,
-            "metrics": feedback_metrics(resolved_feedback_events),
+            "metrics": feedback_metrics(core_feedback_events),
+            "all_metrics": feedback_metrics(resolved_feedback_events),
+            "ai_infra_exploration": {
+                "learning_scope": AI_INFRA_LEARNING_SCOPE,
+                "section_weights": ai_infra_feedback_weights,
+                "keyword_weights": ai_infra_keyword_weights,
+                "author_weights": ai_infra_author_weights,
+                "affiliation_weights": ai_infra_affiliation_weights,
+                "toolchain_weights": ai_infra_toolchain_weights,
+                "metrics": feedback_metrics(ai_infra_feedback_events),
+            },
         },
         "history_summary": {
             "shown_counts": shown_counts,
@@ -694,9 +773,40 @@ def _matching_exploration_keywords(paper: Paper) -> tuple[str, ...]:
     systems_matches = tuple(
         keyword for keyword in EXPLORATION_SYSTEMS_KEYWORDS if _keyword_matches_text(text, keyword)
     )
-    if not ai_matches or not systems_matches:
+    hard_systems_matches = tuple(
+        keyword for keyword in EXPLORATION_HARD_SYSTEMS_KEYWORDS if _keyword_matches_text(text, keyword)
+    )
+    if not ai_matches or not systems_matches or not hard_systems_matches:
         return ()
     return ai_matches + systems_matches
+
+
+def _learning_scope_for_classification(result: Classification, profile: InterestProfile) -> str:
+    sections = set(result.sections)
+    if EXPLORATION_SECTION in sections or "exploratory" in sections:
+        return AI_INFRA_LEARNING_SCOPE
+    profile_section_ids = {section.id for section in profile.sections}
+    if REPOSITORY_ARCH_AI_INFRA_SECTION in sections and not sections & profile_section_ids:
+        return AI_INFRA_LEARNING_SCOPE
+    if _looks_like_ai_infra_without_strong_core_anchor(result.paper, sections):
+        return AI_INFRA_LEARNING_SCOPE
+    return CORE_LEARNING_SCOPE
+
+
+def _looks_like_ai_infra_without_strong_core_anchor(paper: Paper, sections: set[str]) -> bool:
+    if sections & STRONG_CORE_SECTION_IDS:
+        return False
+    text = _normalize_for_matching(
+        " ".join(
+            [
+                paper.title,
+                paper.abstract,
+                " ".join(paper.categories),
+                " ".join(paper.repository_topics),
+            ]
+        )
+    )
+    return any(_keyword_matches_text(text, keyword) for keyword in AI_INFRA_TOPIC_KEYWORDS)
 
 
 def _normalize_for_matching(value: str) -> str:

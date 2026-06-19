@@ -159,6 +159,24 @@ class DomainScoringTests(unittest.TestCase):
         self.assertNotIn("hpc_cross_over", result.sections)
         self.assertFalse(any(match == "hpc_cross_over:mpi" for match in result.positive_matches))
 
+    def test_repository_runtime_keyword_alone_is_not_arch_ai_infra(self):
+        paper = Paper(
+            paper_id="repo:example/runtime-tool",
+            title="example/runtime-tool",
+            abstract="A developer runtime for codebase memory and MCP workflows.",
+            authors=["example"],
+            categories=["github", "TypeScript"],
+            item_type="repository",
+            source="github_trending",
+            repository_stars_today=120,
+            repository_topics=["runtime", "mcp"],
+        )
+
+        result = classify_paper(paper)
+
+        self.assertFalse(result.accepted)
+        self.assertNotIn("github_arch_ai_infra", result.sections)
+
 
 if __name__ == "__main__":
     unittest.main()

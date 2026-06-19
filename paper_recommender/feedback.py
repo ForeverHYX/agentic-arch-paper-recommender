@@ -15,6 +15,57 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
+CORE_LEARNING_SCOPE = "core"
+AI_INFRA_LEARNING_SCOPE = "ai_infra_exploration"
+VALID_LEARNING_SCOPES = frozenset({CORE_LEARNING_SCOPE, AI_INFRA_LEARNING_SCOPE})
+AI_INFRA_LEARNING_SECTIONS = frozenset({"exploration", "github_arch_ai_infra", "exploratory"})
+AI_INFRA_TOPIC_KEYWORDS = (
+    "attention",
+    "foundation model",
+    "inference",
+    "inference serving",
+    "kv cache",
+    "language model",
+    "llm",
+    "llms",
+    "model parallelism",
+    "model-parallelism",
+    "serving",
+    "training system",
+    "transformer",
+    "vllm",
+)
+CORE_INTEREST_ANCHORS = (
+    "accelerator simulation",
+    "accel-sim",
+    "architecture design space exploration",
+    "architecture simulator",
+    "branch predictor",
+    "cache coherence",
+    "cache hierarchy",
+    "cache replacement",
+    "champsim",
+    "computer architecture",
+    "cycle-accurate",
+    "data prefetcher",
+    "gem5",
+    "gpgpu-sim",
+    "hardware design agent",
+    "hardware software co-design",
+    "isa extension",
+    "memory hierarchy",
+    "microarchitecture",
+    "microarchitectural",
+    "near-memory",
+    "pim",
+    "prefetching",
+    "processing-in-memory",
+    "ramulator",
+    "risc-v",
+    "simulator",
+)
+
+
 STOPWORDS = frozenset(
     {
         "able",
@@ -250,6 +301,7 @@ class FeedbackEvent:
     categories: tuple[str, ...] = ()
     repository_url: str = ""
     paper_links: tuple[dict[str, str], ...] = ()
+    learning_scope: str = ""
 
     def __post_init__(self) -> None:
         item_type = str(self.item_type or "paper").strip().lower()
@@ -260,6 +312,10 @@ class FeedbackEvent:
         object.__setattr__(self, "affiliations", tuple(self.affiliations))
         object.__setattr__(self, "categories", tuple(self.categories))
         object.__setattr__(self, "paper_links", tuple(_paper_links(self.paper_links)))
+        learning_scope = str(self.learning_scope or "").strip().lower()
+        if learning_scope not in VALID_LEARNING_SCOPES:
+            learning_scope = ""
+        object.__setattr__(self, "learning_scope", learning_scope)
 
 
 def feedback_events_from_records(records: list[dict[str, Any]]) -> list[FeedbackEvent]:
@@ -285,6 +341,7 @@ def feedback_events_from_records(records: list[dict[str, Any]]) -> list[Feedback
                 categories=tuple(_string_list(record.get("categories", []))),
                 repository_url=str(record.get("repository_url", "")).strip(),
                 paper_links=tuple(_paper_links(record.get("paper_links", []))),
+                learning_scope=str(record.get("learning_scope", "")).strip(),
             )
         )
     return events
@@ -312,6 +369,27 @@ def section_feedback_weights(events: list[FeedbackEvent]) -> dict[str, float]:
             continue
         weights[event.section] += 1.0 if event.rating == "like" else -1.0
     return dict(weights)
+
+
+def learning_scope_for_event(event: FeedbackEvent) -> str:
+    if event.learning_scope in VALID_LEARNING_SCOPES:
+        return event.learning_scope
+    section = str(event.section or "").strip()
+    if section in AI_INFRA_LEARNING_SECTIONS:
+        return AI_INFRA_LEARNING_SCOPE
+    text = _normalize_learning_text(" ".join([event.title, event.abstract, " ".join(event.categories)]))
+    if _contains_learning_keyword(text, AI_INFRA_TOPIC_KEYWORDS) and not _contains_learning_keyword(
+        text, CORE_INTEREST_ANCHORS
+    ):
+        return AI_INFRA_LEARNING_SCOPE
+    return CORE_LEARNING_SCOPE
+
+
+def feedback_events_for_learning_scope(events: list[FeedbackEvent], learning_scope: str) -> list[FeedbackEvent]:
+    normalized_scope = str(learning_scope or CORE_LEARNING_SCOPE).strip().lower()
+    if normalized_scope not in VALID_LEARNING_SCOPES:
+        normalized_scope = CORE_LEARNING_SCOPE
+    return [event for event in events if learning_scope_for_event(event) == normalized_scope]
 
 
 def text_feedback_weights(events: list[FeedbackEvent]) -> dict[str, float]:
@@ -453,6 +531,7 @@ def write_feedback_json(events: list[FeedbackEvent], path: str | Path) -> None:
             "categories": list(event.categories),
             "repository_url": event.repository_url,
             "paper_links": list(event.paper_links),
+            "learning_scope": event.learning_scope or learning_scope_for_event(event),
         }
         for event in events
     ]
@@ -579,6 +658,23 @@ def _toolchain_terms(text: str) -> set[str]:
                 matches.add(canonical)
                 break
     return matches
+
+
+def _normalize_learning_text(value: str) -> str:
+    return re.sub(r"\s+", " ", str(value or "").casefold()).strip()
+
+
+def _contains_learning_keyword(text: str, keywords: tuple[str, ...]) -> bool:
+    return any(_learning_keyword_matches(text, keyword) for keyword in keywords)
+
+
+def _learning_keyword_matches(text: str, keyword: str) -> bool:
+    normalized = _normalize_learning_text(keyword)
+    if not normalized:
+        return False
+    if re.fullmatch(r"[a-z0-9][a-z0-9.+#-]{0,4}", normalized):
+        return re.search(rf"\b{re.escape(normalized)}\b", text) is not None
+    return normalized in text
 
 
 if __name__ == "__main__":

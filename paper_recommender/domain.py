@@ -51,6 +51,35 @@ REPOSITORY_ARCH_AI_INFRA_KEYWORDS = (
     "vllm",
     "xla",
 )
+REPOSITORY_ARCH_AI_INFRA_HARD_KEYWORDS = (
+    "accelerator",
+    "ai accelerator",
+    "asic",
+    "cuda",
+    "cxl",
+    "fpga",
+    "gem5",
+    "gpu",
+    "hardware",
+    "interconnect",
+    "memory hierarchy",
+    "memory system",
+    "microarchitecture",
+    "ml compiler",
+    "mlir",
+    "npu",
+    "ramulator",
+    "rdma",
+    "risc-v",
+    "rocm",
+    "simulator",
+    "systemverilog",
+    "tensorrt",
+    "triton",
+    "tvm",
+    "vhdl",
+    "xla",
+)
 
 
 @dataclass(frozen=True)
@@ -184,6 +213,7 @@ def classify_paper(paper: Paper, profile: InterestProfile | None = None) -> Clas
     negative_matches: list[str] = []
     section_scores: dict[str, float] = {}
     repository_matches: tuple[str, ...] = ()
+    repository_hard_matches: tuple[str, ...] = ()
 
     for rule in resolved_profile.sections:
         matches = _matching_keywords(text, rule.keywords)
@@ -193,10 +223,14 @@ def classify_paper(paper: Paper, profile: InterestProfile | None = None) -> Clas
         positive_matches.extend(f"{rule.id}:{match}" for match in matches)
 
     if paper.item_type == "repository":
-        repository_matches = tuple(_matching_keywords(text, REPOSITORY_ARCH_AI_INFRA_KEYWORDS))
-        if repository_matches:
+        all_repository_matches = tuple(_matching_keywords(text, REPOSITORY_ARCH_AI_INFRA_KEYWORDS))
+        repository_hard_matches = tuple(_matching_keywords(text, REPOSITORY_ARCH_AI_INFRA_HARD_KEYWORDS))
+        if all_repository_matches and repository_hard_matches:
+            repository_matches = all_repository_matches
             section_scores[REPOSITORY_ARCH_AI_INFRA_SECTION] = min(8.0, len(repository_matches) * 1.25)
             positive_matches.extend(f"repository:{match}" for match in repository_matches)
+        elif all_repository_matches:
+            positive_matches.extend(f"repository_weak:{match}" for match in all_repository_matches)
 
     score = sum(section_scores.values())
 

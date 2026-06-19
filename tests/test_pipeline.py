@@ -5,10 +5,13 @@ from pathlib import Path
 
 from paper_recommender.domain import InterestProfile, SectionRule, SeedPaper
 from paper_recommender.pipeline import (
+    AI_INFRA_LEARNING_SCOPE,
+    CORE_LEARNING_SCOPE,
     load_papers_jsonl,
     paper_from_record,
     recommendation_payload,
 )
+from paper_recommender.feedback import FeedbackEvent
 
 
 class PipelineTests(unittest.TestCase):
@@ -446,6 +449,54 @@ class PipelineTests(unittest.TestCase):
         )
         self.assertEqual(payload["section_labels"]["exploration"], "Exploration / AI+体系结构探索")
 
+    def test_feedback_summary_keeps_ai_infra_feedback_separate_from_core_profile(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI"}),
+            sections=(
+                SectionRule("microarchitecture_simulators", "Simulator", 3.0, ("gem5", "cache replacement")),
+            ),
+        )
+        paper = paper_from_record(
+            {
+                "paper_id": "core",
+                "title": "gem5 Cache Replacement Study",
+                "abstract": "Cycle accurate microarchitecture simulation for memory hierarchy.",
+                "authors": [],
+                "categories": ["cs.AR"],
+            }
+        )
+        feedback_events = [
+            FeedbackEvent(
+                "liked-ai-infra",
+                "like",
+                "exploration",
+                title="GPU LLM Serving Runtime",
+                abstract="Inference serving with CUDA GPU scheduling and KV cache management.",
+            ),
+            FeedbackEvent(
+                "liked-core",
+                "like",
+                "microarchitecture_simulators",
+                title="gem5 cache replacement",
+                abstract="Microarchitecture simulation for memory hierarchy.",
+            ),
+        ]
+
+        payload = recommendation_payload([paper], "2026-06-19", profile=profile, feedback_events=feedback_events)
+
+        self.assertEqual(payload["recommendations"][0]["learning_scope"], CORE_LEARNING_SCOPE)
+        self.assertNotIn("llm", payload["feedback_summary"]["keyword_weights"])
+        self.assertIn("gem5", payload["feedback_summary"]["keyword_weights"])
+        self.assertIn("llm", payload["feedback_summary"]["ai_infra_exploration"]["keyword_weights"])
+        self.assertEqual(payload["feedback_summary"]["learning_scope"], CORE_LEARNING_SCOPE)
+        self.assertEqual(
+            payload["feedback_summary"]["ai_infra_exploration"]["learning_scope"],
+            AI_INFRA_LEARNING_SCOPE,
+        )
+        self.assertEqual(payload["profile_radar"]["total_likes"], 1)
+
     def test_exploration_requires_ai_ml_and_systems_signals(self):
         profile = InterestProfile(
             name="Custom",
@@ -480,9 +531,18 @@ class PipelineTests(unittest.TestCase):
                 "categories": ["cs.LG"],
             }
         )
+        theory_only = paper_from_record(
+            {
+                "paper_id": "theory-only",
+                "title": "Transformer Attention Scaling Theory for Language Models",
+                "abstract": "A quantization-aware theory of transformer attention without systems evaluation.",
+                "authors": [],
+                "categories": ["cs.LG"],
+            }
+        )
 
         payload = recommendation_payload(
-            [good, runtime_only, ml_only],
+            [good, runtime_only, ml_only, theory_only],
             "2026-06-14",
             exploration_count=5,
             profile=profile,
@@ -490,6 +550,7 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual([item["paper_id"] for item in payload["recommendations"]], ["gpu-llm-serving"])
         self.assertEqual(payload["recommendations"][0]["sections"], ["exploration"])
+        self.assertEqual(payload["recommendations"][0]["learning_scope"], AI_INFRA_LEARNING_SCOPE)
 
 
 if __name__ == "__main__":

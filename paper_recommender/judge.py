@@ -10,12 +10,13 @@ import re
 from typing import Any, Callable
 from urllib.request import Request, urlopen
 
+from paper_recommender.feedback import AI_INFRA_LEARNING_SCOPE, CORE_LEARNING_SCOPE
 from paper_recommender.llm_errors import LLMProviderError, format_llm_error
 from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_USER_AGENT
 
 
 Judgement = dict[str, Any]
-REPOSITORY_LIMIT = 5
+REPOSITORY_LIMIT = 2
 
 
 def parse_judgement_response(content: str) -> Judgement:
@@ -140,15 +141,13 @@ def enrich_payload_with_judgements(
                 api_key=api_key,
                 profile_name=profile_name,
                 section_labels=section_labels,
-                feedback_summary=feedback_summary,
+                feedback_summary=_feedback_summary_for_item(updated, feedback_summary),
                 seed_papers=seed_papers,
                 base_url=base_url,
                 model=model,
                 opener=opener,
                 require_api=require_api,
             )
-        if _is_rule_relevant_repository(updated) and judgement["decision"] == "drop":
-            judgement = _preserved_repository_judgement(judgement)
         updated["ai_judgement"] = judgement
         updated["ai_score"] = judgement["score"]
         judged.append(updated)
@@ -156,25 +155,21 @@ def enrich_payload_with_judgements(
     judged.sort(key=_ranking_key)
     kept = [item for item in judged if item["ai_judgement"]["decision"] != "drop"]
     dropped = [item for item in judged if item["ai_judgement"]["decision"] == "drop"]
-    repositories = [item for item in kept if _is_repository_item(item)]
+    ai_infra_kept = [item for item in kept if _is_ai_infra_item(item)]
+    core = [item for item in kept if not _is_ai_infra_item(item)]
+    repositories = [item for item in ai_infra_kept if _is_repository_item(item)]
     selected_repositories = repositories[:REPOSITORY_LIMIT]
     selected_repository_ids = {str(item.get("paper_id", "")) for item in selected_repositories}
-    non_repository_kept = [
+    non_repository_ai_infra = [
         item
-        for item in kept
+        for item in ai_infra_kept
         if not _is_repository_item(item) and str(item.get("paper_id", "")) not in selected_repository_ids
     ]
-    core_limit = max(0, limit - len(selected_repositories))
-    if exploration_limit > 0:
-        exploration = [item for item in non_repository_kept if _is_exploration_item(item)]
-        core = [item for item in non_repository_kept if not _is_exploration_item(item)]
-        selected = selected_repositories + core[:core_limit] + exploration[:exploration_limit]
-        selected.sort(key=_ranking_key)
-    else:
-        exploration = [item for item in non_repository_kept if _is_exploration_item(item)]
-        core = [item for item in non_repository_kept if not _is_exploration_item(item)]
-        selected = selected_repositories + core[:core_limit]
-        selected.sort(key=_ranking_key)
+    ai_infra_limit = max(0, exploration_limit)
+    selected_ai_infra = (selected_repositories + non_repository_ai_infra)[:ai_infra_limit]
+    core_limit = max(0, limit - len(selected_ai_infra))
+    selected = core[:core_limit] + selected_ai_infra
+    selected.sort(key=_ranking_key)
     for rank, item in enumerate(selected, start=1):
         item["rank"] = rank
 
@@ -187,10 +182,11 @@ def enrich_payload_with_judgements(
         "kept_count": len(kept),
         "dropped_count": len(dropped),
         "limit": limit,
-        "core_limit": limit,
+        "core_limit": core_limit,
         "exploration_limit": exploration_limit,
         "core_kept_count": len(core),
-        "exploration_kept_count": len(exploration),
+        "exploration_kept_count": len(ai_infra_kept),
+        "exploration_selected_count": len(selected_ai_infra),
         "repository_limit": REPOSITORY_LIMIT,
         "repository_kept_count": len(repositories),
         "repository_selected_count": len(selected_repositories),
@@ -298,8 +294,9 @@ def _system_prompt_for_item(item: dict[str, Any]) -> str:
         f"{repository_guidance}"
         "当 Current rule sections 包含 exploration 时，它属于额外 exploration 板块，目标是发现"
         "和当前画像不完全重合但可能值得关注的 AI/ML 系统、加速器、GPU、编译器、运行时、"
-        "推理服务、训练系统或硬件感知机器学习论文；不要按核心画像过严丢弃，只有纯应用、"
-        "纯 benchmark、泛 Web/RAG agent 或完全缺少系统/硬件线索时才 drop。"
+        "推理服务、训练系统或硬件感知机器学习论文；这是隔离的小配额探索通道，不代表主画像。"
+        "只有存在 GPU/CUDA/加速器/编译器/运行时/调度/内存层次/互连等系统线索时才保留；纯 LLM 理论、"
+        "纯应用、纯 benchmark、泛 Web/RAG agent 或完全缺少系统/硬件线索时 drop。"
         "仅在论文明显无关、过泛或质量过低时使用 decision=drop。"
         "只返回一行 JSON，不要 Markdown，不要解释。"
         "JSON keys 必须是 score, reason, decision；score 是 0-10；"
@@ -309,24 +306,6 @@ def _system_prompt_for_item(item: dict[str, Any]) -> str:
 
 def _is_repository_item(item: dict[str, Any]) -> bool:
     return str(item.get("item_type", "")).strip().lower() == "repository"
-
-
-def _is_rule_relevant_repository(item: dict[str, Any]) -> bool:
-    if not _is_repository_item(item):
-        return False
-    sections = {str(section) for section in item.get("sections", [])}
-    if "github_arch_ai_infra" in sections:
-        return True
-    return any(str(match).startswith("repository:") for match in item.get("positive_matches", []))
-
-
-def _preserved_repository_judgement(judgement: Judgement) -> Judgement:
-    score = max(4.0, _float_value(judgement.get("score"), 0.0))
-    return {
-        "score": score,
-        "reason": "仓库已通过 arch/AI infra 规则，按宽松仓库策略保留。",
-        "decision": "keep",
-    }
 
 
 def _repository_text(item: dict[str, Any]) -> str:
@@ -465,8 +444,27 @@ def _ranking_key(item: dict[str, Any]) -> tuple[float, float, str]:
     )
 
 
-def _is_exploration_item(item: dict[str, Any]) -> bool:
-    return "exploration" in {str(section) for section in item.get("sections", [])}
+def _is_ai_infra_item(item: dict[str, Any]) -> bool:
+    scope = str(item.get("learning_scope", "")).strip().lower()
+    if scope == CORE_LEARNING_SCOPE:
+        return False
+    if scope == AI_INFRA_LEARNING_SCOPE:
+        return True
+    sections = {str(section) for section in item.get("sections", [])}
+    return bool(sections & {"exploration", "github_arch_ai_infra", "exploratory"})
+
+
+def _feedback_summary_for_item(item: dict[str, Any], feedback_summary: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(feedback_summary, dict):
+        return {}
+    if _is_ai_infra_item(item):
+        ai_infra_summary = feedback_summary.get(AI_INFRA_LEARNING_SCOPE)
+        if isinstance(ai_infra_summary, dict):
+            return ai_infra_summary
+        legacy_summary = feedback_summary.get("ai_infra_exploration")
+        if isinstance(legacy_summary, dict):
+            return legacy_summary
+    return feedback_summary
 
 
 def _section_text(item: dict[str, Any], section_labels: dict[str, str]) -> str:

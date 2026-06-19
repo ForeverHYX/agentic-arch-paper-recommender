@@ -100,7 +100,7 @@ jobs:
             --run-date "$(date -u +%F)" \
             --limit 45 \
             --min-count 45 \
-            --exploration-count 30
+            --exploration-count 12
 
       - name: Judge recommendations with LLM
         env:
@@ -115,7 +115,7 @@ jobs:
           python -m paper_recommender.judge \
             --input site/recommendations.json \
             --output site/recommendations.json \
-            --limit 15 --exploration-limit 5 $REQUIRE_API
+            --limit 15 --exploration-limit 3 $REQUIRE_API
 
       - name: Enrich author affiliations
         run: |

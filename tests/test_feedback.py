@@ -6,13 +6,17 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 from paper_recommender.feedback import (
+    AI_INFRA_LEARNING_SCOPE,
+    CORE_LEARNING_SCOPE,
     FeedbackEvent,
     author_feedback_weights,
     affiliation_feedback_weights,
     feedback_events_from_records,
     feedback_events_from_json_text,
+    feedback_events_for_learning_scope,
     fetch_feedback_events,
     feedback_metrics,
+    learning_scope_for_event,
     load_feedback_json,
     section_feedback_weights,
     text_feedback_weights,
@@ -103,6 +107,37 @@ class FeedbackTests(unittest.TestCase):
 
         self.assertEqual(weights["agentic_architecture"], 2.0)
         self.assertEqual(weights["hpc_cross_over"], -1.0)
+
+    def test_learning_scope_keeps_ai_infra_feedback_out_of_core_profile(self):
+        events = [
+            FeedbackEvent(
+                "ai-infra",
+                "like",
+                "exploration",
+                "page",
+                title="GPU LLM Serving Runtime",
+                abstract="Inference serving with CUDA GPU scheduling and KV cache management.",
+            ),
+            FeedbackEvent(
+                "core",
+                "like",
+                "microarchitecture_simulators",
+                "page",
+                title="gem5 Cache Replacement Exploration",
+                abstract="Cycle accurate microarchitecture simulation for memory hierarchy studies.",
+            ),
+        ]
+
+        self.assertEqual(learning_scope_for_event(events[0]), AI_INFRA_LEARNING_SCOPE)
+        self.assertEqual(learning_scope_for_event(events[1]), CORE_LEARNING_SCOPE)
+
+        core_events = feedback_events_for_learning_scope(events, CORE_LEARNING_SCOPE)
+        ai_infra_events = feedback_events_for_learning_scope(events, AI_INFRA_LEARNING_SCOPE)
+
+        self.assertEqual([event.paper_id for event in core_events], ["core"])
+        self.assertEqual([event.paper_id for event in ai_infra_events], ["ai-infra"])
+        self.assertNotIn("llm", text_feedback_weights(core_events))
+        self.assertIn("llm", text_feedback_weights(ai_infra_events))
 
     def test_load_feedback_json_reads_supabase_export(self):
         with tempfile.TemporaryDirectory() as tmpdir:
