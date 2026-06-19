@@ -18,7 +18,9 @@ from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAUL
 Judgement = dict[str, Any]
 REPOSITORY_LIMIT = 2
 CORE_RESCUE_AI_SCORE = 4.0
-CORE_RESCUE_SECTIONS = frozenset({"agentic_architecture", "full_stack_codesign", "microarchitecture_simulators"})
+CORE_RESCUE_SECTIONS = frozenset(
+    {"agentic_architecture", "full_stack_codesign", "microarchitecture_simulators", "exploratory"}
+)
 
 
 def parse_judgement_response(content: str) -> Judgement:

@@ -497,6 +497,53 @@ class PipelineTests(unittest.TestCase):
         )
         self.assertEqual(payload["profile_radar"]["total_likes"], 1)
 
+    def test_core_category_exploratory_fill_stays_in_core_learning_scope(self):
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset({"cs.AI"}),
+            sections=(SectionRule("arch", "Architecture", 3.0, ("cache replacement",)),),
+        )
+        core = paper_from_record(
+            {
+                "paper_id": "core",
+                "title": "Cache Replacement for Architecture",
+                "abstract": "cache replacement",
+                "authors": [],
+                "categories": ["cs.AR"],
+            }
+        )
+        core_exploratory = paper_from_record(
+            {
+                "paper_id": "core-exploratory",
+                "title": "A New Processor Runtime Study",
+                "abstract": "A core category systems paper without current keyword matches.",
+                "authors": [],
+                "categories": ["cs.AR"],
+            }
+        )
+        ai_exploratory = paper_from_record(
+            {
+                "paper_id": "ai-exploratory",
+                "title": "A Machine Learning Systems Paper",
+                "abstract": "A clean expansion-category candidate without current keyword matches.",
+                "authors": [],
+                "categories": ["cs.AI"],
+            }
+        )
+
+        payload = recommendation_payload(
+            [core, core_exploratory, ai_exploratory],
+            "2026-06-19",
+            limit=10,
+            min_count=3,
+            profile=profile,
+        )
+
+        scopes = {item["paper_id"]: item["learning_scope"] for item in payload["recommendations"]}
+        self.assertEqual(scopes["core-exploratory"], CORE_LEARNING_SCOPE)
+        self.assertEqual(scopes["ai-exploratory"], AI_INFRA_LEARNING_SCOPE)
+
     def test_exploration_requires_ai_ml_and_systems_signals(self):
         profile = InterestProfile(
             name="Custom",

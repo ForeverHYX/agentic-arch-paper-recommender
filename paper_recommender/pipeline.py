@@ -783,7 +783,14 @@ def _matching_exploration_keywords(paper: Paper) -> tuple[str, ...]:
 
 def _learning_scope_for_classification(result: Classification, profile: InterestProfile) -> str:
     sections = set(result.sections)
-    if EXPLORATION_SECTION in sections or "exploratory" in sections:
+    categories = set(result.paper.categories)
+    if EXPLORATION_SECTION in sections:
+        return AI_INFRA_LEARNING_SCOPE
+    if "exploratory" in sections:
+        if categories & profile.core_categories and not _looks_like_ai_infra_without_strong_core_anchor(
+            result.paper, sections
+        ):
+            return CORE_LEARNING_SCOPE
         return AI_INFRA_LEARNING_SCOPE
     profile_section_ids = {section.id for section in profile.sections}
     if REPOSITORY_ARCH_AI_INFRA_SECTION in sections and not sections & profile_section_ids:
