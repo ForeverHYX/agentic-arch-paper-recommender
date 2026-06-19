@@ -525,6 +525,29 @@ class JudgeTests(unittest.TestCase):
         self.assertIn("core 保底", rescued["ai_judgement"]["reason"])
         self.assertEqual(enriched["judge_summary"]["core_rescued_count"], 1)
 
+    def test_enrich_payload_with_judgements_rescues_history_penalized_core_items(self):
+        payload = {
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "paper_id": "history-penalized-core",
+                    "title": "History Penalized Simulator Paper",
+                    "abstract": "A cycle accurate simulator studies memory hierarchy behavior.",
+                    "score": -2.0,
+                    "sections": ["microarchitecture_simulators"],
+                    "learning_scope": "core",
+                    "negative_matches": [],
+                    "ai_judgement": {"score": 1, "reason": "模型误判为无关。", "decision": "drop"},
+                }
+            ],
+        }
+
+        enriched = enrich_payload_with_judgements(payload, api_key="secret", limit=15)
+
+        self.assertEqual([item["paper_id"] for item in enriched["recommendations"]], ["history-penalized-core"])
+        self.assertTrue(enriched["recommendations"][0]["core_rescued"])
+        self.assertEqual(enriched["judge_summary"]["core_rescued_count"], 1)
+
     def test_enrich_payload_with_judgements_caps_ai_infra_inside_final_limit(self):
         recommendations = [
             {

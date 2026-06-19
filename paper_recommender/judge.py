@@ -17,7 +17,6 @@ from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAUL
 
 Judgement = dict[str, Any]
 REPOSITORY_LIMIT = 2
-CORE_RESCUE_MIN_RULE_SCORE = 4.0
 CORE_RESCUE_AI_SCORE = 4.0
 CORE_RESCUE_SECTIONS = frozenset({"agentic_architecture", "full_stack_codesign", "microarchitecture_simulators"})
 
@@ -468,7 +467,7 @@ def _is_rescuable_core_item(item: dict[str, Any]) -> bool:
         return False
     if item.get("negative_matches"):
         return False
-    return _float_value(item.get("score"), 0.0) >= CORE_RESCUE_MIN_RULE_SCORE
+    return True
 
 
 def _rescued_core_item(item: dict[str, Any]) -> dict[str, Any]:
