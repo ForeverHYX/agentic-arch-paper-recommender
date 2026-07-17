@@ -1,10 +1,12 @@
+from io import BytesIO
 import json
+from pathlib import Path
 import tempfile
 import unittest
-from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
-from paper_recommender.arxiv_source import build_query_url, main, parse_atom_feed
+from paper_recommender.arxiv_source import build_query_url, fetch_atom_feed, main, parse_atom_feed
 from paper_recommender.domain import InterestProfile, SectionRule
 
 
@@ -49,6 +51,7 @@ class ArxivSourceTests(unittest.TestCase):
 
         parsed = urlparse(url)
         query = parse_qs(parsed.query)
+        self.assertEqual(parsed.scheme, "https")
         self.assertEqual(parsed.netloc, "export.arxiv.org")
         self.assertEqual(query["max_results"], ["125"])
         self.assertEqual(query["sortBy"], ["submittedDate"])
@@ -112,6 +115,91 @@ class ArxivSourceTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
             self.assertEqual([row["paper_id"] for row in rows], ["2604.03312"])
+
+    def test_fetch_retries_timeout_then_succeeds(self):
+        attempts = []
+        delays = []
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            def read(self):
+                return ATOM_FEED.encode("utf-8")
+
+        def opener(request, timeout=None):
+            attempts.append((request.full_url, timeout))
+            if len(attempts) < 3:
+                raise TimeoutError("temporary timeout")
+            return Response()
+
+        result = fetch_atom_feed(
+            "https://export.arxiv.org/api/query?test=1",
+            timeout=42,
+            max_attempts=4,
+            opener=opener,
+            sleeper=delays.append,
+        )
+
+        self.assertEqual(result, ATOM_FEED)
+        self.assertEqual(len(attempts), 3)
+        self.assertEqual([timeout for _, timeout in attempts], [42, 42, 42])
+        self.assertEqual(delays, [3.0, 6.0])
+
+    def test_fetch_retries_rate_limit_using_retry_after(self):
+        attempts = []
+        delays = []
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            def read(self):
+                return b"ok"
+
+        def opener(request, timeout=None):
+            attempts.append(request.full_url)
+            if len(attempts) == 1:
+                raise HTTPError(
+                    request.full_url,
+                    429,
+                    "Too Many Requests",
+                    {"Retry-After": "12"},
+                    BytesIO(),
+                )
+            return Response()
+
+        result = fetch_atom_feed(
+            "https://export.arxiv.org/api/query?test=1",
+            opener=opener,
+            sleeper=delays.append,
+        )
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(delays, [12.0])
+
+    def test_fetch_does_not_retry_non_transient_http_error(self):
+        attempts = []
+
+        def opener(request, timeout=None):
+            attempts.append(request.full_url)
+            raise HTTPError(request.full_url, 400, "Bad Request", {}, BytesIO())
+
+        with self.assertRaises(HTTPError):
+            fetch_atom_feed(
+                "https://export.arxiv.org/api/query?test=1",
+                opener=opener,
+                sleeper=lambda _: self.fail("unexpected sleep"),
+            )
+
+        self.assertEqual(len(attempts), 1)
 
 
 if __name__ == "__main__":

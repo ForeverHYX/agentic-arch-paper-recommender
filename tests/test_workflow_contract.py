@@ -22,10 +22,11 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("paper_recommender.email_delivery", workflow)
         self.assertNotIn("paper_recommender.judge", workflow)
 
-    def test_daily_workflow_runs_at_noon_china_time(self):
+    def test_daily_workflow_runs_just_after_noon_china_time(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 
-        self.assertIn('- cron: "0 4 * * *"', workflow)
+        self.assertIn('- cron: "17 4 * * *"', workflow)
+        self.assertNotIn('- cron: "0 4 * * *"', workflow)
         self.assertNotIn('- cron: "30 22 * * *"', workflow)
 
     def test_daily_workflow_fetches_real_arxiv_records_before_recommendation_build(self):

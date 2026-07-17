@@ -6,7 +6,9 @@ import argparse
 import json
 from pathlib import Path
 import re
-from typing import Any
+import time
+from typing import Any, Callable
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
@@ -14,7 +16,7 @@ import xml.etree.ElementTree as ET
 from paper_recommender.domain import InterestProfile, load_interest_profile
 
 
-ARXIV_API_BASE_URL = "http://export.arxiv.org/api/query"
+ARXIV_API_BASE_URL = "https://export.arxiv.org/api/query"
 ATOM_NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "arxiv": "http://arxiv.org/schemas/atom",
@@ -41,10 +43,52 @@ def build_query_url(
     return f"{base_url}?{query}"
 
 
-def fetch_atom_feed(url: str, timeout: int = 30) -> str:
+def fetch_atom_feed(
+    url: str,
+    timeout: int = 90,
+    max_attempts: int = 4,
+    opener: Callable[..., Any] = urlopen,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> str:
+    """Fetch an arXiv feed, retrying failures that are likely to be transient."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1")
+
     request = Request(url, headers={"User-Agent": "agentic-arch-paper-recommender/0.1"})
-    with urlopen(request, timeout=timeout) as response:
-        return response.read().decode("utf-8")
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with opener(request, timeout=timeout) as response:
+                return response.read().decode("utf-8")
+        except HTTPError as error:
+            if error.code not in {429, 500, 502, 503, 504} or attempt == max_attempts:
+                raise
+            retry_after = error.headers.get("Retry-After") if error.headers else None
+            delay = _retry_delay(attempt, retry_after)
+            print(
+                f"arXiv API returned HTTP {error.code}; retrying in {delay:g}s "
+                f"({attempt}/{max_attempts})"
+            )
+            sleeper(delay)
+        except (TimeoutError, URLError, ConnectionError, OSError) as error:
+            if attempt == max_attempts:
+                raise
+            delay = _retry_delay(attempt)
+            print(
+                f"arXiv API request failed ({error}); retrying in {delay:g}s "
+                f"({attempt}/{max_attempts})"
+            )
+            sleeper(delay)
+
+    raise RuntimeError("unreachable")
+
+
+def _retry_delay(attempt: int, retry_after: str | None = None) -> float:
+    if retry_after:
+        try:
+            return max(3.0, min(float(retry_after), 60.0))
+        except ValueError:
+            pass
+    return min(3.0 * (2 ** (attempt - 1)), 30.0)
 
 
 def parse_atom_feed(feed_text: str) -> list[dict[str, Any]]:

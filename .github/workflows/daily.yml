@@ -3,7 +3,8 @@ name: Daily Paper Recommender
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 4 * * *"
+    # Avoid the top-of-hour Actions scheduling spike (04:17 UTC = 12:17 China time).
+    - cron: "17 4 * * *"
 
 permissions:
   contents: read
