@@ -509,6 +509,7 @@ function renderPaper(paper) {
   const tldrHtml = paper.tldr
     ? `<div class="paper-tldr"><span class="tldr-label">TLDR</span>${escapeHtml(paper.tldr)}</div>`
     : "";
+  const researchDetailsHtml = renderResearchDetails(paper);
   const repoTag = isRepository ? `<span class="tag-chip repo">GitHub 仓库</span>` : "";
   const repoTrendHtml = isRepository ? renderRepositoryMetaInline(paper) : "";
   const tagChipsHtml = tags.map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("");
@@ -528,6 +529,7 @@ function renderPaper(paper) {
         </div>
         ${originalPaperHtml}
         ${tldrHtml}
+        ${researchDetailsHtml}
         ${aiJudgementHtml}
         <div class="paper-actions actions">
           <a class="link-button" href="${escapeAttr(paperUrl)}" target="_blank" rel="noreferrer">${isRepository ? "GitHub" : "arXiv"}</a>
@@ -540,6 +542,34 @@ function renderPaper(paper) {
         </div>
       </div>
     </article>
+  `;
+}
+
+function renderResearchDetails(paper) {
+  const sections = Array.isArray(paper.section_summaries) ? paper.section_summaries : [];
+  const figures = Array.isArray(paper.figure_explanations) ? paper.figure_explanations : [];
+  const abstract = String(paper.abstract || "").trim();
+  if (!sections.length && !figures.length && !abstract) return "";
+  const sectionHtml = sections.map((entry) => `
+    <article class="research-section-summary">
+      <strong>${escapeHtml(entry.title || "Section")}</strong>
+      <p>${escapeHtml(entry.summary || "")}</p>
+    </article>
+  `).join("");
+  const figureHtml = figures.map((entry) => `
+    <article class="research-figure-summary">
+      <strong>${escapeHtml(entry.label || "Figure")}</strong>
+      <p class="figure-caption">${escapeHtml(entry.caption || "")}</p>
+      ${entry.explanation ? `<p>${escapeHtml(entry.explanation)}</p>` : ""}
+    </article>
+  `).join("");
+  return `
+    <details class="paper-research-details">
+      <summary>梗概详情：分段与关键图表</summary>
+      ${abstract ? `<div class="paper-abstract"><span class="tldr-label">原始摘要</span><p>${escapeHtml(abstract)}</p></div>` : ""}
+      ${sectionHtml ? `<div class="research-section-list"><h4>各段总结</h4>${sectionHtml}</div>` : ""}
+      ${figureHtml ? `<div class="research-figure-list"><h4>关键图表说明</h4>${figureHtml}</div>` : ""}
+    </details>
   `;
 }
 

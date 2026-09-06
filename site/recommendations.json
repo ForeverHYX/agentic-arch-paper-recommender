@@ -54,7 +54,9 @@
         "microarchitecture_simulators:cycle-accurate simulation",
         "microarchitecture_simulators:gem5"
       ],
-      "negative_matches": []
+      "negative_matches": [],
+      "section_summaries": [],
+      "figure_explanations": []
     },
     {
       "rank": 2,
@@ -84,7 +86,9 @@
         "full_stack_codesign:workload mapping",
         "full_stack_codesign:mlir"
       ],
-      "negative_matches": []
+      "negative_matches": [],
+      "section_summaries": [],
+      "figure_explanations": []
     }
   ]
 }

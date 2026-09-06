@@ -86,7 +86,7 @@ python3 -m paper_recommender.pipeline \
 Rerank candidates with an OpenAI-compatible model and keep at most 15 final recommendations:
 
 ```bash
-OPENAI_API_KEY=... python3 -m paper_recommender.judge \
+DEEPSEEK_API_KEY=... python3 -m paper_recommender.judge \
   --input site/recommendations.json \
   --output site/recommendations.json \
   --limit 15
@@ -104,12 +104,12 @@ python3 -m paper_recommender.affiliations \
 Add TLDR summaries:
 
 ```bash
-OPENAI_API_KEY=... python3 -m paper_recommender.summarizer \
+DEEPSEEK_API_KEY=... python3 -m paper_recommender.summarizer \
   --input site/recommendations.json \
   --output site/recommendations.json
 ```
 
-The default OpenAI-compatible provider is OpenCode Go: `https://opencode.ai/zen/go/v1`, using model `deepseek-v4-flash`. The judge uses the model to add `ai_judgement` and `ai_score`, rerank candidates by AI relevance, and truncate the final digest to 15 items. It understands both arXiv papers and GitHub repository items. If no API key is configured, local/offline runs can still use rule-score and English fallback text. In GitHub Actions, once `OPENAI_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback TLDRs as if the API worked.
+The default provider is DeepSeek's OpenAI-compatible API at `https://api.deepseek.com/v1`, using `deepseek-chat`. The judge adds `ai_judgement` and `ai_score`, reranks candidates by AI relevance, and truncates the final digest to 15 items. It understands both arXiv papers and GitHub repository items. If no API key is configured, local/offline runs can still use rule-score and English fallback text. In GitHub Actions, once `DEEPSEEK_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback summaries as if the API worked.
 
 `--min-count` fills with exploratory papers. Core arXiv categories are preferred first; if there still are not enough candidates, clean expansion-category papers without negative/noise matches are added as exploratory items.
 
@@ -123,18 +123,18 @@ The workflow also publishes `status.json`, a non-secret deployment status file. 
 
 ## LLM Provider Configuration
 
-GitHub Actions reads the OpenAI-compatible provider configuration from:
+GitHub Actions reads the DeepSeek provider configuration from:
 
-- GitHub Secret: `OPENAI_API_KEY`
-- GitHub Variable: `OPENAI_BASE_URL`, optional, defaults to `https://opencode.ai/zen/go/v1`
-- GitHub Variable: `OPENAI_MODEL`, optional, defaults to `deepseek-v4-flash`
+- GitHub Secret: `DEEPSEEK_API_KEY`
+- GitHub Variable: `DEEPSEEK_BASE_URL`, optional, defaults to `https://api.deepseek.com/v1`
+- GitHub Variable: `DEEPSEEK_MODEL`, optional, defaults to `deepseek-chat`
 
-OpenCode Go's official docs list `deepseek-v4-flash` with model ID `deepseek-v4-flash` and endpoint `https://opencode.ai/zen/go/v1/chat/completions`. Configure this repository with the base URL only, without the final `/chat/completions`, because the Python client appends that path. Keep the API key in a GitHub Secret only; do not put it in repository files, Pages config, or GitHub Variables.
+Configure the repository with the base URL only, without the final `/chat/completions`, because the Python client appends that path. Keep the API key in a GitHub Secret only; do not put it in repository files, Pages config, workflow variables, or generated status files.
 
 The daily pipeline uses the LLM twice:
 
 - `paper_recommender.judge`: applies the fixed interest profile, representative seed papers, and learned like/dislike feedback when scoring candidates.
-- `paper_recommender.summarizer`: generates concise English TLDRs for the final papers.
+- `paper_recommender.summarizer`: generates concise English TLDRs plus bounded section summaries and key figure explanations. It uses one compact structured request per final item and falls back safely when the provider is unavailable.
 
 ## Feedback Storage
 

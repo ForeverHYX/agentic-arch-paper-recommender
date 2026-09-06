@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 
 from paper_recommender.llm_errors import LLMProviderError, format_llm_error
 from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_USER_AGENT
+from paper_recommender.llm_config import api_key as configured_api_key, base_url as configured_base_url, model as configured_model
 
 
 ProfileReview = dict[str, Any]
@@ -44,7 +45,7 @@ def request_profile_review(
     body = {
         "model": model,
         "temperature": 0.1,
-        "max_tokens": 2048,
+        "max_tokens": 1200,
         "thinking": {"type": "disabled"},
         "messages": [
             {
@@ -107,7 +108,7 @@ def enrich_payload_with_profile_review(
         if require_api:
             raise LLMProviderError(
                 format_llm_error(
-                    RuntimeError("OPENAI_API_KEY is not configured"),
+                    RuntimeError("DEEPSEEK_API_KEY is not configured"),
                     base_url=base_url,
                     model=model,
                 )
@@ -138,8 +139,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile", required=True, help="兴趣画像 JSON 路径。")
     parser.add_argument("--recommendations", required=True, help="推荐 JSON 路径，会写回 profile_review 字段。")
     parser.add_argument("--output", required=True, help="画像复核 JSON 输出路径。")
-    parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL))
-    parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL))
+    parser.add_argument("--base-url", default=configured_base_url())
+    parser.add_argument("--model", default=configured_model())
     parser.add_argument("--require-api", action="store_true", help="API 已配置时调用失败则退出，不写本地兜底。")
     args = parser.parse_args(argv)
 
@@ -149,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     enriched = enrich_payload_with_profile_review(
         payload,
         profile,
-        api_key=os.environ.get("OPENAI_API_KEY", ""),
+        api_key=configured_api_key(),
         base_url=args.base_url,
         model=args.model,
         require_api=args.require_api,

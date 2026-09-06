@@ -9,9 +9,9 @@ import os
 from pathlib import Path
 from typing import Any
 
+from paper_recommender.llm_config import DEFAULT_BASE_URL, DEFAULT_MODEL, base_url, model
 
-DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1"
-DEFAULT_MODEL = "deepseek-v4-flash"
+
 
 
 def deployment_status() -> dict[str, Any]:
@@ -19,8 +19,8 @@ def deployment_status() -> dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "llm": {
             "configured": _env_bool("HAS_LLM"),
-            "base_url": os.environ.get("OPENAI_BASE_URL") or DEFAULT_BASE_URL,
-            "model": os.environ.get("OPENAI_MODEL") or DEFAULT_MODEL,
+            "base_url": base_url(),
+            "model": model(),
         },
         "smtp": {"configured": _env_bool("HAS_SMTP")},
         "supabase": {"configured": _env_bool("HAS_SUPABASE")},

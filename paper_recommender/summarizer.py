@@ -4,18 +4,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable
 from urllib.request import Request, urlopen
 
 from paper_recommender.llm_errors import LLMProviderError, format_llm_error
+from paper_recommender.llm_config import DEFAULT_BASE_URL, DEFAULT_MODEL, api_key, base_url, model
 
 
-DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1"
-DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_USER_AGENT = "agentic-arch-paper-recommender/1.0"
-TLDR_MAX_ATTEMPTS = 3
+TLDR_MAX_ATTEMPTS = 2
 SECTION_LABELS = {
     "agentic_architecture": "agentic architecture and automated design-space exploration",
     "full_stack_codesign": "full-stack hardware/software co-design",
@@ -48,20 +47,45 @@ def request_tldr(
     retry_short_output: bool = False,
     previous_tldr: str = "",
 ) -> str:
+    return request_paper_summary(
+        item,
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+        opener=opener,
+        timeout=timeout,
+        retry_short_output=retry_short_output,
+        previous_tldr=previous_tldr,
+    )["tldr"]
+
+
+def request_paper_summary(
+    item: dict[str, Any],
+    api_key: str,
+    base_url: str = DEFAULT_BASE_URL,
+    model: str = DEFAULT_MODEL,
+    opener: Callable[[Request], Any] = urlopen,
+    timeout: int = 180,
+    retry_short_output: bool = False,
+    previous_tldr: str = "",
+) -> dict[str, Any]:
     endpoint = f"{base_url.rstrip('/')}/chat/completions"
     system_prompt = _system_prompt_for_item(item)
     if retry_short_output:
         system_prompt += (
             " The previous output was too short. Rewrite it as four complete English sentences, "
-            "with at least 120 words in total. Do not use bullets, headings, or Markdown."
+            "with at least 80 words in total. Keep the JSON schema unchanged."
         )
     user_prompt = _user_prompt_for_item(item)
+    structure = extract_paper_structure(item, opener=opener)
+    if structure["sections"] or structure["figures"]:
+        user_prompt += "\nPaper structure extracted from the public HTML copy:\n" + json.dumps(structure, ensure_ascii=False)
     if previous_tldr:
         user_prompt += f"\nPrevious short TLDR to replace: {_truncate(previous_tldr, 180)}"
     body = {
         "model": model,
         "temperature": 0.2,
-        "max_tokens": 8192,
+        "max_tokens": 1800,
         "thinking": {"type": "disabled"},
         "messages": [
             {
@@ -92,7 +116,7 @@ def request_tldr(
     with response_context as response:
         payload = json.loads(response.read().decode("utf-8"))
     content = payload["choices"][0]["message"]["content"]
-    return " ".join(str(content).split())
+    return _parse_paper_summary(content)
 
 
 def enrich_payload_with_tldrs(
@@ -107,8 +131,8 @@ def enrich_payload_with_tldrs(
     recommendations = []
     for item in payload.get("recommendations", []):
         updated = dict(item)
-        if not updated.get("tldr"):
-            updated["tldr"] = _safe_tldr(
+        if not updated.get("tldr") or "section_summaries" not in updated or "figure_explanations" not in updated:
+            summary = _safe_summary(
                 updated,
                 api_key=api_key,
                 base_url=base_url,
@@ -116,6 +140,7 @@ def enrich_payload_with_tldrs(
                 opener=opener,
                 require_api=require_api,
             )
+            updated.update(summary)
         recommendations.append(updated)
     enriched["recommendations"] = recommendations
     return enriched
@@ -125,15 +150,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="为推荐 JSON 补充 TLDR 解读。")
     parser.add_argument("--input", required=True, help="输入推荐 JSON 路径。")
     parser.add_argument("--output", required=True, help="输出推荐 JSON 路径。")
-    parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL))
-    parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL))
+    parser.add_argument("--base-url", default=base_url())
+    parser.add_argument("--model", default=model())
     parser.add_argument("--require-api", action="store_true", help="API 已配置时调用失败则退出，不使用本地兜底。")
     args = parser.parse_args(argv)
 
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
     enriched = enrich_payload_with_tldrs(
         payload,
-        api_key=os.environ.get("OPENAI_API_KEY", ""),
+        api_key=api_key(),
         base_url=args.base_url,
         model=args.model,
         require_api=args.require_api,
@@ -153,21 +178,32 @@ def _safe_tldr(
     opener: Callable[[Request], Any],
     require_api: bool = False,
 ) -> str:
+    return _safe_summary(item, api_key, base_url, model, opener, require_api)["tldr"]
+
+
+def _safe_summary(
+    item: dict[str, Any],
+    api_key: str,
+    base_url: str,
+    model: str,
+    opener: Callable[[Request], Any],
+    require_api: bool = False,
+) -> dict[str, Any]:
     if not api_key:
         if require_api:
             raise LLMProviderError(
                 format_llm_error(
-                    RuntimeError("OPENAI_API_KEY is not configured"),
+                    RuntimeError("DEEPSEEK_API_KEY is not configured"),
                     base_url=base_url,
                     model=model,
                 )
             )
-        return fallback_tldr(item)
+        return _fallback_summary(item, extract_paper_structure(item, opener=opener))
     last_quality_error: ValueError | None = None
     try:
         previous_tldr = ""
         for attempt in range(TLDR_MAX_ATTEMPTS):
-            tldr = request_tldr(
+            summary = request_paper_summary(
                 item,
                 api_key=api_key,
                 base_url=base_url,
@@ -176,15 +212,110 @@ def _safe_tldr(
                 retry_short_output=attempt > 0,
                 previous_tldr=previous_tldr,
             )
+            tldr = summary["tldr"]
             if _is_usable_tldr(tldr):
-                return tldr
+                return summary
             previous_tldr = tldr
             last_quality_error = _tldr_quality_error(tldr)
         raise last_quality_error or ValueError("TLDR is too short or not usable")
     except Exception as exc:
         if require_api:
             raise LLMProviderError(format_llm_error(exc, base_url=base_url, model=model, api_key=api_key)) from exc
-        return fallback_tldr(item)
+        return _fallback_summary(item, extract_paper_structure(item, opener=opener))
+
+
+def _parse_paper_summary(content: Any) -> dict[str, Any]:
+    raw = str(content).strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw
+        raw = raw.rsplit("```", 1)[0].strip()
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        value = {"tldr": raw}
+    if not isinstance(value, dict):
+        value = {"tldr": raw}
+    tldr = " ".join(str(value.get("tldr", "")).split())
+    sections = []
+    for entry in value.get("sections", []) if isinstance(value.get("sections", []), list) else []:
+        if isinstance(entry, dict) and str(entry.get("title", "")).strip() and str(entry.get("summary", "")).strip():
+            sections.append({"title": _short_text(entry["title"], 120), "summary": _short_text(entry["summary"], 360)})
+    figures = []
+    for entry in value.get("figures", []) if isinstance(value.get("figures", []), list) else []:
+        if isinstance(entry, dict) and str(entry.get("caption", "")).strip():
+            figures.append({"label": _short_text(entry.get("label", "Figure"), 80), "caption": _short_text(entry["caption"], 240), "explanation": _short_text(entry.get("explanation", ""), 360)})
+    return {"tldr": tldr, "section_summaries": sections[:6], "figure_explanations": figures[:6]}
+
+
+def _fallback_summary(item: dict[str, Any], structure: dict[str, Any]) -> dict[str, Any]:
+    result = {"tldr": fallback_tldr(item), "section_summaries": [], "figure_explanations": []}
+    for title in structure.get("sections", [])[:6]:
+        result["section_summaries"].append({"title": title, "summary": "未启用模型，暂无该段落的可靠摘要；请打开原文查看。"})
+    for figure in structure.get("figures", [])[:6]:
+        result["figure_explanations"].append({"label": figure.get("label", "Figure"), "caption": figure.get("caption", ""), "explanation": "未启用模型，暂无图表解读；请结合图注和正文查看。"})
+    return result
+
+
+class _StructureParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.current_tag = ""
+        self.buffer: list[str] = []
+        self.sections: list[str] = []
+        self.figures: list[dict[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized = tag.lower()
+        if normalized in {"h2", "h3", "h4", "figcaption", "caption"}:
+            self.current_tag = normalized
+            self.buffer = []
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        if normalized != self.current_tag:
+            return
+        text = " ".join("".join(self.buffer).split())
+        if normalized in {"h2", "h3", "h4"} and text and len(self.sections) < 8:
+            self.sections.append(text[:120])
+        if normalized in {"figcaption", "caption"} and text and len(self.figures) < 8:
+            self.figures.append({"label": "Figure", "caption": text[:240]})
+        self.current_tag = ""
+        self.buffer = []
+
+    def handle_data(self, data: str) -> None:
+        if self.current_tag:
+            self.buffer.append(data)
+
+
+def extract_paper_structure(item: dict[str, Any], opener: Callable[[Request], Any] = urlopen) -> dict[str, Any]:
+    if _is_repository_item(item):
+        return {"sections": [], "figures": []}
+    paper_id = str(item.get("paper_id", "")).strip()
+    if not paper_id or not any(char.isdigit() for char in paper_id):
+        return {"sections": [], "figures": []}
+    request = Request(f"https://ar5iv.labs.arxiv.org/html/{paper_id}", headers={"User-Agent": DEFAULT_USER_AGENT})
+    try:
+        response_context = opener(request, timeout=20)
+    except Exception:
+        try:
+            response_context = opener(request)
+        except Exception:
+            return {"sections": [], "figures": []}
+    try:
+        with response_context as response:
+            try:
+                raw = response.read(600_000)
+            except TypeError:
+                raw = response.read()
+            html = raw.decode("utf-8", errors="replace")
+    except Exception:
+        return {"sections": [], "figures": []}
+    parser = _StructureParser()
+    try:
+        parser.feed(html)
+    except Exception:
+        return {"sections": [], "figures": []}
+    return {"sections": parser.sections, "figures": parser.figures}
 
 
 def _is_usable_tldr(text: str) -> bool:
@@ -199,6 +330,13 @@ def _tldr_quality_error(text: str) -> ValueError:
     normalized = " ".join(str(text).split())
     words = normalized.split()
     return ValueError(f"TLDR is too short or not usable: chars={len(normalized)}, words={len(words)}")
+
+
+def _short_text(value: Any, max_chars: int) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
 
 
 def _topic_hint(item: dict[str, Any]) -> str:
@@ -246,15 +384,15 @@ def _system_prompt_for_item(item: dict[str, Any]) -> str:
     if _is_repository_item(item):
         return (
             "Write an English TLDR for a GitHub repository for a computer architecture researcher. "
-            "Return the final answer only; do not explain. "
-            "Write four complete sentences covering what it implements, why it relates to agentic architecture "
-            "or hardware/software co-design, its star trend, and any original paper links. "
+            "Return only valid JSON with keys tldr, sections, and figures. tldr must contain four complete sentences "
+            "covering what it implements, relevance, star trend, and original paper links. sections and figures must be empty arrays. "
             "Do not invent information absent from the README or repository metadata; preserve system names, tool names, and acronyms."
         )
     return (
         "Write an English TLDR for a computer architecture researcher. "
-        "Return the final answer only; do not explain. "
-        "Write four complete sentences covering Problem, Method, Finding or experimental evidence, and Why it matters. "
+        "Return only valid JSON with keys tldr, sections, and figures. tldr must contain four complete sentences covering Problem, Method, "
+        "Finding or experimental evidence, and Why it matters. sections is an array of up to 6 objects with title and concise summary. "
+        "figures is an array of up to 6 objects with label, caption, and a concise explanation of what the chart/diagram shows. "
         "If the abstract does not report experimental results, say that the abstract does not disclose them. "
         "Do not translate sentence by sentence; preserve system names, tool names, and acronyms."
     )
@@ -264,6 +402,9 @@ def _user_prompt_for_item(item: dict[str, Any]) -> str:
     prompt = (
         f"Title: {item.get('title', '')}\n"
         f"Abstract: {item.get('abstract', '')}\n"
+        f"Paper URL: {item.get('url', '')}\n"
+        f"PDF URL: {item.get('pdf_url', '')}\n"
+        f"Recommendation sections: {', '.join(str(value) for value in item.get('sections', []))}\n"
         f"Categories: {', '.join(str(value) for value in item.get('categories', []))}"
     )
     if not _is_repository_item(item):

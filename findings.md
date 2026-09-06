@@ -146,14 +146,14 @@
 | `recommendation_runs` 用于跨天去重 | 每次 workflow 生成推荐后写回 Supabase，下一次读取历史并按出现次数惩罚重复论文。 |
 | 空推荐默认不发邮件 | 避免用户每天收到低价值空摘要；需要时可用 `--send-empty` 显式发送。 |
 | 默认抓取 500 条候选并输出最多 15 条推荐 | 候选池保持较大以保证召回，但邮件和页面保持可读，不超过用户希望的 15 条。 |
-| TLDR enrichment 接 OpenCode Go | 使用 OpenAI-compatible `/chat/completions`，默认 base URL 为 `https://opencode.ai/zen/go/v1`，默认模型为 `deepseek-v4-flash`。 |
+| TLDR enrichment 接 DeepSeek | 使用 DeepSeek 兼容 `/chat/completions`，默认 base URL 为 `https://api.deepseek.com/v1`，默认模型为 `deepseek-chat`；结构化输出包含 TLDR、分段总结和图表说明。 |
 | exploratory 补足先核心、后干净扩展分类 | 真实 workflow 从 500 条候选只产出 39 条时，说明核心分类不足；扩展分类若无 negative/noise matches，可作为低优先级 exploratory 补足。 |
-| LLM 判断用于最终推荐重排 | 规则排序先产出 45 条候选，OpenCode Go 对每篇论文返回 0-10 相关性分数、保留/丢弃决策和原因，再截断到最多 15 条。无 key 或请求失败时回退到规则分。 |
+| LLM 判断用于最终推荐重排 | 规则排序先产出 45 条候选，DeepSeek 对每篇论文返回 0-10 相关性分数、保留/丢弃决策和原因，再截断到最多 15 条。无 key 或请求失败时回退到规则分。 |
 | Code 链接采用显式抽取 + GitHub 搜索兜底 | 摘要中出现 GitHub/GitLab/Bitbucket/Hugging Face 链接时展示直达 Code；否则用标题生成 GitHub repository search 链接。 |
 | 作者单位作为弱质量信号 | arXiv Atom 通常不稳定提供单位；系统解析 `arxiv:affiliation` 和外部记录里的 `affiliations`，展示给用户，并传入 LLM judge，但不会因单位缺失直接丢弃论文。 |
 | 作者单位补全从 arXiv source 提取 | 当前 live JSON 单位为空的根因是 arXiv Atom 未给出单位。新增 source bundle enrichment：对最终推荐下载 arXiv e-print，解析 TeX 中 `\\affil`、`\\affiliation`、`\\institute` 等宏。 |
 | LLM judge 纳入反馈画像 | `feedback_summary` 中的 section 权重和关键词权重现在会进入 LLM prompt，作为类似 Zotero/library 相似度的轻量个性化信号。 |
-| OpenCode Go 配置保持 OpenAI-compatible 形态 | `OPENAI_API_KEY` 用 Secret，`OPENAI_BASE_URL` 和 `OPENAI_MODEL` 用 GitHub Variables 覆盖；默认值仍指向 OpenCode Go 和 `deepseek-v4-flash`。 |
+| DeepSeek 配置使用独立变量 | `DEEPSEEK_API_KEY` 用 GitHub Secret，`DEEPSEEK_BASE_URL` 和 `DEEPSEEK_MODEL` 用 GitHub Variables 覆盖；API 失败时错误信息会脱敏。 |
 | seed papers 作为无服务器个人语料锚点 | `config/interests.json` 中的 `seed_papers` 会写入推荐 JSON，并进入 LLM judge prompt，让代表性论文比单纯关键词更直接地约束相关性判断。 |
 | 反馈学习加入实体权重 | like/dislike 现在会学习作者、机构和体系结构/HPC 工具链权重，并同时影响规则排序和 LLM judge prompt。机构权重保持弱信号，避免 arXiv 单位缺失导致过度惩罚。 |
 | Pages 显示反馈持久化状态 | 静态页面无法自动证明点击是否进入跨天学习闭环；侧边栏现在直接显示 Supabase 是否启用，并在 local-only 模式提示本地保存数量。 |

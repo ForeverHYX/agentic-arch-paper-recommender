@@ -548,7 +548,7 @@
   - 新增 `paper_recommender.summarizer`，通过 OpenAI-compatible API 生成 TLDR，默认接 OpenCode Go；无 key 或调用失败时用本地 fallback。
   - 页面和邮件都展示 TLDR、Paper/PDF/Code 链接。
   - 重设计 GitHub Pages 前端为 workbench 风格：顶部统计、侧边栏目导航、清晰论文卡片和操作按钮。
-  - GitHub secret `OPENAI_API_KEY` 已写入用户提供的 OpenCode Go key。
+  - LLM 已切换到 DeepSeek；仓库只读取 `DEEPSEEK_API_KEY`，密钥不写入仓库或 Pages 输出。
 - 创建/修改的文件：
   - `paper_recommender/domain.py`
   - `paper_recommender/pipeline.py`

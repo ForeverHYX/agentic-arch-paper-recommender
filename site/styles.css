@@ -990,6 +990,27 @@ h1 {
 }
 
 /* TLDR (replaces abstract block) */
+.paper-research-details {
+  margin: 12px 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.paper-research-details summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+.paper-research-details h4 { margin: 12px 0 6px; font-size: 13px; color: var(--heading); }
+.paper-abstract, .research-section-summary, .research-figure-summary {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.paper-abstract p, .research-section-summary p, .research-figure-summary p { margin: 4px 0 0; }
+.research-section-summary strong, .research-figure-summary strong { color: var(--heading); }
+.figure-caption { color: var(--heading); }
 .paper-tldr {
   margin: 12px 0 14px;
   padding: 0;

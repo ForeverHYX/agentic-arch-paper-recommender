@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 from paper_recommender.feedback import AI_INFRA_LEARNING_SCOPE, CORE_LEARNING_SCOPE
 from paper_recommender.llm_errors import LLMProviderError, format_llm_error
 from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_USER_AGENT
+from paper_recommender.llm_config import api_key as configured_api_key, base_url as configured_base_url, model as configured_model
 
 
 Judgement = dict[str, Any]
@@ -72,7 +73,7 @@ def request_judgement(
     body = {
         "model": model,
         "temperature": 0.1,
-        "max_tokens": 4096,
+        "max_tokens": 1200,
         "thinking": {"type": "disabled"},
         "messages": [
             {
@@ -207,15 +208,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, help="输出推荐 JSON 路径。")
     parser.add_argument("--limit", type=int, default=15, help="AI 判断后最多保留推荐数。")
     parser.add_argument("--exploration-limit", type=int, default=0, help="AI 判断后额外保留探索论文数。")
-    parser.add_argument("--base-url", default=os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL))
-    parser.add_argument("--model", default=os.environ.get("OPENAI_MODEL", DEFAULT_MODEL))
+    parser.add_argument("--base-url", default=configured_base_url())
+    parser.add_argument("--model", default=configured_model())
     parser.add_argument("--require-api", action="store_true", help="API 已配置时调用失败则退出，不使用规则兜底。")
     args = parser.parse_args(argv)
 
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
     enriched = enrich_payload_with_judgements(
         payload,
-        api_key=os.environ.get("OPENAI_API_KEY", ""),
+        api_key=configured_api_key(),
         limit=args.limit,
         exploration_limit=args.exploration_limit,
         base_url=args.base_url,
@@ -249,7 +250,7 @@ def _safe_judgement(
         if require_api:
             raise LLMProviderError(
                 format_llm_error(
-                    RuntimeError("OPENAI_API_KEY is not configured"),
+                    RuntimeError("DEEPSEEK_API_KEY is not configured"),
                     base_url=base_url,
                     model=model,
                 )

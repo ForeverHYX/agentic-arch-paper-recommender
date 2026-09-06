@@ -9,6 +9,7 @@ from paper_recommender.summarizer import (
     fallback_tldr,
     main,
     request_tldr,
+    extract_paper_structure,
 )
 
 
@@ -38,6 +39,24 @@ class FakeErrorBody:
 
 
 class SummarizerTests(unittest.TestCase):
+    def test_extract_paper_structure_reads_sections_and_figures(self):
+        class HtmlResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self, size=None):
+                return b"<h2>Method</h2><h3>Evaluation <span>Results</span></h3><figure><figcaption>Figure 2: Throughput by workload</figcaption></figure>"
+
+        def opener(request, timeout=None):
+            return HtmlResponse()
+
+        structure = extract_paper_structure({"paper_id": "2601.12345"}, opener=opener)
+        self.assertEqual(structure["sections"], ["Method", "Evaluation Results"])
+        self.assertEqual(structure["figures"][0]["caption"], "Figure 2: Throughput by workload")
+
     def test_fallback_tldr_is_structured_english_briefing(self):
         text = fallback_tldr(
             {
@@ -119,12 +138,10 @@ class SummarizerTests(unittest.TestCase):
         self.assertGreaterEqual(seen["timeout"], 180)
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
         self.assertEqual(seen["body"]["thinking"], {"type": "disabled"})
-        self.assertGreaterEqual(seen["body"]["max_tokens"], 8192)
-        self.assertLessEqual(seen["body"]["max_tokens"], 9000)
+        self.assertEqual(seen["body"]["max_tokens"], 1800)
         system_prompt = seen["body"]["messages"][0]["content"]
         self.assertIn("English", system_prompt)
-        self.assertIn("final answer only", system_prompt.lower())
-        self.assertIn("do not explain", system_prompt.lower())
+        self.assertIn("valid json", system_prompt.lower())
         self.assertIn("Problem", system_prompt)
         self.assertIn("Method", system_prompt)
         self.assertIn("Finding", system_prompt)
@@ -159,6 +176,21 @@ class SummarizerTests(unittest.TestCase):
         self.assertIn("Stars today: 87", user_prompt)
         self.assertIn("Topics: gem5, microarchitecture", user_prompt)
         self.assertIn("Original paper links: arXiv https://arxiv.org/abs/2606.00001", user_prompt)
+
+    def test_enrich_payload_persists_structured_section_and_figure_summaries(self):
+        def opener(request, timeout=None):
+            if "ar5iv" in request.full_url:
+                return FakeResponse({"html": "<h2>Method</h2><figcaption>Figure 1: Speedup</figcaption>"})
+            return FakeResponse({"choices": [{"message": {"content": json.dumps({
+                "tldr": "Problem: This paper studies a concrete architecture challenge. Method: It combines a measurable design and an evaluation workflow. Finding: The reported evidence supports the proposed approach while leaving room for further validation. Why it matters: The result is relevant to architecture research and practical system design.",
+                "sections": [{"title": "Method", "summary": "The method is evaluated."}],
+                "figures": [{"label": "Figure 1", "caption": "Speedup", "explanation": "Higher is better."}],
+            })}}]})
+
+        enriched = enrich_payload_with_tldrs({"recommendations": [{"paper_id": "2601.12345", "title": "A", "abstract": "B"}]}, api_key="secret", opener=opener)
+        item = enriched["recommendations"][0]
+        self.assertEqual(item["section_summaries"][0]["title"], "Method")
+        self.assertEqual(item["figure_explanations"][0]["explanation"], "Higher is better.")
 
     def test_enrich_payload_with_tldrs_uses_fallback_when_api_key_missing(self):
         payload = {
