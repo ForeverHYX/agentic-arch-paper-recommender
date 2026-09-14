@@ -76,8 +76,9 @@ def request_paper_summary(
     system_prompt = _system_prompt_for_item(item)
     if retry_short_output:
         system_prompt += (
-            " The previous output was too thin. Rewrite it with a complete headline, "
-            "at least three key_points with distinct labels, and a key_figure when the paper has one. "
+            " The previous output was too thin or missed the Chinese fields. Rewrite it with a complete headline, "
+            "at least three key_points with distinct labels, the Simplified Chinese fields (headline_zh, key_points_zh, "
+            "and key_figure.explanation_zh when a figure exists), and a key_figure when the paper has one. "
             "Keep the JSON schema unchanged."
         )
     user_prompt = _user_prompt_for_item(item)
@@ -89,7 +90,7 @@ def request_paper_summary(
     body = {
         "model": model,
         "temperature": 0.2,
-        "max_tokens": 1500,
+        "max_tokens": 1900,
         "thinking": {"type": "disabled"},
         "messages": [
             {
@@ -138,6 +139,7 @@ def enrich_payload_with_tldrs(
         if (
             not updated.get("tldr")
             or "key_points" not in updated
+            or "key_points_zh" not in updated
             or "section_summaries" not in updated
             or "figure_explanations" not in updated
         ):
@@ -209,6 +211,7 @@ def _safe_summary(
             )
         return _fallback_summary(item, extract_paper_structure(item, opener=opener))
     last_quality_error: ValueError | None = None
+    usable_summary: dict[str, Any] | None = None
     try:
         previous_tldr = ""
         for attempt in range(TLDR_MAX_ATTEMPTS):
@@ -229,9 +232,16 @@ def _safe_summary(
                 ),
             )
             if _is_usable_summary(summary):
-                return summary
+                usable_summary = summary
+                if summary.get("headline_zh"):
+                    return summary
+                # English brief is fine but the Chinese mirror is missing; retry
+                # once for it and fall back to the English-only brief otherwise.
+                continue
             previous_tldr = summary.get("tldr", "")
             last_quality_error = _summary_quality_error(summary)
+        if usable_summary:
+            return usable_summary
         raise last_quality_error or ValueError("summary brief is too thin")
     except Exception as exc:
         if require_api:
@@ -251,11 +261,17 @@ def _parse_paper_summary(content: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         value = {"tldr": raw}
     headline = _short_text(value.get("headline", ""), 240)
+    headline_zh = _short_text(value.get("headline_zh", ""), 160)
     key_points = []
     for entry in value.get("key_points", []) if isinstance(value.get("key_points", []), list) else []:
         if isinstance(entry, dict) and str(entry.get("text", "")).strip():
             label = _short_text(entry.get("label", "Note"), 40)
             key_points.append({"label": label, "text": _short_text(entry["text"], 360)})
+    key_points_zh = []
+    for entry in value.get("key_points_zh", []) if isinstance(value.get("key_points_zh", []), list) else []:
+        if isinstance(entry, dict) and str(entry.get("text", "")).strip():
+            label = _short_text(entry.get("label", "要点"), 40)
+            key_points_zh.append({"label": label, "text": _short_text(entry["text"], 360)})
     sections = []
     for entry in value.get("sections", []) if isinstance(value.get("sections", []), list) else []:
         if isinstance(entry, dict) and str(entry.get("title", "")).strip() and str(entry.get("summary", "")).strip():
@@ -273,13 +289,16 @@ def _parse_paper_summary(content: Any) -> dict[str, Any]:
             "label": _short_text(raw_key_figure.get("label", "Figure"), 80),
             "caption": _short_text(raw_key_figure.get("caption", ""), 240),
             "explanation": _short_text(raw_key_figure.get("explanation", ""), 360),
+            "explanation_zh": _short_text(raw_key_figure.get("explanation_zh", ""), 360),
         }
     legacy_tldr = " ".join(str(value.get("tldr", "")).split())
     tldr = _derive_tldr(headline, key_points) or legacy_tldr
     return {
         "tldr": tldr,
         "headline": headline,
+        "headline_zh": headline_zh,
         "key_points": key_points[:5],
+        "key_points_zh": key_points_zh[:5],
         "key_figure": key_figure,
         "section_summaries": sections[:6],
         "figure_explanations": figures[:6],
@@ -316,7 +335,9 @@ def _fallback_summary(item: dict[str, Any], structure: dict[str, Any]) -> dict[s
     result = {
         "tldr": fallback_tldr(item),
         "headline": _fallback_headline(item),
+        "headline_zh": "",
         "key_points": _fallback_key_points(item),
+        "key_points_zh": [],
         "key_figure": {},
         "section_summaries": [],
         "figure_explanations": [],
@@ -328,6 +349,7 @@ def _fallback_summary(item: dict[str, Any], structure: dict[str, Any]) -> dict[s
             "label": first.get("label", "Figure"),
             "caption": first.get("caption", ""),
             "explanation": "No model explanation available; read the caption together with the paper.",
+            "explanation_zh": "",
         }
     for title in structure.get("sections", [])[:6]:
         result["section_summaries"].append({"title": title, "summary": "未启用模型，暂无该段落的可靠摘要；请打开原文查看。"})
@@ -476,25 +498,31 @@ def _fallback_repository_tldr(item: dict[str, Any], max_chars: int = 520) -> str
 def _system_prompt_for_item(item: dict[str, Any]) -> str:
     if _is_repository_item(item):
         return (
-            "Write a quick-read brief in English for a GitHub repository, for a computer architecture researcher. "
-            "Return only valid JSON with keys headline, key_points, sections, key_figure, figures. "
-            "headline: one sentence stating what the repository implements and why it matters (max 30 words). "
-            "key_points: 3-5 objects with label (one of Problem, Method, Evidence, Impact, Limitation) and text; "
+            "Write a bilingual quick-read brief for a GitHub repository, for a computer architecture researcher. "
+            "Return only valid JSON with keys headline, key_points, headline_zh, key_points_zh, sections, key_figure, figures. "
+            "headline: one English sentence stating what the repository implements and why it matters (max 25 words). "
+            "key_points: 3-5 objects with label (one of Problem, Method, Evidence, Impact, Limitation) and English text; "
             "Evidence should cover the star trend and original paper links. "
+            "headline_zh: the same core message in Simplified Chinese, 40字以内, keep system/tool names in English. "
+            "key_points_zh: the same points in Simplified Chinese with label one of 问题, 方法, 证据, 意义, 局限. "
             "sections and figures must be empty arrays and key_figure must be null. "
             "Do not invent information absent from the README or repository metadata; preserve system names, tool names, and acronyms."
         )
     return (
-        "Write a quick-read brief in English for a computer architecture researcher who wants to grasp the paper fast. "
-        "Return only valid JSON with keys headline, key_points, sections, key_figure, figures. "
-        "headline: one sentence stating the paper's core contribution or result (max 30 words). "
+        "Write a bilingual quick-read brief in English and Simplified Chinese for a computer architecture researcher "
+        "who wants to grasp the paper fast. "
+        "Return only valid JSON with keys headline, key_points, headline_zh, key_points_zh, sections, key_figure, figures. "
+        "headline: one English sentence stating the paper's core contribution or result (max 25 words). "
         "key_points: array of 3-5 objects, each with label (one of Problem, Method, Evidence, Impact, Limitation) "
-        "and a single concise sentence of text. Evidence states what experiments or results are reported; "
+        "and a single concise sentence of English text. Evidence states what experiments or results are reported; "
         "if the abstract discloses none, say that explicitly. "
+        "headline_zh: the same core contribution in Simplified Chinese, 40字以内, keep system/tool names in English. "
+        "key_points_zh: the same points in Simplified Chinese, same order, with label one of 问题, 方法, 证据, 意义, 局限. "
         "key_figure: the single figure or table that best carries the paper's message, "
-        "as an object with label, caption, and a one-sentence explanation of what it shows; null if none is evident. "
-        "sections: array of up to 6 objects with title and concise summary for deep reading. "
-        "figures: array of up to 6 objects with label, caption, and a concise explanation of what the chart/diagram shows. "
+        "as an object with label, caption, explanation (one English sentence), and explanation_zh (one Simplified Chinese sentence); "
+        "null if none is evident. "
+        "sections: array of up to 6 objects with title and concise English summary for deep reading. "
+        "figures: array of up to 6 objects with label, caption, and a concise English explanation of what the chart/diagram shows. "
         "Do not invent details beyond the abstract and extracted structure; preserve system names, tool names, and acronyms."
     )
 

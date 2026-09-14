@@ -47,7 +47,18 @@ BRIEF_JSON = json.dumps(
             {"label": "Method", "text": "An LLM agent proposes candidates and evaluates them in gem5."},
             {"label": "Evidence", "text": "Simulated results improve miss rate and IPC over baselines."},
         ],
-        "key_figure": {"label": "Figure 2", "caption": "IPC across policies", "explanation": "Higher bars mean faster execution."},
+        "headline_zh": "用 gem5 反馈驱动的 agent 闭环搜索缓存替换策略设计。",
+        "key_points_zh": [
+            {"label": "问题", "text": "缓存策略的设计空间搜索又慢又依赖人工。"},
+            {"label": "方法", "text": "LLM agent 提出候选并在 gem5 中评估。"},
+            {"label": "证据", "text": "仿真结果显示 miss rate 与 IPC 均优于基线。"},
+        ],
+        "key_figure": {
+            "label": "Figure 2",
+            "caption": "IPC across policies",
+            "explanation": "Higher bars mean faster execution.",
+            "explanation_zh": "柱越高代表执行越快。",
+        },
         "sections": [{"title": "Method", "summary": "The method is evaluated."}],
         "figures": [{"label": "Figure 1", "caption": "Speedup", "explanation": "Higher is better."}],
     }
@@ -154,12 +165,15 @@ class SummarizerTests(unittest.TestCase):
         self.assertGreaterEqual(seen["timeout"], 180)
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
         self.assertEqual(seen["body"]["thinking"], {"type": "disabled"})
-        self.assertEqual(seen["body"]["max_tokens"], 1500)
+        self.assertEqual(seen["body"]["max_tokens"], 1900)
         system_prompt = seen["body"]["messages"][0]["content"]
         self.assertIn("English", system_prompt)
         self.assertIn("valid json", system_prompt.lower())
         self.assertIn("headline", system_prompt)
         self.assertIn("key_points", system_prompt)
+        self.assertIn("headline_zh", system_prompt)
+        self.assertIn("key_points_zh", system_prompt)
+        self.assertIn("Simplified Chinese", system_prompt)
         self.assertIn("Problem", system_prompt)
         self.assertIn("Method", system_prompt)
         self.assertIn("Evidence", system_prompt)
@@ -206,7 +220,9 @@ class SummarizerTests(unittest.TestCase):
         self.assertIn("agent-driven loop", item["headline"])
         self.assertIn("agent-driven loop", item["tldr"])
         self.assertEqual(item["key_points"][0]["label"], "Problem")
-        self.assertEqual(item["key_figure"]["explanation"], "Higher bars mean faster execution.")
+        self.assertIn("缓存替换策略", item["headline_zh"])
+        self.assertEqual(item["key_points_zh"][0]["label"], "问题")
+        self.assertEqual(item["key_figure"]["explanation_zh"], "柱越高代表执行越快。")
         self.assertEqual(item["section_summaries"][0]["title"], "Method")
         self.assertEqual(item["figure_explanations"][0]["explanation"], "Higher is better.")
 
@@ -308,6 +324,43 @@ class SummarizerTests(unittest.TestCase):
         self.assertIn("agent-driven loop", enriched["recommendations"][0]["headline"])
         self.assertEqual(len(calls), 2)
         self.assertEqual(sleeper.call_count, 1)
+
+    def test_enrich_payload_with_tldrs_retries_missing_chinese_fields_then_keeps_english_brief(self):
+        payload = {
+            "recommendations": [
+                {
+                    "paper_id": "p1",
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies.",
+                }
+            ]
+        }
+        english_only = json.dumps(
+            {
+                "headline": "An agent-driven loop searches cache replacement designs with gem5 feedback.",
+                "key_points": [
+                    {"label": "Problem", "text": "Design-space search for cache policies is slow and manual."},
+                    {"label": "Method", "text": "An LLM agent proposes candidates and evaluates them in gem5."},
+                    {"label": "Evidence", "text": "Simulated results improve miss rate and IPC over baselines."},
+                ],
+            }
+        )
+        calls = []
+
+        def opener(request, timeout=None):
+            if "ar5iv" in request.full_url:
+                return FakeResponse({"html": ""})
+            calls.append(request.data.decode("utf-8"))
+            return FakeResponse({"choices": [{"message": {"content": english_only}}]})
+
+        enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener, require_api=True)
+
+        item = enriched["recommendations"][0]
+        self.assertEqual(len(calls), 2)
+        self.assertIn("Chinese fields", calls[1])
+        self.assertIn("agent-driven loop", item["headline"])
+        self.assertEqual(item["headline_zh"], "")
+        self.assertEqual(item["key_points_zh"], [])
 
     def test_enrich_payload_with_tldrs_requires_api_without_leaking_key(self):
         payload = {
