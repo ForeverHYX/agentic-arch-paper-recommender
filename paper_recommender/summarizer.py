@@ -6,6 +6,7 @@ import argparse
 import json
 from html.parser import HTMLParser
 from pathlib import Path
+import re
 from typing import Any, Callable
 from urllib.request import Request, urlopen
 
@@ -24,6 +25,20 @@ SECTION_LABELS = {
     "microarchitecture_simulators": "CPU/GPU microarchitecture and simulators",
     "hpc_cross_over": "HPC, compiler, and runtime co-design",
 }
+# ar5iv redirects papers without an HTML rendering to the arXiv abs page,
+# whose page furniture would otherwise masquerade as paper sections.
+ABS_PAGE_SECTION_MARKERS = frozenset(
+    {
+        "submission history",
+        "access paper",
+        "access paper:",
+        "current browse context",
+        "current browse context:",
+        "references & citations",
+        "bibtex formatted citation",
+        "bookmark",
+    }
+)
 
 
 def fallback_tldr(item: dict[str, Any], max_chars: int = 520) -> str:
@@ -275,6 +290,8 @@ def _parse_paper_summary(content: Any) -> dict[str, Any]:
     sections = []
     for entry in value.get("sections", []) if isinstance(value.get("sections", []), list) else []:
         if isinstance(entry, dict) and str(entry.get("title", "")).strip() and str(entry.get("summary", "")).strip():
+            if _is_empty_content_summary(entry["summary"]) or _is_abs_page_furniture(str(entry["title"])):
+                continue
             sections.append({"title": _short_text(entry["title"], 120), "summary": _short_text(entry["summary"], 360)})
     figures = []
     for entry in value.get("figures", []) if isinstance(value.get("figures", []), list) else []:
@@ -303,6 +320,11 @@ def _parse_paper_summary(content: Any) -> dict[str, Any]:
         "section_summaries": sections[:6],
         "figure_explanations": figures[:6],
     }
+
+
+def _is_empty_content_summary(summary: Any) -> bool:
+    text = str(summary or "").strip().lower()
+    return "no content extracted" in text or "no content available" in text
 
 
 def _derive_tldr(headline: str, key_points: list[dict[str, Any]]) -> str:
@@ -444,7 +466,19 @@ def extract_paper_structure(item: dict[str, Any], opener: Callable[[Request], An
         parser.feed(html)
     except Exception:
         return {"sections": [], "figures": []}
-    return {"sections": parser.sections, "figures": parser.figures}
+    sections = [title for title in parser.sections if not _is_abs_page_furniture(title)]
+    if len(parser.sections) - len(sections) >= 2 or _looks_like_abs_page(html):
+        # The redirect landed on the arXiv abs page, not a rendered paper.
+        return {"sections": [], "figures": []}
+    return {"sections": sections, "figures": parser.figures}
+
+
+def _is_abs_page_furniture(title: str) -> bool:
+    return title.strip().lower().rstrip(":") in ABS_PAGE_SECTION_MARKERS
+
+
+def _looks_like_abs_page(html: str) -> bool:
+    return bool(re.search(r"<title>\s*\[\d{4}\.\d{4,5}\]", html))
 
 
 def _short_text(value: Any, max_chars: int) -> str:
@@ -521,7 +555,9 @@ def _system_prompt_for_item(item: dict[str, Any]) -> str:
         "key_figure: the single figure or table that best carries the paper's message, "
         "as an object with label, caption, explanation (one English sentence), and explanation_zh (one Simplified Chinese sentence); "
         "null if none is evident. "
-        "sections: array of up to 6 objects with title and concise English summary for deep reading. "
+        "sections: array of up to 6 objects with title and concise English summary for deep reading; "
+        "only real paper sections (e.g. Introduction, Method, Evaluation) — never page furniture such as "
+        "submission history, access options, references, BibTeX, or bookmark. "
         "figures: array of up to 6 objects with label, caption, and a concise English explanation of what the chart/diagram shows. "
         "Do not invent details beyond the abstract and extracted structure; preserve system names, tool names, and acronyms."
     )

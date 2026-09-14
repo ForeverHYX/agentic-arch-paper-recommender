@@ -84,6 +84,67 @@ class SummarizerTests(unittest.TestCase):
         self.assertEqual(structure["sections"], ["Method", "Evaluation Results"])
         self.assertEqual(structure["figures"][0]["caption"], "Figure 2: Throughput by workload")
 
+    def test_extract_paper_structure_ignores_arxiv_abs_page_redirect(self):
+        class HtmlResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self, size=None):
+                return (
+                    b"<html><head><title>[2609.12923] Dissecting GPU Utilization</title></head><body>"
+                    b"<h2>Submission history</h2><h3>BibTeX formatted citation</h3>"
+                    b"<h2>Access Paper:</h2><h3>Bookmark</h3>"
+                    b"</body></html>"
+                )
+
+        def opener(request, timeout=None):
+            return HtmlResponse()
+
+        structure = extract_paper_structure({"paper_id": "2609.12923"}, opener=opener)
+        self.assertEqual(structure, {"sections": [], "figures": []})
+
+    def test_extract_paper_structure_filters_abs_page_furniture_headings(self):
+        class HtmlResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, traceback):
+                return False
+
+            def read(self, size=None):
+                return b"<h2>Method</h2><h2>Submission history</h2>"
+
+        def opener(request, timeout=None):
+            return HtmlResponse()
+
+        structure = extract_paper_structure({"paper_id": "2609.12923"}, opener=opener)
+        self.assertEqual(structure["sections"], ["Method"])
+
+    def test_parse_paper_summary_drops_empty_content_section_entries(self):
+        from paper_recommender.summarizer import _parse_paper_summary
+
+        summary = _parse_paper_summary(
+            json.dumps(
+                {
+                    "headline": "A real contribution sentence that is long enough.",
+                    "key_points": [
+                        {"label": "Problem", "text": "Real problem."},
+                        {"label": "Method", "text": "Real method."},
+                        {"label": "Evidence", "text": "Real evidence."},
+                    ],
+                    "sections": [
+                        {"title": "Method", "summary": "Real summary."},
+                        {"title": "Submission history", "summary": "No content extracted from the public HTML copy."},
+                    ],
+                }
+            )
+        )
+
+        self.assertEqual([entry["title"] for entry in summary["section_summaries"]], ["Method"])
+
     def test_fallback_tldr_is_structured_english_briefing(self):
         text = fallback_tldr(
             {
