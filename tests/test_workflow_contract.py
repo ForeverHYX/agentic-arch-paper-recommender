@@ -35,6 +35,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m paper_recommender.arxiv_source", workflow)
         self.assertIn("--output output/papers.jsonl", workflow)
         self.assertIn("--max-results 500", workflow)
+        self.assertIn("--via auto", workflow)
         self.assertIn("cooling down", workflow)
         self.assertIn("python -m paper_recommender.github_trending", workflow)
         self.assertIn("--output output/github_repos.jsonl", workflow)

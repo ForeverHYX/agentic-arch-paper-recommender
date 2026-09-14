@@ -17,6 +17,7 @@ from paper_recommender.llm_retry import call_with_transient_retries
 DEFAULT_USER_AGENT = "agentic-arch-paper-recommender/1.0"
 TLDR_MAX_ATTEMPTS = 2
 SUMMARY_LLM_RETRY_ATTEMPTS = 3
+KEY_POINT_LABELS = ("Problem", "Method", "Evidence", "Impact", "Limitation")
 SECTION_LABELS = {
     "agentic_architecture": "agentic architecture and automated design-space exploration",
     "full_stack_codesign": "full-stack hardware/software co-design",
@@ -75,19 +76,20 @@ def request_paper_summary(
     system_prompt = _system_prompt_for_item(item)
     if retry_short_output:
         system_prompt += (
-            " The previous output was too short. Rewrite it as four complete English sentences, "
-            "with at least 80 words in total. Keep the JSON schema unchanged."
+            " The previous output was too thin. Rewrite it with a complete headline, "
+            "at least three key_points with distinct labels, and a key_figure when the paper has one. "
+            "Keep the JSON schema unchanged."
         )
     user_prompt = _user_prompt_for_item(item)
     structure = extract_paper_structure(item, opener=opener)
     if structure["sections"] or structure["figures"]:
         user_prompt += "\nPaper structure extracted from the public HTML copy:\n" + json.dumps(structure, ensure_ascii=False)
     if previous_tldr:
-        user_prompt += f"\nPrevious short TLDR to replace: {_truncate(previous_tldr, 180)}"
+        user_prompt += f"\nPrevious thin brief to replace: {_truncate(previous_tldr, 180)}"
     body = {
         "model": model,
         "temperature": 0.2,
-        "max_tokens": 1800,
+        "max_tokens": 1500,
         "thinking": {"type": "disabled"},
         "messages": [
             {
@@ -133,7 +135,12 @@ def enrich_payload_with_tldrs(
     recommendations = []
     for item in payload.get("recommendations", []):
         updated = dict(item)
-        if not updated.get("tldr") or "section_summaries" not in updated or "figure_explanations" not in updated:
+        if (
+            not updated.get("tldr")
+            or "key_points" not in updated
+            or "section_summaries" not in updated
+            or "figure_explanations" not in updated
+        ):
             summary = _safe_summary(
                 updated,
                 api_key=api_key,
@@ -221,12 +228,11 @@ def _safe_summary(
                     f"({retry_attempt}/{SUMMARY_LLM_RETRY_ATTEMPTS})"
                 ),
             )
-            tldr = summary["tldr"]
-            if _is_usable_tldr(tldr):
+            if _is_usable_summary(summary):
                 return summary
-            previous_tldr = tldr
-            last_quality_error = _tldr_quality_error(tldr)
-        raise last_quality_error or ValueError("TLDR is too short or not usable")
+            previous_tldr = summary.get("tldr", "")
+            last_quality_error = _summary_quality_error(summary)
+        raise last_quality_error or ValueError("summary brief is too thin")
     except Exception as exc:
         if require_api:
             raise LLMProviderError(format_llm_error(exc, base_url=base_url, model=model, api_key=api_key)) from exc
@@ -244,7 +250,12 @@ def _parse_paper_summary(content: Any) -> dict[str, Any]:
         value = {"tldr": raw}
     if not isinstance(value, dict):
         value = {"tldr": raw}
-    tldr = " ".join(str(value.get("tldr", "")).split())
+    headline = _short_text(value.get("headline", ""), 240)
+    key_points = []
+    for entry in value.get("key_points", []) if isinstance(value.get("key_points", []), list) else []:
+        if isinstance(entry, dict) and str(entry.get("text", "")).strip():
+            label = _short_text(entry.get("label", "Note"), 40)
+            key_points.append({"label": label, "text": _short_text(entry["text"], 360)})
     sections = []
     for entry in value.get("sections", []) if isinstance(value.get("sections", []), list) else []:
         if isinstance(entry, dict) and str(entry.get("title", "")).strip() and str(entry.get("summary", "")).strip():
@@ -253,16 +264,103 @@ def _parse_paper_summary(content: Any) -> dict[str, Any]:
     for entry in value.get("figures", []) if isinstance(value.get("figures", []), list) else []:
         if isinstance(entry, dict) and str(entry.get("caption", "")).strip():
             figures.append({"label": _short_text(entry.get("label", "Figure"), 80), "caption": _short_text(entry["caption"], 240), "explanation": _short_text(entry.get("explanation", ""), 360)})
-    return {"tldr": tldr, "section_summaries": sections[:6], "figure_explanations": figures[:6]}
+    key_figure = {}
+    raw_key_figure = value.get("key_figure")
+    if isinstance(raw_key_figure, dict) and (
+        str(raw_key_figure.get("caption", "")).strip() or str(raw_key_figure.get("explanation", "")).strip()
+    ):
+        key_figure = {
+            "label": _short_text(raw_key_figure.get("label", "Figure"), 80),
+            "caption": _short_text(raw_key_figure.get("caption", ""), 240),
+            "explanation": _short_text(raw_key_figure.get("explanation", ""), 360),
+        }
+    legacy_tldr = " ".join(str(value.get("tldr", "")).split())
+    tldr = _derive_tldr(headline, key_points) or legacy_tldr
+    return {
+        "tldr": tldr,
+        "headline": headline,
+        "key_points": key_points[:5],
+        "key_figure": key_figure,
+        "section_summaries": sections[:6],
+        "figure_explanations": figures[:6],
+    }
+
+
+def _derive_tldr(headline: str, key_points: list[dict[str, Any]]) -> str:
+    if not headline:
+        return ""
+    parts = [headline] + [str(point.get("text", "")) for point in key_points[:3]]
+    return " ".join(" ".join(parts).split())
+
+
+def _is_usable_summary(summary: dict[str, Any]) -> bool:
+    headline = str(summary.get("headline", "")).strip()
+    key_points = [
+        point
+        for point in summary.get("key_points", [])
+        if isinstance(point, dict) and str(point.get("text", "")).strip()
+    ]
+    return len(headline) >= 30 and len(key_points) >= 3
+
+
+def _summary_quality_error(summary: dict[str, Any]) -> ValueError:
+    headline = str(summary.get("headline", "")).strip()
+    key_points = summary.get("key_points", [])
+    return ValueError(
+        "summary brief is too thin: "
+        f"headline_chars={len(headline)}, key_points={len(key_points)}"
+    )
 
 
 def _fallback_summary(item: dict[str, Any], structure: dict[str, Any]) -> dict[str, Any]:
-    result = {"tldr": fallback_tldr(item), "section_summaries": [], "figure_explanations": []}
+    result = {
+        "tldr": fallback_tldr(item),
+        "headline": _fallback_headline(item),
+        "key_points": _fallback_key_points(item),
+        "key_figure": {},
+        "section_summaries": [],
+        "figure_explanations": [],
+    }
+    figures = structure.get("figures", [])
+    if figures:
+        first = figures[0]
+        result["key_figure"] = {
+            "label": first.get("label", "Figure"),
+            "caption": first.get("caption", ""),
+            "explanation": "No model explanation available; read the caption together with the paper.",
+        }
     for title in structure.get("sections", [])[:6]:
         result["section_summaries"].append({"title": title, "summary": "未启用模型，暂无该段落的可靠摘要；请打开原文查看。"})
     for figure in structure.get("figures", [])[:6]:
         result["figure_explanations"].append({"label": figure.get("label", "Figure"), "caption": figure.get("caption", ""), "explanation": "未启用模型，暂无图表解读；请结合图注和正文查看。"})
     return result
+
+
+def _fallback_headline(item: dict[str, Any]) -> str:
+    title = _short_text(item.get("title", ""), 200)
+    topic = _topic_hint(item)
+    return (
+        f'Model brief unavailable: "{title}" may fit {topic}; '
+        "open the paper to verify its actual contribution."
+    )
+
+
+def _fallback_key_points(item: dict[str, Any]) -> list[dict[str, str]]:
+    relevance = _relevance_reason(item)
+    return [
+        {
+            "label": "Problem",
+            "text": "Without the model brief, the specific problem can only be inferred from the title and metadata.",
+        },
+        {
+            "label": "Method",
+            "text": "The fallback avoids inventing details; open the paper to inspect the method and system design.",
+        },
+        {
+            "label": "Impact",
+            "text": relevance,
+        },
+    ]
 
 
 class _StructureParser(HTMLParser):
@@ -327,20 +425,6 @@ def extract_paper_structure(item: dict[str, Any], opener: Callable[[Request], An
     return {"sections": parser.sections, "figures": parser.figures}
 
 
-def _is_usable_tldr(text: str) -> bool:
-    normalized = " ".join(str(text).split())
-    if len(normalized) < 120:
-        return False
-    words = normalized.split()
-    return len(words) >= 18
-
-
-def _tldr_quality_error(text: str) -> ValueError:
-    normalized = " ".join(str(text).split())
-    words = normalized.split()
-    return ValueError(f"TLDR is too short or not usable: chars={len(normalized)}, words={len(words)}")
-
-
 def _short_text(value: Any, max_chars: int) -> str:
     text = " ".join(str(value or "").split())
     if len(text) <= max_chars:
@@ -392,18 +476,26 @@ def _fallback_repository_tldr(item: dict[str, Any], max_chars: int = 520) -> str
 def _system_prompt_for_item(item: dict[str, Any]) -> str:
     if _is_repository_item(item):
         return (
-            "Write an English TLDR for a GitHub repository for a computer architecture researcher. "
-            "Return only valid JSON with keys tldr, sections, and figures. tldr must contain four complete sentences "
-            "covering what it implements, relevance, star trend, and original paper links. sections and figures must be empty arrays. "
+            "Write a quick-read brief in English for a GitHub repository, for a computer architecture researcher. "
+            "Return only valid JSON with keys headline, key_points, sections, key_figure, figures. "
+            "headline: one sentence stating what the repository implements and why it matters (max 30 words). "
+            "key_points: 3-5 objects with label (one of Problem, Method, Evidence, Impact, Limitation) and text; "
+            "Evidence should cover the star trend and original paper links. "
+            "sections and figures must be empty arrays and key_figure must be null. "
             "Do not invent information absent from the README or repository metadata; preserve system names, tool names, and acronyms."
         )
     return (
-        "Write an English TLDR for a computer architecture researcher. "
-        "Return only valid JSON with keys tldr, sections, and figures. tldr must contain four complete sentences covering Problem, Method, "
-        "Finding or experimental evidence, and Why it matters. sections is an array of up to 6 objects with title and concise summary. "
-        "figures is an array of up to 6 objects with label, caption, and a concise explanation of what the chart/diagram shows. "
-        "If the abstract does not report experimental results, say that the abstract does not disclose them. "
-        "Do not translate sentence by sentence; preserve system names, tool names, and acronyms."
+        "Write a quick-read brief in English for a computer architecture researcher who wants to grasp the paper fast. "
+        "Return only valid JSON with keys headline, key_points, sections, key_figure, figures. "
+        "headline: one sentence stating the paper's core contribution or result (max 30 words). "
+        "key_points: array of 3-5 objects, each with label (one of Problem, Method, Evidence, Impact, Limitation) "
+        "and a single concise sentence of text. Evidence states what experiments or results are reported; "
+        "if the abstract discloses none, say that explicitly. "
+        "key_figure: the single figure or table that best carries the paper's message, "
+        "as an object with label, caption, and a one-sentence explanation of what it shows; null if none is evident. "
+        "sections: array of up to 6 objects with title and concise summary for deep reading. "
+        "figures: array of up to 6 objects with label, caption, and a concise explanation of what the chart/diagram shows. "
+        "Do not invent details beyond the abstract and extracted structure; preserve system names, tool names, and acronyms."
     )
 
 

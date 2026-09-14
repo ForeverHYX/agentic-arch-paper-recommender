@@ -506,9 +506,7 @@ function renderPaper(paper) {
   const aiJudgementHtml = aiJudgement
     ? `<div class="paper-ai"><span class="ai-label">AI 判断</span>${escapeHtml(aiJudgement.reason || "")}</div>`
     : "";
-  const tldrHtml = paper.tldr
-    ? `<div class="paper-tldr"><span class="tldr-label">TLDR</span>${escapeHtml(paper.tldr)}</div>`
-    : "";
+  const tldrHtml = renderQuickBrief(paper);
   const researchDetailsHtml = renderResearchDetails(paper);
   const repoTag = isRepository ? `<span class="tag-chip repo">GitHub 仓库</span>` : "";
   const repoTrendHtml = isRepository ? renderRepositoryMetaInline(paper) : "";
@@ -543,6 +541,35 @@ function renderPaper(paper) {
       </div>
     </article>
   `;
+}
+
+function renderQuickBrief(paper) {
+  const headline = String(paper.headline || "").trim();
+  const keyPoints = Array.isArray(paper.key_points)
+    ? paper.key_points.filter((point) => point && String(point.text || "").trim())
+    : [];
+  const keyFigure = paper.key_figure && typeof paper.key_figure === "object" ? paper.key_figure : null;
+  const keyFigureText = keyFigure ? String(keyFigure.explanation || keyFigure.caption || "").trim() : "";
+  if (!headline && !keyPoints.length && !keyFigureText) {
+    return paper.tldr
+      ? `<div class="paper-tldr"><span class="tldr-label">TLDR</span>${escapeHtml(paper.tldr)}</div>`
+      : "";
+  }
+  const headlineHtml = headline
+    ? `<p class="brief-headline"><span class="tldr-label">核心</span>${escapeHtml(headline)}</p>`
+    : "";
+  const pointsHtml = keyPoints.length
+    ? `<ul class="key-points">${keyPoints
+        .map(
+          (point) =>
+            `<li><span class="point-label">${escapeHtml(point.label || "要点")}</span><span>${escapeHtml(point.text)}</span></li>`
+        )
+        .join("")}</ul>`
+    : "";
+  const keyFigureHtml = keyFigureText
+    ? `<div class="key-figure"><span class="point-label">${escapeHtml(keyFigure.label || "关键图")}</span><span>${escapeHtml(keyFigureText)}</span></div>`
+    : "";
+  return `<div class="paper-brief">${headlineHtml}${pointsHtml}${keyFigureHtml}</div>`;
 }
 
 function renderResearchDetails(paper) {

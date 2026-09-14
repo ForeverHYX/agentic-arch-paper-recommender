@@ -88,6 +88,10 @@ __BODY__
 
         self.assertIn("paper.tldr", script)
         self.assertIn("TLDR", script)
+        self.assertIn("paper.headline", script)
+        self.assertIn("paper.key_points", script)
+        self.assertIn("paper.key_figure", script)
+        self.assertIn("核心", script)
         self.assertNotIn("核心解读", script)
         self.assertIn("paper.ai_judgement", script)
         self.assertIn("AI 判断", script)

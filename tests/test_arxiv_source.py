@@ -6,7 +6,14 @@ import unittest
 from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
-from paper_recommender.arxiv_source import build_query_url, fetch_atom_feed, main, parse_atom_feed
+from paper_recommender.arxiv_source import (
+    build_query_url,
+    fetch_atom_feed,
+    fetch_papers_via_rss,
+    main,
+    parse_atom_feed,
+    parse_rss_feed,
+)
 from paper_recommender.domain import InterestProfile, SectionRule
 
 
@@ -36,6 +43,67 @@ ATOM_FEED = """<?xml version="1.0" encoding="UTF-8"?>
   </entry>
 </feed>
 """
+
+
+RSS_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:arxiv="http://arxiv.org/schemas/atom"
+     xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>cs.AR updates on arXiv.org</title>
+    <item>
+      <title>Hardware-Attributed Operator Profiling for PyTorch</title>
+      <link>https://arxiv.org/abs/2609.11938</link>
+      <description>arXiv:2609.11938v1 Announce Type: new  Abstract: Framework profilers expose operator timing without hardware context.</description>
+      <guid>oai:arXiv.org:2609.11938v1</guid>
+      <category>cs.AR</category>
+      <category>cs.DC</category>
+      <pubDate>Mon, 14 Sep 2026 00:00:00 -0400</pubDate>
+      <arxiv:announce_type>new</arxiv:announce_type>
+      <dc:creator>Logan Chu, Dong Li</dc:creator>
+    </item>
+    <item>
+      <title>Adaptive AI: Energy Efficient Multi-exit TinyML</title>
+      <link>https://arxiv.org/abs/2609.11939</link>
+      <description>arXiv:2609.11939v1 Announce Type: replace  Abstract: TinyML systems achieve high accuracy at the edge.</description>
+      <guid>oai:arXiv.org:2609.11939v2</guid>
+      <category>cs.AR</category>
+      <pubDate>Tue, 08 Sep 2026 00:00:00 -0400</pubDate>
+      <dc:creator>Luca Crupi</dc:creator>
+    </item>
+  </channel>
+</rss>
+"""
+
+RSS_FEED_ALT = """<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>cs.PF updates on arXiv.org</title>
+    <item>
+      <title>Hardware-Attributed Operator Profiling for PyTorch</title>
+      <link>https://arxiv.org/abs/2609.11938</link>
+      <description>arXiv:2609.11938v1 Announce Type: cross  Abstract: Framework profilers expose operator timing without hardware context.</description>
+      <guid>oai:arXiv.org:2609.11938v1</guid>
+      <category>cs.PF</category>
+      <pubDate>Mon, 14 Sep 2026 00:00:00 -0400</pubDate>
+      <dc:creator>Logan Chu</dc:creator>
+    </item>
+  </channel>
+</rss>
+"""
+
+
+class BytesIOWrapper:
+    def __init__(self, text):
+        self._text = text
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
+
+    def read(self):
+        return self._text.encode("utf-8")
 
 
 class ArxivSourceTests(unittest.TestCase):
@@ -115,6 +183,57 @@ class ArxivSourceTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
             self.assertEqual([row["paper_id"] for row in rows], ["2604.03312"])
+
+    def test_parse_rss_feed_emits_pipeline_compatible_records(self):
+        records = parse_rss_feed(RSS_FEED)
+
+        self.assertEqual([record["paper_id"] for record in records], ["2609.11938", "2609.11939"])
+        first = records[0]
+        self.assertEqual(first["title"], "Hardware-Attributed Operator Profiling for PyTorch")
+        self.assertIn("Framework profilers expose operator timing", first["abstract"])
+        self.assertNotIn("Announce Type", first["abstract"])
+        self.assertEqual(first["authors"], ["Logan Chu", "Dong Li"])
+        self.assertEqual(first["categories"], ["cs.AR", "cs.DC"])
+        self.assertEqual(first["url"], "https://arxiv.org/abs/2609.11938")
+        self.assertEqual(first["published"], "2026-09-14T04:00:00Z")
+        self.assertEqual(first["updated"], "2026-09-14T04:00:00Z")
+        self.assertEqual(records[1]["published"], "2026-09-08T04:00:00Z")
+
+    def test_fetch_papers_via_rss_merges_feeds_and_dedupes_by_paper_id(self):
+        calls = []
+
+        def opener(request, timeout=None):
+            calls.append(request.full_url)
+            if "cs.PF" in request.full_url:
+                return BytesIOWrapper(RSS_FEED_ALT)
+            return BytesIOWrapper(RSS_FEED)
+
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.AR", "cs.PF"}),
+            expansion_categories=frozenset(),
+            sections=(SectionRule("arch", "Architecture", 1.0, ("microarchitecture",)),),
+        )
+
+        records = fetch_papers_via_rss(profile, opener=opener, sleeper=lambda _: None)
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual([record["paper_id"] for record in records], ["2609.11938", "2609.11939"])
+        self.assertEqual(records[0]["categories"], ["cs.AR", "cs.DC"])
+
+    def test_fetch_papers_via_rss_raises_when_every_feed_fails(self):
+        def opener(request, timeout=None):
+            raise TimeoutError("temporary timeout")
+
+        profile = InterestProfile(
+            name="Custom",
+            core_categories=frozenset({"cs.AR"}),
+            expansion_categories=frozenset(),
+            sections=(SectionRule("arch", "Architecture", 1.0, ("microarchitecture",)),),
+        )
+
+        with self.assertRaises(RuntimeError):
+            fetch_papers_via_rss(profile, opener=opener, sleeper=lambda _: None)
 
     def test_fetch_retries_timeout_then_succeeds(self):
         attempts = []

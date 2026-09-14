@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 import re
 import time
@@ -17,6 +19,10 @@ from paper_recommender.domain import InterestProfile, load_interest_profile
 
 
 ARXIV_API_BASE_URL = "https://export.arxiv.org/api/query"
+# rss.arxiv.org is a separate host from export.arxiv.org with its own rate
+# limits, so it stays reachable when the API throttles CI egress IP ranges.
+ARXIV_RSS_BASE_URL = "https://rss.arxiv.org/rss/{category}"
+USER_AGENT = "agentic-arch-paper-recommender/0.1"
 ATOM_NS = {
     "atom": "http://www.w3.org/2005/Atom",
     "arxiv": "http://arxiv.org/schemas/atom",
@@ -50,11 +56,87 @@ def fetch_atom_feed(
     opener: Callable[..., Any] = urlopen,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> str:
-    """Fetch an arXiv feed, retrying failures that are likely to be transient."""
+    """Fetch an arXiv API feed, retrying failures that are likely to be transient."""
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
+    request = Request(url, headers={"User-Agent": USER_AGENT})
+    return _fetch_text_with_retries(
+        request,
+        timeout=timeout,
+        max_attempts=max_attempts,
+        opener=opener,
+        sleeper=sleeper,
+        label="arXiv API",
+    )
 
-    request = Request(url, headers={"User-Agent": "agentic-arch-paper-recommender/0.1"})
+
+def fetch_rss_feed(
+    url: str,
+    timeout: int = 60,
+    max_attempts: int = 3,
+    opener: Callable[..., Any] = urlopen,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> str:
+    """Fetch an rss.arxiv.org category feed with the same transient retry policy."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1")
+    request = Request(url, headers={"User-Agent": USER_AGENT})
+    return _fetch_text_with_retries(
+        request,
+        timeout=timeout,
+        max_attempts=max_attempts,
+        opener=opener,
+        sleeper=sleeper,
+        label="arXiv RSS",
+    )
+
+
+def fetch_papers_via_rss(
+    profile: InterestProfile,
+    timeout: int = 60,
+    max_attempts: int = 3,
+    opener: Callable[..., Any] = urlopen,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> list[dict[str, Any]]:
+    """Collect recent arXiv records from per-category RSS feeds, deduped by paper id."""
+    categories = sorted(profile.core_categories | profile.expansion_categories)
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    feeds_ok = 0
+    for category in categories:
+        url = ARXIV_RSS_BASE_URL.format(category=category)
+        try:
+            feed_text = fetch_rss_feed(
+                url,
+                timeout=timeout,
+                max_attempts=max_attempts,
+                opener=opener,
+                sleeper=sleeper,
+            )
+        except Exception as error:
+            print(f"arXiv RSS feed {category} failed: {error}")
+            continue
+        feeds_ok += 1
+        for record in parse_rss_feed(feed_text):
+            paper_id = str(record.get("paper_id", ""))
+            if not paper_id or paper_id in seen:
+                continue
+            seen.add(paper_id)
+            records.append(record)
+    if feeds_ok == 0:
+        raise RuntimeError("all arXiv RSS feeds failed")
+    records.sort(key=lambda record: str(record.get("published", "")), reverse=True)
+    return records
+
+
+def _fetch_text_with_retries(
+    request: Request,
+    timeout: int,
+    max_attempts: int,
+    opener: Callable[..., Any],
+    sleeper: Callable[[float], None],
+    label: str,
+) -> str:
     for attempt in range(1, max_attempts + 1):
         try:
             with opener(request, timeout=timeout) as response:
@@ -65,7 +147,7 @@ def fetch_atom_feed(
             retry_after = error.headers.get("Retry-After") if error.headers else None
             delay = _retry_delay(attempt, retry_after)
             print(
-                f"arXiv API returned HTTP {error.code}; retrying in {delay:g}s "
+                f"{label} returned HTTP {error.code}; retrying in {delay:g}s "
                 f"({attempt}/{max_attempts})"
             )
             sleeper(delay)
@@ -74,11 +156,10 @@ def fetch_atom_feed(
                 raise
             delay = _retry_delay(attempt)
             print(
-                f"arXiv API request failed ({error}); retrying in {delay:g}s "
+                f"{label} request failed ({error}); retrying in {delay:g}s "
                 f"({attempt}/{max_attempts})"
             )
             sleeper(delay)
-
     raise RuntimeError("unreachable")
 
 
@@ -133,6 +214,97 @@ def parse_atom_feed(feed_text: str) -> list[dict[str, Any]]:
     return records
 
 
+def parse_rss_feed(feed_text: str) -> list[dict[str, Any]]:
+    """Parse an rss.arxiv.org category feed into pipeline-compatible records."""
+    root = ET.fromstring(feed_text)
+    records: list[dict[str, Any]] = []
+    for item in root.iter("item"):
+        fields: dict[str, list[str]] = {}
+        for child in item:
+            name = child.tag.rsplit("}", 1)[-1]
+            text = _normalize_text(child.text or "")
+            if text:
+                fields.setdefault(name, []).append(text)
+        title = fields.get("title", [""])[0]
+        link = fields.get("link", [""])[0]
+        guid = fields.get("guid", [""])[0]
+        description = fields.get("description", [""])[0]
+        categories = fields.get("category", [])
+        authors = _authors_from_creator(fields.get("creator", [""])[0])
+        published = _iso_from_rfc822(fields.get("pubDate", [""])[0])
+        paper_id = _paper_id_from_rss_item(guid=guid, link=link)
+        abstract = _abstract_from_rss_description(description)
+        records.append(
+            {
+                "paper_id": paper_id,
+                "title": title,
+                "abstract": abstract,
+                "summary": abstract,
+                "authors": authors,
+                "affiliations": [],
+                "categories": categories,
+                "url": link or (f"https://arxiv.org/abs/{paper_id}" if paper_id else ""),
+                "published": published,
+                "updated": published,
+            }
+        )
+    return [record for record in records if record["paper_id"]]
+
+
+def fetch_atom_and_rss_records(
+    profile: InterestProfile,
+    max_results: int,
+    start: int,
+    api_timeout: int = 240,
+    rss_timeout: int = 60,
+) -> list[dict[str, Any]]:
+    """Fetch from the export API, falling back to the RSS mirror when throttled."""
+    try:
+        feed_text = fetch_atom_feed(
+            build_query_url(profile, max_results=max_results, start=start),
+            timeout=api_timeout,
+        )
+        return parse_atom_feed(feed_text)
+    except Exception as error:
+        print(f"arXiv API fetch failed ({error}); falling back to the rss.arxiv.org mirror")
+        return fetch_papers_via_rss(profile, timeout=rss_timeout)
+
+
+def _authors_from_creator(creator: str) -> list[str]:
+    return [author.strip() for author in creator.split(",") if author.strip()]
+
+
+def _paper_id_from_rss_item(guid: str, link: str) -> str:
+    raw_id = ""
+    if guid:
+        raw_id = guid.rstrip("/").rsplit(":", 1)[-1]
+    elif link:
+        raw_id = link.rstrip("/").rsplit("/", 1)[-1]
+    return re.sub(r"v\d+$", "", raw_id)
+
+
+def _abstract_from_rss_description(description: str) -> str:
+    marker = "Abstract:"
+    position = description.find(marker)
+    if position >= 0:
+        return description[position + len(marker) :].strip()
+    return re.sub(r"^arXiv:\S+\s*", "", description).strip()
+
+
+def _iso_from_rfc822(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        parsed = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return ""
+    if parsed is None:
+        return ""
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def write_jsonl(records: list[dict[str, Any]], output_path: str | Path) -> None:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -148,20 +320,34 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-results", type=int, default=200, help="最多抓取 arXiv 记录数。")
     parser.add_argument("--start", type=int, default=0, help="arXiv API 分页起点。")
     parser.add_argument("--source-file", default=None, help="从本地 Atom XML 文件读取，而不是访问 arXiv。")
+    parser.add_argument(
+        "--via",
+        choices=("auto", "api", "rss"),
+        default="auto",
+        help="auto 先用 export API，失败时回退到 rss.arxiv.org 镜像。",
+    )
     args = parser.parse_args(argv)
 
     profile = load_interest_profile(args.profile)
     if args.source_file:
-        feed_text = Path(args.source_file).read_text(encoding="utf-8")
-    else:
+        records = parse_atom_feed(Path(args.source_file).read_text(encoding="utf-8"))
+    elif args.via == "api":
         # A 500-record Atom response is large and slow to read while arXiv is
         # throttling, so allow a long read window before treating it as a timeout.
         feed_text = fetch_atom_feed(
             build_query_url(profile, max_results=args.max_results, start=args.start),
             timeout=240,
         )
+        records = parse_atom_feed(feed_text)
+    elif args.via == "rss":
+        records = fetch_papers_via_rss(profile)
+    else:
+        records = fetch_atom_and_rss_records(
+            profile,
+            max_results=args.max_results,
+            start=args.start,
+        )
 
-    records = parse_atom_feed(feed_text)
     write_jsonl(records, args.output)
     print(f"已写入 {len(records)} 条 arXiv 记录到 {args.output}")
     return 0

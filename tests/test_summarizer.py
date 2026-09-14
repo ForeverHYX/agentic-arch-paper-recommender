@@ -39,6 +39,21 @@ class FakeErrorBody:
         pass
 
 
+BRIEF_JSON = json.dumps(
+    {
+        "headline": "An agent-driven loop searches cache replacement designs with gem5 feedback.",
+        "key_points": [
+            {"label": "Problem", "text": "Design-space search for cache policies is slow and manual."},
+            {"label": "Method", "text": "An LLM agent proposes candidates and evaluates them in gem5."},
+            {"label": "Evidence", "text": "Simulated results improve miss rate and IPC over baselines."},
+        ],
+        "key_figure": {"label": "Figure 2", "caption": "IPC across policies", "explanation": "Higher bars mean faster execution."},
+        "sections": [{"title": "Method", "summary": "The method is evaluated."}],
+        "figures": [{"label": "Figure 1", "caption": "Speedup", "explanation": "Higher is better."}],
+    }
+)
+
+
 class SummarizerTests(unittest.TestCase):
     def test_extract_paper_structure_reads_sections_and_figures(self):
         class HtmlResponse:
@@ -139,14 +154,16 @@ class SummarizerTests(unittest.TestCase):
         self.assertGreaterEqual(seen["timeout"], 180)
         self.assertEqual(seen["body"]["model"], "deepseek-v4-flash")
         self.assertEqual(seen["body"]["thinking"], {"type": "disabled"})
-        self.assertEqual(seen["body"]["max_tokens"], 1800)
+        self.assertEqual(seen["body"]["max_tokens"], 1500)
         system_prompt = seen["body"]["messages"][0]["content"]
         self.assertIn("English", system_prompt)
         self.assertIn("valid json", system_prompt.lower())
+        self.assertIn("headline", system_prompt)
+        self.assertIn("key_points", system_prompt)
         self.assertIn("Problem", system_prompt)
         self.assertIn("Method", system_prompt)
-        self.assertIn("Finding", system_prompt)
-        self.assertIn("Why it matters", system_prompt)
+        self.assertIn("Evidence", system_prompt)
+        self.assertIn("Impact", system_prompt)
 
     def test_request_tldr_includes_repository_context_for_repo_items(self):
         seen = {}
@@ -173,7 +190,7 @@ class SummarizerTests(unittest.TestCase):
         system_prompt = seen["body"]["messages"][0]["content"]
         user_prompt = seen["body"]["messages"][1]["content"]
         self.assertIn("repository", system_prompt.lower())
-        self.assertIn("what it implements", system_prompt)
+        self.assertIn("what the repository implements", system_prompt)
         self.assertIn("Stars today: 87", user_prompt)
         self.assertIn("Topics: gem5, microarchitecture", user_prompt)
         self.assertIn("Original paper links: arXiv https://arxiv.org/abs/2606.00001", user_prompt)
@@ -182,16 +199,27 @@ class SummarizerTests(unittest.TestCase):
         def opener(request, timeout=None):
             if "ar5iv" in request.full_url:
                 return FakeResponse({"html": "<h2>Method</h2><figcaption>Figure 1: Speedup</figcaption>"})
-            return FakeResponse({"choices": [{"message": {"content": json.dumps({
-                "tldr": "Problem: This paper studies a concrete architecture challenge. Method: It combines a measurable design and an evaluation workflow. Finding: The reported evidence supports the proposed approach while leaving room for further validation. Why it matters: The result is relevant to architecture research and practical system design.",
-                "sections": [{"title": "Method", "summary": "The method is evaluated."}],
-                "figures": [{"label": "Figure 1", "caption": "Speedup", "explanation": "Higher is better."}],
-            })}}]})
+            return FakeResponse({"choices": [{"message": {"content": BRIEF_JSON}}]})
 
         enriched = enrich_payload_with_tldrs({"recommendations": [{"paper_id": "2601.12345", "title": "A", "abstract": "B"}]}, api_key="secret", opener=opener)
         item = enriched["recommendations"][0]
+        self.assertIn("agent-driven loop", item["headline"])
+        self.assertIn("agent-driven loop", item["tldr"])
+        self.assertEqual(item["key_points"][0]["label"], "Problem")
+        self.assertEqual(item["key_figure"]["explanation"], "Higher bars mean faster execution.")
         self.assertEqual(item["section_summaries"][0]["title"], "Method")
         self.assertEqual(item["figure_explanations"][0]["explanation"], "Higher is better.")
+
+    def test_parse_paper_summary_accepts_plain_text_without_brief_fields(self):
+        from paper_recommender.summarizer import request_paper_summary
+
+        def opener(request, timeout=None):
+            return FakeResponse({"choices": [{"message": {"content": "Just a plain legacy tldr sentence."}}]})
+
+        summary = request_paper_summary({"title": "A", "abstract": "B"}, api_key="secret", opener=opener)
+        self.assertEqual(summary["tldr"], "Just a plain legacy tldr sentence.")
+        self.assertEqual(summary["headline"], "")
+        self.assertEqual(summary["key_points"], [])
 
     def test_enrich_payload_with_tldrs_uses_fallback_when_api_key_missing(self):
         payload = {
@@ -238,25 +266,21 @@ class SummarizerTests(unittest.TestCase):
                 }
             ]
         }
-        long_tldr = (
-            "Problem: The paper studies how an LLM agent can search microarchitecture design space with simulator feedback. "
-            "Method: It links candidate generation, gem5 evaluation, and feedback-guided refinement into a closed loop. "
-            "Finding: The abstract suggests the loop can improve cache and prefetcher choices, although the full experiment still needs checking. "
-            "Why it matters: It directly matches agentic architecture exploration and simulator-guided optimization."
-        )
         calls = []
 
         def opener(request, timeout=None):
+            if "ar5iv" in request.full_url:
+                return FakeResponse({"html": ""})
             calls.append(json.loads(request.data.decode("utf-8")))
             if len(calls) == 1:
                 return FakeResponse({"choices": [{"message": {"content": "Short summary."}}]})
-            return FakeResponse({"choices": [{"message": {"content": long_tldr}}]})
+            return FakeResponse({"choices": [{"message": {"content": BRIEF_JSON}}]})
 
         enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener, require_api=True)
 
-        self.assertEqual(enriched["recommendations"][0]["tldr"], long_tldr)
+        self.assertIn("agent-driven loop", enriched["recommendations"][0]["headline"])
         self.assertEqual(len(calls), 2)
-        self.assertIn("previous output was too short", calls[1]["messages"][0]["content"])
+        self.assertIn("previous output was too thin", calls[1]["messages"][0]["content"])
 
     def test_enrich_payload_with_tldrs_retries_transient_network_errors(self):
         payload = {
@@ -268,12 +292,6 @@ class SummarizerTests(unittest.TestCase):
                 }
             ]
         }
-        long_tldr = (
-            "Problem: The paper studies how an LLM agent can search microarchitecture design space with simulator feedback. "
-            "Method: It links candidate generation, gem5 evaluation, and feedback-guided refinement into a closed loop. "
-            "Finding: The abstract suggests the loop can improve cache and prefetcher choices, although the full experiment still needs checking. "
-            "Why it matters: It directly matches agentic architecture exploration and simulator-guided optimization."
-        )
         calls = []
 
         def opener(request, timeout=None):
@@ -282,12 +300,12 @@ class SummarizerTests(unittest.TestCase):
             calls.append(request.full_url)
             if len(calls) == 1:
                 raise ConnectionResetError(104, "Connection reset by peer")
-            return FakeResponse({"choices": [{"message": {"content": long_tldr}}]})
+            return FakeResponse({"choices": [{"message": {"content": BRIEF_JSON}}]})
 
         with patch("paper_recommender.llm_retry.time.sleep") as sleeper:
             enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener)
 
-        self.assertEqual(enriched["recommendations"][0]["tldr"], long_tldr)
+        self.assertIn("agent-driven loop", enriched["recommendations"][0]["headline"])
         self.assertEqual(len(calls), 2)
         self.assertEqual(sleeper.call_count, 1)
 
@@ -352,7 +370,7 @@ class SummarizerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError) as context:
             enrich_payload_with_tldrs(payload, api_key="secret", opener=opener, require_api=True)
 
-        self.assertIn("TLDR is too short", str(context.exception))
+        self.assertIn("summary brief is too thin", str(context.exception))
 
     def test_cli_updates_recommendation_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
