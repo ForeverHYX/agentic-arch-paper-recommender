@@ -11,10 +11,12 @@ from urllib.request import Request, urlopen
 
 from paper_recommender.llm_errors import LLMProviderError, format_llm_error
 from paper_recommender.llm_config import DEFAULT_BASE_URL, DEFAULT_MODEL, api_key, base_url, model
+from paper_recommender.llm_retry import call_with_transient_retries
 
 
 DEFAULT_USER_AGENT = "agentic-arch-paper-recommender/1.0"
 TLDR_MAX_ATTEMPTS = 2
+SUMMARY_LLM_RETRY_ATTEMPTS = 3
 SECTION_LABELS = {
     "agentic_architecture": "agentic architecture and automated design-space exploration",
     "full_stack_codesign": "full-stack hardware/software co-design",
@@ -203,14 +205,21 @@ def _safe_summary(
     try:
         previous_tldr = ""
         for attempt in range(TLDR_MAX_ATTEMPTS):
-            summary = request_paper_summary(
-                item,
-                api_key=api_key,
-                base_url=base_url,
-                model=model,
-                opener=opener,
-                retry_short_output=attempt > 0,
-                previous_tldr=previous_tldr,
+            summary = call_with_transient_retries(
+                lambda: request_paper_summary(
+                    item,
+                    api_key=api_key,
+                    base_url=base_url,
+                    model=model,
+                    opener=opener,
+                    retry_short_output=attempt > 0,
+                    previous_tldr=previous_tldr,
+                ),
+                attempts=SUMMARY_LLM_RETRY_ATTEMPTS,
+                on_retry=lambda error, delay, retry_attempt: print(
+                    f"LLM summary request failed ({error}); retrying in {delay:g}s "
+                    f"({retry_attempt}/{SUMMARY_LLM_RETRY_ATTEMPTS})"
+                ),
             )
             tldr = summary["tldr"]
             if _is_usable_tldr(tldr):

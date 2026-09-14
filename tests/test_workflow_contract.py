@@ -76,6 +76,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m paper_recommender.judge", workflow)
         self.assertIn("--limit 15", workflow)
         self.assertIn("--exploration-limit 3", workflow)
+        self.assertIn("--core-llm-limit 24", workflow)
         self.assertIn("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}", workflow)
         self.assertLess(
             workflow.index("python -m paper_recommender.judge"),
@@ -117,7 +118,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('REQUIRE_API=""', workflow)
         self.assertIn('if [ "$HAS_LLM" = "true" ]; then', workflow)
         self.assertIn('REQUIRE_API="--require-api"', workflow)
-        self.assertIn("--limit 15 --exploration-limit 3 $REQUIRE_API", workflow)
+        self.assertIn("--limit 15 --exploration-limit 3 --core-llm-limit 24 $REQUIRE_API", workflow)
         self.assertIn("--output site/recommendations.json $REQUIRE_API", workflow)
 
     def test_daily_workflow_generates_llm_profile_review_overlay(self):

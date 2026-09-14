@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 
 from paper_recommender.summarizer import (
@@ -257,6 +258,39 @@ class SummarizerTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertIn("previous output was too short", calls[1]["messages"][0]["content"])
 
+    def test_enrich_payload_with_tldrs_retries_transient_network_errors(self):
+        payload = {
+            "recommendations": [
+                {
+                    "paper_id": "p1",
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies.",
+                }
+            ]
+        }
+        long_tldr = (
+            "Problem: The paper studies how an LLM agent can search microarchitecture design space with simulator feedback. "
+            "Method: It links candidate generation, gem5 evaluation, and feedback-guided refinement into a closed loop. "
+            "Finding: The abstract suggests the loop can improve cache and prefetcher choices, although the full experiment still needs checking. "
+            "Why it matters: It directly matches agentic architecture exploration and simulator-guided optimization."
+        )
+        calls = []
+
+        def opener(request, timeout=None):
+            if "ar5iv" in request.full_url:
+                return FakeResponse({"html": ""})
+            calls.append(request.full_url)
+            if len(calls) == 1:
+                raise ConnectionResetError(104, "Connection reset by peer")
+            return FakeResponse({"choices": [{"message": {"content": long_tldr}}]})
+
+        with patch("paper_recommender.llm_retry.time.sleep") as sleeper:
+            enriched = enrich_payload_with_tldrs(payload, api_key="secret", opener=opener)
+
+        self.assertEqual(enriched["recommendations"][0]["tldr"], long_tldr)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(sleeper.call_count, 1)
+
     def test_enrich_payload_with_tldrs_requires_api_without_leaking_key(self):
         payload = {
             "recommendations": [
@@ -268,7 +302,10 @@ class SummarizerTests(unittest.TestCase):
             ]
         }
 
+        calls = []
+
         def opener(request):
+            calls.append(request.full_url)
             raise HTTPError(
                 request.full_url,
                 401,
@@ -277,16 +314,20 @@ class SummarizerTests(unittest.TestCase):
                 fp=FakeErrorBody('{"error":"invalid api key unit-test-secret"}'),
             )
 
-        with self.assertRaises(RuntimeError) as context:
-            enrich_payload_with_tldrs(
-                payload,
-                api_key="unit-test-secret",
-                base_url="https://opencode.ai/zen/go/v1",
-                model="deepseek-v4-flash",
-                opener=opener,
-                require_api=True,
-            )
+        with patch("paper_recommender.llm_retry.time.sleep") as sleeper:
+            with self.assertRaises(RuntimeError) as context:
+                enrich_payload_with_tldrs(
+                    payload,
+                    api_key="unit-test-secret",
+                    base_url="https://opencode.ai/zen/go/v1",
+                    model="deepseek-v4-flash",
+                    opener=opener,
+                    require_api=True,
+                )
 
+        llm_calls = [url for url in calls if "ar5iv" not in url]
+        self.assertEqual(len(llm_calls), 1)
+        self.assertEqual(sleeper.call_count, 0)
         message = str(context.exception)
         self.assertIn("HTTP 401", message)
         self.assertIn("opencode.ai/zen/go/v1", message)

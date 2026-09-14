@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 
 from paper_recommender.judge import (
@@ -699,7 +700,10 @@ class JudgeTests(unittest.TestCase):
             ]
         }
 
+        calls = []
+
         def opener(request):
+            calls.append(request.full_url)
             raise HTTPError(
                 request.full_url,
                 401,
@@ -708,22 +712,156 @@ class JudgeTests(unittest.TestCase):
                 fp=FakeErrorBody('{"error":"invalid api key unit-test-secret"}'),
             )
 
-        with self.assertRaises(RuntimeError) as context:
-            enrich_payload_with_judgements(
-                payload,
-                api_key="unit-test-secret",
-                base_url="https://opencode.ai/zen/go/v1",
-                model="deepseek-v4-flash",
-                opener=opener,
-                require_api=True,
-            )
+        with patch("paper_recommender.llm_retry.time.sleep") as sleeper:
+            with self.assertRaises(RuntimeError) as context:
+                enrich_payload_with_judgements(
+                    payload,
+                    api_key="unit-test-secret",
+                    base_url="https://opencode.ai/zen/go/v1",
+                    model="deepseek-v4-flash",
+                    opener=opener,
+                    require_api=True,
+                )
 
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(sleeper.call_count, 0)
         message = str(context.exception)
         self.assertIn("HTTP 401", message)
         self.assertIn("opencode.ai/zen/go/v1", message)
         self.assertIn("deepseek-v4-flash", message)
         self.assertIn("invalid api key", message)
         self.assertNotIn("unit-test-secret", message)
+
+    def test_enrich_payload_with_judgements_retries_transient_network_errors(self):
+        payload = {
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "paper_id": "p1",
+                    "title": "Agentic Microarchitecture Exploration",
+                    "abstract": "LLM agents explore cache replacement policies.",
+                    "score": 5.0,
+                }
+            ]
+        }
+        calls = []
+
+        def opener(request):
+            calls.append(request.full_url)
+            if len(calls) == 1:
+                raise ConnectionResetError(104, "Connection reset by peer")
+            return FakeResponse(
+                {
+                    "choices": [
+                        {"message": {"content": '{"score": 8, "reason": "相关。", "decision": "keep"}'}}
+                    ]
+                }
+            )
+
+        with patch("paper_recommender.llm_retry.time.sleep") as sleeper:
+            enriched = enrich_payload_with_judgements(payload, api_key="secret", opener=opener)
+
+        self.assertEqual(enriched["count"], 1)
+        self.assertEqual(enriched["recommendations"][0]["ai_score"], 8.0)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(sleeper.call_count, 1)
+
+    def test_enrich_payload_with_judgements_caps_core_llm_calls_and_keeps_rescue_path(self):
+        recommendations = [
+            {
+                "rank": index + 1,
+                "paper_id": f"core-{index}",
+                "title": f"Core Candidate {index}",
+                "abstract": "A microarchitecture simulator paper.",
+                "score": 10.0 - index * 2.0,
+                "sections": ["hpc_cross_over"] if index >= 2 else ["microarchitecture_simulators"],
+                "learning_scope": "core",
+            }
+            for index in range(4)
+        ]
+        payload = {"recommendations": recommendations}
+        calls = []
+
+        def opener(request):
+            calls.append(json.loads(request.data.decode("utf-8"))["messages"][1]["content"])
+            return FakeResponse(
+                {
+                    "choices": [
+                        {"message": {"content": '{"score": 9, "reason": "相关。", "decision": "keep"}'}}
+                    ]
+                }
+            )
+
+        enriched = enrich_payload_with_judgements(
+            payload,
+            api_key="secret",
+            limit=15,
+            core_llm_limit=2,
+            opener=opener,
+        )
+
+        self.assertEqual(len(calls), 2)
+        self.assertIn("Core Candidate 0", calls[0])
+        self.assertIn("Core Candidate 1", calls[1])
+        self.assertEqual(enriched["judge_summary"]["core_llm_limit"], 2)
+        self.assertEqual(enriched["judge_summary"]["core_llm_judged_count"], 2)
+        self.assertEqual(enriched["judge_summary"]["core_rule_capped_count"], 2)
+        kept_ids = [item["paper_id"] for item in enriched["recommendations"]]
+        self.assertEqual(kept_ids, ["core-0", "core-1"])
+        for item in enriched["recommendations"]:
+            self.assertEqual(item["ai_judgement"]["decision"], "keep")
+
+    def test_enrich_payload_with_judgements_always_judges_exploration_items_under_core_cap(self):
+        recommendations = [
+            {
+                "rank": index + 1,
+                "paper_id": f"core-{index}",
+                "title": f"Core Candidate {index}",
+                "abstract": "A microarchitecture simulator paper.",
+                "score": 8.0 - index,
+                "sections": ["microarchitecture_simulators"],
+                "learning_scope": "core",
+            }
+            for index in range(3)
+        ]
+        recommendations.append(
+            {
+                "rank": 10,
+                "paper_id": "explore-0",
+                "title": "GPU Runtime Exploration Paper",
+                "abstract": "A GPU runtime scheduler for machine learning systems.",
+                "score": 1.0,
+                "sections": ["exploration"],
+                "learning_scope": "ai_infra_exploration",
+            }
+        )
+        payload = {"recommendations": recommendations}
+        calls = []
+
+        def opener(request):
+            calls.append(json.loads(request.data.decode("utf-8"))["messages"][1]["content"])
+            return FakeResponse(
+                {
+                    "choices": [
+                        {"message": {"content": '{"score": 7, "reason": "相关。", "decision": "keep"}'}}
+                    ]
+                }
+            )
+
+        enriched = enrich_payload_with_judgements(
+            payload,
+            api_key="secret",
+            limit=15,
+            exploration_limit=3,
+            core_llm_limit=1,
+            opener=opener,
+        )
+
+        self.assertEqual(len(calls), 2)
+        self.assertIn("Core Candidate 0", calls[0])
+        self.assertIn("GPU Runtime Exploration Paper", calls[1])
+        kept_ids = [item["paper_id"] for item in enriched["recommendations"]]
+        self.assertIn("explore-0", kept_ids)
 
     def test_cli_updates_recommendation_json_with_fallback_judgement(self):
         with tempfile.TemporaryDirectory() as tmpdir:

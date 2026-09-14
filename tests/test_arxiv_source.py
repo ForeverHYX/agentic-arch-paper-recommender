@@ -147,7 +147,7 @@ class ArxivSourceTests(unittest.TestCase):
         self.assertEqual(result, ATOM_FEED)
         self.assertEqual(len(attempts), 3)
         self.assertEqual([timeout for _, timeout in attempts], [42, 42, 42])
-        self.assertEqual(delays, [3.0, 6.0])
+        self.assertEqual(delays, [5.0, 10.0])
 
     def test_fetch_retries_rate_limit_using_retry_after(self):
         attempts = []

@@ -12,12 +12,14 @@ from urllib.request import Request, urlopen
 
 from paper_recommender.feedback import AI_INFRA_LEARNING_SCOPE, CORE_LEARNING_SCOPE
 from paper_recommender.llm_errors import LLMProviderError, format_llm_error
+from paper_recommender.llm_retry import call_with_transient_retries
 from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_USER_AGENT
 from paper_recommender.llm_config import api_key as configured_api_key, base_url as configured_base_url, model as configured_model
 
 
 Judgement = dict[str, Any]
 REPOSITORY_LIMIT = 2
+LLM_RETRY_ATTEMPTS = 3
 CORE_RESCUE_AI_SCORE = 4.0
 CORE_RESCUE_SECTIONS = frozenset(
     {"agentic_architecture", "full_stack_codesign", "microarchitecture_simulators", "exploratory"}
@@ -125,6 +127,7 @@ def enrich_payload_with_judgements(
     api_key: str = "",
     limit: int = 15,
     exploration_limit: int = 0,
+    core_llm_limit: int = 0,
     base_url: str = DEFAULT_BASE_URL,
     model: str = DEFAULT_MODEL,
     opener: Callable[[Request], Any] = urlopen,
@@ -134,13 +137,24 @@ def enrich_payload_with_judgements(
     section_labels = payload.get("section_labels") or {}
     feedback_summary = payload.get("feedback_summary") or {}
     seed_papers = _payload_seed_papers(payload)
+    core_llm_budget = float("inf") if core_llm_limit <= 0 else int(core_llm_limit)
+    core_llm_judged_count = 0
+    core_rule_capped_count = 0
     judged = []
     for item in payload.get("recommendations", []):
         updated = dict(item)
         judgement = updated.get("ai_judgement")
         if judgement:
             judgement = _normalize_judgement(judgement)
+        elif not _is_ai_infra_item(updated) and core_llm_budget <= 0:
+            # Spend LLM calls only on the strongest core candidates; the rule-scored
+            # tail is dropped here but stays eligible for the core rescue path.
+            judgement = _rule_capped_judgement(updated)
+            core_rule_capped_count += 1
         else:
+            if not _is_ai_infra_item(updated):
+                core_llm_budget -= 1
+                core_llm_judged_count += 1
             judgement = _safe_judgement(
                 updated,
                 api_key=api_key,
@@ -195,6 +209,9 @@ def enrich_payload_with_judgements(
         "exploration_kept_count": len(ai_infra_kept),
         "exploration_selected_count": len(selected_ai_infra),
         "core_rescued_count": len(core_rescued),
+        "core_llm_limit": max(0, int(core_llm_limit)),
+        "core_llm_judged_count": core_llm_judged_count,
+        "core_rule_capped_count": core_rule_capped_count,
         "repository_limit": REPOSITORY_LIMIT,
         "repository_kept_count": len(repositories),
         "repository_selected_count": len(selected_repositories),
@@ -208,6 +225,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, help="输出推荐 JSON 路径。")
     parser.add_argument("--limit", type=int, default=15, help="AI 判断后最多保留推荐数。")
     parser.add_argument("--exploration-limit", type=int, default=0, help="AI 判断后额外保留探索论文数。")
+    parser.add_argument(
+        "--core-llm-limit",
+        type=int,
+        default=0,
+        help="核心候选中最多送模型判断的条数；0 表示不限制，超出部分按规则分截断。",
+    )
     parser.add_argument("--base-url", default=configured_base_url())
     parser.add_argument("--model", default=configured_model())
     parser.add_argument("--require-api", action="store_true", help="API 已配置时调用失败则退出，不使用规则兜底。")
@@ -219,6 +242,7 @@ def main(argv: list[str] | None = None) -> int:
         api_key=configured_api_key(),
         limit=args.limit,
         exploration_limit=args.exploration_limit,
+        core_llm_limit=args.core_llm_limit,
         base_url=args.base_url,
         model=args.model,
         require_api=args.require_api,
@@ -257,21 +281,37 @@ def _safe_judgement(
             )
         return fallback_judgement(item)
     try:
-        return request_judgement(
-            item,
-            api_key=api_key,
-            profile_name=profile_name,
-            section_labels=section_labels,
-            feedback_summary=feedback_summary,
-            seed_papers=seed_papers,
-            base_url=base_url,
-            model=model,
-            opener=opener,
+        return call_with_transient_retries(
+            lambda: request_judgement(
+                item,
+                api_key=api_key,
+                profile_name=profile_name,
+                section_labels=section_labels,
+                feedback_summary=feedback_summary,
+                seed_papers=seed_papers,
+                base_url=base_url,
+                model=model,
+                opener=opener,
+            ),
+            attempts=LLM_RETRY_ATTEMPTS,
+            on_retry=lambda error, delay, attempt: print(
+                f"LLM judge request failed ({error}); retrying in {delay:g}s "
+                f"({attempt}/{LLM_RETRY_ATTEMPTS})"
+            ),
         )
     except Exception as exc:
         if require_api:
             raise LLMProviderError(format_llm_error(exc, base_url=base_url, model=model, api_key=api_key)) from exc
         return fallback_judgement(item)
+
+
+def _rule_capped_judgement(item: dict[str, Any]) -> Judgement:
+    rule_score = _float_value(item.get("score"), 0.0)
+    return {
+        "score": 0.0,
+        "reason": f"核心候选超出本轮模型判断预算，按规则分 {rule_score:g} 截断，未消耗模型调用。",
+        "decision": "drop",
+    }
 
 
 def _normalize_judgement(value: dict[str, Any]) -> Judgement:

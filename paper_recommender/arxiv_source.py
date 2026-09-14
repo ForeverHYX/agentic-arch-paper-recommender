@@ -46,7 +46,7 @@ def build_query_url(
 def fetch_atom_feed(
     url: str,
     timeout: int = 90,
-    max_attempts: int = 4,
+    max_attempts: int = 6,
     opener: Callable[..., Any] = urlopen,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> str:
@@ -85,10 +85,12 @@ def fetch_atom_feed(
 def _retry_delay(attempt: int, retry_after: str | None = None) -> float:
     if retry_after:
         try:
-            return max(3.0, min(float(retry_after), 60.0))
+            return max(5.0, min(float(retry_after), 120.0))
         except ValueError:
             pass
-    return min(3.0 * (2 ** (attempt - 1)), 30.0)
+    # arXiv rate limits shared CI egress IPs aggressively; back off long enough
+    # (up to ~2.5 minutes total) for the throttle window to clear.
+    return min(5.0 * (2 ** (attempt - 1)), 90.0)
 
 
 def parse_atom_feed(feed_text: str) -> list[dict[str, Any]]:

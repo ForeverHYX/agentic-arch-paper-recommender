@@ -30,9 +30,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -114,10 +114,12 @@ jobs:
           if [ "$HAS_LLM" = "true" ]; then
             REQUIRE_API="--require-api"
           fi
+          # Cap core candidates sent to the model to cut per-run API cost; the
+          # rule-scored tail stays rescue-eligible without extra LLM calls.
           python -m paper_recommender.judge \
             --input site/recommendations.json \
             --output site/recommendations.json \
-            --limit 15 --exploration-limit 3 $REQUIRE_API
+            --limit 15 --exploration-limit 3 --core-llm-limit 24 $REQUIRE_API
 
       - name: Enrich author affiliations
         run: |
@@ -215,7 +217,7 @@ jobs:
 
       - name: Checkout liked papers archive
         if: env.HAS_SUPABASE == 'true' && env.HAS_FAVORITES_ARCHIVE == 'true' && steps.favorites_archive_branch.outputs.has_main == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ vars.LIKED_PAPERS_REPO }}
           token: ${{ secrets.LIKED_PAPERS_REPO_TOKEN }}
