@@ -53,20 +53,23 @@ jobs:
         run: python -m paper_recommender.profile_config --from-env PROFILE_OVERRIDE_JSON --output output/interests.json
 
       - name: Fetch arXiv papers
+        timeout-minutes: 310
         run: |
           set -euo pipefail
-          # arXiv throttles shared CI egress IPs with 429 windows lasting several
-          # minutes; in-process retries cover short blips and this loop rides out
-          # the longer ones with a cool-down between rounds.
-          for attempt in 1 2 3; do
+          # arXiv rate-limits shared CI egress IPs with 429 windows that can last
+          # hours. In-process retries cover short blips; this loop stays patient
+          # for roughly the rest of the DeepSeek off-peak window (the run starts
+          # ~18:17 UTC and off-peak pricing ends ~00:30 UTC). On total failure the
+          # step exits before any LLM step, so no API spend is wasted.
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do
             if python -m paper_recommender.arxiv_source \
               --profile output/interests.json \
               --output output/papers.jsonl \
               --max-results 500; then
               exit 0
             fi
-            echo "arXiv fetch attempt ${attempt}/3 failed; cooling down 150s before retrying..."
-            sleep 150
+            echo "arXiv fetch attempt ${attempt}/14 failed; cooling down 12 minutes before retrying..."
+            sleep 720
           done
           exit 1
 
