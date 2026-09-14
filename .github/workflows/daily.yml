@@ -54,10 +54,21 @@ jobs:
 
       - name: Fetch arXiv papers
         run: |
-          python -m paper_recommender.arxiv_source \
-            --profile output/interests.json \
-            --output output/papers.jsonl \
-            --max-results 500
+          set -euo pipefail
+          # arXiv throttles shared CI egress IPs with 429 windows lasting several
+          # minutes; in-process retries cover short blips and this loop rides out
+          # the longer ones with a cool-down between rounds.
+          for attempt in 1 2 3; do
+            if python -m paper_recommender.arxiv_source \
+              --profile output/interests.json \
+              --output output/papers.jsonl \
+              --max-results 500; then
+              exit 0
+            fi
+            echo "arXiv fetch attempt ${attempt}/3 failed; cooling down 150s before retrying..."
+            sleep 150
+          done
+          exit 1
 
       - name: Fetch GitHub trending repositories
         env:

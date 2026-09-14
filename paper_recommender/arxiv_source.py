@@ -154,7 +154,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.source_file:
         feed_text = Path(args.source_file).read_text(encoding="utf-8")
     else:
-        feed_text = fetch_atom_feed(build_query_url(profile, max_results=args.max_results, start=args.start))
+        # A 500-record Atom response is large and slow to read while arXiv is
+        # throttling, so allow a long read window before treating it as a timeout.
+        feed_text = fetch_atom_feed(
+            build_query_url(profile, max_results=args.max_results, start=args.start),
+            timeout=240,
+        )
 
     records = parse_atom_feed(feed_text)
     write_jsonl(records, args.output)
