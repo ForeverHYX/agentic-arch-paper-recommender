@@ -1,7 +1,7 @@
 {
   "name": "Agentic 架构与全栈软硬件协同设计",
   "core_categories": ["cs.AR", "cs.PF", "cs.DC", "cs.PL"],
-  "expansion_categories": ["cs.AI", "cs.LG"],
+  "expansion_categories": ["cs.AI", "cs.LG", "cs.OS"],
   "expansion_accept_score": 4.0,
   "seed_papers": [
     {
@@ -49,7 +49,7 @@
     {
       "id": "agentic_architecture",
       "label": "Agentic 架构 / 自动设计空间探索",
-      "weight": 4.75,
+      "weight": 3.0,
       "keywords": [
         "computer architecture",
         "agentic ai for computer architecture",
@@ -96,7 +96,7 @@
     {
       "id": "microarchitecture_simulators",
       "label": "CPU/GPU 微架构与模拟器",
-      "weight": 3.75,
+      "weight": 4.5,
       "keywords": [
         "microarchitecture",
         "microarchitectural",
@@ -114,6 +114,10 @@
         "memory hierarchy",
         "memory system",
         "warp scheduling",
+        "warp specialization",
+        "tensor core",
+        "gpgpu",
+        "gpu microarchitecture",
         "simt",
         "gem5",
         "champsim",
@@ -122,6 +126,73 @@
         "gpgpu-sim",
         "accel-sim",
         "ramulator"
+      ]
+    },
+    {
+      "id": "mlsys",
+      "label": "MLSys / 机器学习系统",
+      "weight": 2.75,
+      "keywords": [
+        "machine learning system",
+        "machine learning systems",
+        "mlsys",
+        "llm inference",
+        "llm serving",
+        "inference serving",
+        "serving system",
+        "inference engine",
+        "vllm",
+        "sglang",
+        "tensorrt",
+        "kv cache",
+        "pagedattention",
+        "continuous batching",
+        "speculative decoding",
+        "tensor parallelism",
+        "pipeline parallelism",
+        "expert parallelism",
+        "mixture-of-experts inference",
+        "moe inference",
+        "moe serving",
+        "distributed training",
+        "training system",
+        "training infrastructure",
+        "collective communication",
+        "nccl",
+        "kernel optimization",
+        "gpu kernel",
+        "fused kernel",
+        "operator fusion",
+        "triton kernel",
+        "flashattention",
+        "autotuning"
+      ]
+    },
+    {
+      "id": "ai_infra",
+      "label": "AI Infra / AI 基础设施",
+      "weight": 2.5,
+      "keywords": [
+        "ai infrastructure",
+        "ai infra",
+        "gpu cluster",
+        "gpu utilization",
+        "gpu memory",
+        "hbm",
+        "high-bandwidth memory",
+        "nvlink",
+        "infiniband",
+        "rdma",
+        "interconnect",
+        "ai datacenter",
+        "inference cluster",
+        "training cluster",
+        "disaggregated inference",
+        "memory offloading",
+        "model serving",
+        "serving stack",
+        "scale-up domain",
+        "high-bandwidth flash"
       ]
     },
     {
