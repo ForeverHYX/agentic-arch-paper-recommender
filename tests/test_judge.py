@@ -40,6 +40,12 @@ class FakeErrorBody:
 
 
 class JudgeTests(unittest.TestCase):
+    def test_parse_judgement_response_strips_channel_separators(self):
+        judgement = parse_judgement_response('{"score":<|channel|> 8.5, "reason": "贴合自动架构探索。", "decision": "keep"}')
+
+        self.assertEqual(judgement["score"], 8.5)
+        self.assertEqual(judgement["decision"], "keep")
+
     def test_parse_judgement_response_accepts_markdown_json(self):
         judgement = parse_judgement_response(
             '```json\n{"score": 8.5, "reason": "贴合自动架构探索。", "decision": "keep"}\n```'

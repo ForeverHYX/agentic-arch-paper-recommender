@@ -472,7 +472,7 @@ def _chat_completion_content(payload: dict[str, Any]) -> str:
 
 def _content_text(value: Any) -> str:
     if isinstance(value, str):
-        return " ".join(value.split())
+        return " ".join(value.replace("<|channel|>", "").split())
     if isinstance(value, list):
         parts = []
         for item in value:

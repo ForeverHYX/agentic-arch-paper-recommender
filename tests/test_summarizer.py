@@ -145,6 +145,21 @@ class SummarizerTests(unittest.TestCase):
 
         self.assertEqual([entry["title"] for entry in summary["section_summaries"]], ["Method"])
 
+    def test_parse_paper_summary_strips_channel_separators(self):
+        from paper_recommender.summarizer import request_paper_summary
+
+        def opener(request, timeout=None):
+            return FakeResponse(
+                {
+                    "choices": [
+                        {"message": {"content": json.dumps(BRIEF_JSON).replace('Gem5', 'Gem5<|channel|>')[:80] + '<|channel|>' + json.dumps(BRIEF_JSON)[80:]}}
+                    ]
+                }
+            )
+
+        summary = request_paper_summary({"title": "A", "abstract": "B"}, api_key="secret", opener=opener)
+        self.assertNotIn("<|channel|>", summary["tldr"])
+
     def test_fallback_tldr_is_structured_english_briefing(self):
         text = fallback_tldr(
             {

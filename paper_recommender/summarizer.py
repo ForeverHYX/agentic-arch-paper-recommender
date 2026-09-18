@@ -265,7 +265,7 @@ def _safe_summary(
 
 
 def _parse_paper_summary(content: Any) -> dict[str, Any]:
-    raw = str(content).strip()
+    raw = str(content).replace("<|channel|>", "").strip()
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1] if "\n" in raw else raw
         raw = raw.rsplit("```", 1)[0].strip()
