@@ -12,6 +12,7 @@ from typing import Any, Callable
 from urllib.request import Request, urlopen
 
 from paper_recommender.llm_errors import LLMProviderError, format_llm_error
+from paper_recommender.llm_retry import call_with_transient_retries
 from paper_recommender.summarizer import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_USER_AGENT
 from paper_recommender.llm_config import api_key as configured_api_key, base_url as configured_base_url, model as configured_model
 
@@ -83,16 +84,19 @@ def request_profile_review(
         },
         method="POST",
     )
-    try:
-        response_context = opener(request, timeout=timeout)
-    except TypeError:
-        response_context = opener(request)
-    with response_context as response:
-        response_payload = json.loads(response.read().decode("utf-8"))
-    review = parse_profile_review_response(_chat_completion_content(response_payload))
-    review["model"] = model
-    review["generated_at"] = _utc_now()
-    return review
+    def _fetch_and_parse() -> ProfileReview:
+        try:
+            response_context = opener(request, timeout=timeout)
+        except TypeError:
+            response_context = opener(request)
+        with response_context as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+        review = parse_profile_review_response(_chat_completion_content(response_payload))
+        review["model"] = model
+        review["generated_at"] = _utc_now()
+        return review
+
+    return call_with_transient_retries(_fetch_and_parse)
 
 
 def enrich_payload_with_profile_review(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Callable, TypeVar
 from urllib.error import HTTPError, URLError
@@ -13,9 +14,11 @@ T = TypeVar("T")
 
 
 def is_transient_llm_error(error: BaseException) -> bool:
-    """HTTP 429/5xx and network-level failures are worth retrying; auth or schema errors are not."""
+    """HTTP 429/5xx, network failures, and truncated JSON payloads are worth retrying; auth errors are not."""
     if isinstance(error, HTTPError):
         return error.code in TRANSIENT_HTTP_CODES
+    if isinstance(error, json.JSONDecodeError):
+        return True
     return isinstance(error, (URLError, TimeoutError, ConnectionError, OSError))
 
 
