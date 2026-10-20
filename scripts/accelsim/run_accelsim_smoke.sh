@@ -10,6 +10,9 @@
 # 依赖：docker（首选，用官方预构建镜像）；无 docker 则本机自建（需要 CUDA_INSTALL_PATH 或 stub，见下）。
 set -euo pipefail
 
+# Actions runner 是非 root（sudo 可用）；容器/本机 root 下 sudo 自动为空
+SUDO=""
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
 SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 OUT="${1:-ci-run}"
 mkdir -p "$OUT"; cd "$OUT"
@@ -28,7 +31,7 @@ elif [ -f /.dockerenv ] && [ -d /accel-sim-framework ]; then
     ACCEL_SIM_ROOT="/accel-sim-framework"
 else
     echo "[1/5] 无可用预构建镜像：源码自建"
-    apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    $SUDO apt-get update && DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y \
         wget build-essential xutils-dev bison zlib1g-dev flex libglu1-mesa-dev \
         git g++ libssl-dev libxml2-dev libboost-all-dev libgl-dev libzstd-dev python3
     cd ..
@@ -38,7 +41,7 @@ else
     # 【2026-10-14 实测教训】stub nvcc + pip nvidia-cuda-runtime-cu12 头文件【不够】：
     #   gpgpu-sim dev 分支编译报 incomplete type 'textureReference' / 'cuda_math' 成员缺失
     #   （pip 装的 CUDA12.9 头与期望的 toolkit 头不兼容）。必须装真 toolkit：
-    DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-cuda-toolkit
+    DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y nvidia-cuda-toolkit
     export CUDA_INSTALL_PATH=/usr/lib/nvidia-cuda-toolkit/bin/..   # ubuntu 22.04: CUDA 11.5
     source ./gpu-simulator/setup_environment.sh release
     make -j"$(nproc)" -C ./gpu-simulator
