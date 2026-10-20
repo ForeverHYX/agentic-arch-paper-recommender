@@ -15,7 +15,8 @@ SUDO=""
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO=sudo; fi
 SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 OUT="${1:-ci-run}"
-mkdir -p "$OUT"; cd "$OUT"
+REPO_ROOT="$(pwd)"          # 调用目录（CI=仓库根）；输出目录转绝对路径，防 cwd 漂移
+mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"; cd "$OUT"
 
 # ---------- 1) 仿真器 ----------
 # 首选官方预构建镜像（github.com/accel-sim/Dockerfile，nvidia/cuda:12.8-devel-ubuntu24.04 基座）
@@ -54,7 +55,7 @@ else
     make -j"$(nproc)" -C ./gpu-simulator
     test -f gpu-simulator/bin/release/accel-sim.out || { echo "[build] accel-sim.out 缺失"; exit 1; }
     ACCEL_SIM_ROOT="$PWD"
-    cd "$OLDPWD/$OUT"
+    cd "$REPO_ROOT"
 fi
 cd "$ACCEL_SIM_ROOT"
 
