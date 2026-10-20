@@ -16,16 +16,18 @@ mkdir -p "$OUT"; cd "$OUT"
 
 # ---------- 1) 仿真器 ----------
 # 首选官方预构建镜像（github.com/accel-sim/Dockerfile，nvidia/cuda:12.8-devel-ubuntu24.04 基座）
-if command -v docker >/dev/null 2>&1; then
+# 优先官方镜像；拉不动（manifest unknown 等）则回退源码自建。2026-10-20 实测
+# GHCR 上无公开 accel-sim 镜像，Actions 上通常走源码自建路径（约 10-15 分钟）。
+if command -v docker >/dev/null 2>&1 \
+   && [ ! -f /.dockerenv ] \
+   && docker pull -q ghcr.io/accel-sim/accel-sim-framework:latest >/dev/null 2>&1; then
     echo "[1/5] 使用官方 GHCR 镜像运行（内含已编译仿真器与 CUDA）"
-    # 把本脚本在容器内以 root 继续；挂载输出目录
-    if [ ! -f /.dockerenv ]; then
-        exec docker run --rm -v "$PWD:$PWD" -w "$PWD" \
-            ghcr.io/accel-sim/accel-sim-framework:latest bash "$SCRIPT_PATH" "$PWD"
-    fi
-    ACCEL_SIM_ROOT="$(ls -d /accel-sim-framework 2>/dev/null || ls -d /opt/accel-sim-framework 2>/dev/null)"
+    exec docker run --rm -v "$PWD:$PWD" -w "$PWD" \
+        ghcr.io/accel-sim/accel-sim-framework:latest bash "$SCRIPT_PATH" "$PWD"
+elif [ -f /.dockerenv ] && [ -d /accel-sim-framework ]; then
+    ACCEL_SIM_ROOT="/accel-sim-framework"
 else
-    echo "[1/5] 无 docker：源码自建"
+    echo "[1/5] 无可用预构建镜像：源码自建"
     apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         wget build-essential xutils-dev bison zlib1g-dev flex libglu1-mesa-dev \
         git g++ libssl-dev libxml2-dev libboost-all-dev libgl-dev libzstd-dev python3
