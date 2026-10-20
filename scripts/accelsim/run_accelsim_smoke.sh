@@ -43,7 +43,7 @@ else
     #   （pip 装的 CUDA12.9 头与期望的 toolkit 头不兼容）。必须装真 toolkit：
     DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y nvidia-cuda-toolkit
     export CUDA_INSTALL_PATH=/usr/lib/nvidia-cuda-toolkit/bin/..   # ubuntu 22.04: CUDA 11.5
-    source ./gpu-simulator/setup_environment.sh release
+    set +u; source ./gpu-simulator/setup_environment.sh release; set -u
     make -j"$(nproc)" -C ./gpu-simulator
     ACCEL_SIM_ROOT="$PWD"
     cd "$OLDPWD/$OUT"
