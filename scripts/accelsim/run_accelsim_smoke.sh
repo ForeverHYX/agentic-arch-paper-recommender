@@ -53,7 +53,7 @@ else
         echo "[build] link line: ${LINK_LINE:0:200]}"
         [ -n "$LINK_LINE" ] && sh -c "$LINK_LINE -lzstd"
     }
-    test -f trace-parser/bin/release/accel-sim.out || { echo "[build] accel-sim.out 缺失"; exit 1; }
+    test -f gpu-simulator/bin/release/accel-sim.out || { echo "[build] accel-sim.out 缺失"; exit 1; }
     ACCEL_SIM_ROOT="$PWD"
     cd "$OLDPWD/$OUT"
 fi
