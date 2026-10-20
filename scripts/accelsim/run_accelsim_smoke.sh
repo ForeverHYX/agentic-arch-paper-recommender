@@ -117,7 +117,7 @@ for f in glob.glob(os.path.join(sim_root, "sim_run_*", "*", "*", "*")):
 matrix = {}
 for cfg in ("QV100_80SM", "QV100_40SM", "QV100_20SM", "QV100_80SM_L2h"):
     row = {}
-    for st in glob.glob(f"sim_run_*/**/{cfg}-SASS/**/*.gpgpusim.statistics.gz", recursive=True):
+    for st in glob.glob(f"sim_run_*/**/{cfg}-SASS/**/gpgpusim.statistics*", recursive=True):
         app = os.path.normpath(st).split(os.sep)[1]   # sim_run_*/<benchmark>/... → benchmark 名
         tot = 0
         import gzip
