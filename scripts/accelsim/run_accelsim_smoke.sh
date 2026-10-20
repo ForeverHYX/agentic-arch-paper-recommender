@@ -49,7 +49,8 @@ else
     # b) Makefile LIBS 里 -lzstd 排在 $(BUILD_DIR)/*.o 之前（GNU ld 左到右）→
     #    在链接规则末尾追加 -lzstd。
     cp -f util/tracer_nvbit/tracer_tool/tracez_format.h gpu-simulator/trace-parser/
-    sed -i 's#-o $(BIN_DIR)/accel-sim.out accel-sim.cc main.cc$#-o $(BIN_DIR)/accel-sim.out accel-sim.cc main.cc -lzstd#' gpu-simulator/Makefile
+    # 注意：该行行尾带一个空格，锚点需容忍尾随空白
+    sed -i 's#-o $(BIN_DIR)/accel-sim.out accel-sim.cc main.cc[[:space:]]*$#-o $(BIN_DIR)/accel-sim.out accel-sim.cc main.cc -lzstd#' gpu-simulator/Makefile
     make -j"$(nproc)" -C ./gpu-simulator
     test -f gpu-simulator/bin/release/accel-sim.out || { echo "[build] accel-sim.out 缺失"; exit 1; }
     ACCEL_SIM_ROOT="$PWD"
