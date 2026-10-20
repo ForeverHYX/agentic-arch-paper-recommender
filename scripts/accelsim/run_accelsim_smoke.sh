@@ -78,6 +78,11 @@ mk_variant SM7_QV100_80SM                                              # 基线�
 mk_variant SM7_QV100_40SM      's/^-gpgpu_n_clusters 80/-gpgpu_n_clusters 40/' # SM 减半
 mk_variant SM7_QV100_20SM      's/^-gpgpu_n_clusters 80/-gpgpu_n_clusters 20/' # SM 1/4
 mk_variant SM7_QV100_80SM_L2h  's#^-gpgpu_cache:dl2 S:32:128:24#-gpgpu_cache:dl2 S:16:128:24#'  # L2 减半
+# trace-driven 侧还需要 gpu-simulator/configs/tested-cfgs/<cfg>/trace.config
+TRACE_CFG="$ACCEL_SIM_ROOT/gpu-simulator/configs/tested-cfgs"
+for V in SM7_QV100_80SM SM7_QV100_40SM SM7_QV100_20SM SM7_QV100_80SM_L2h; do
+    mkdir -p "$TRACE_CFG/$V"; cp -f "$TRACE_CFG/SM7_QV100/trace.config" "$TRACE_CFG/$V/"
+done
 cat >> util/job_launching/configs/define-standard-cfgs.yml <<'EOF'
 QV100_80SM:
     base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_80SM/gpgpusim.config"
