@@ -44,15 +44,13 @@ else
     DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y nvidia-cuda-toolkit
     export CUDA_INSTALL_PATH=/usr/lib/nvidia-cuda-toolkit/bin/..   # ubuntu 22.04: CUDA 11.5
     set +u; source ./gpu-simulator/setup_environment.sh release; set -u
-    # 已知坑（2026-10-14 实测记录 RESULT.md §2）：tracez_format.h 不在 include 路径
+    # 已知坑（2026-10-14 实测记录 RESULT.md §2）：
+    # a) tracez_format.h 不在 include 路径 → 复制进 trace-parser；
+    # b) Makefile LIBS 里 -lzstd 排在 $(BUILD_DIR)/*.o 之前（GNU ld 左到右）→
+    #    在链接规则末尾追加 -lzstd。
     cp -f util/tracer_nvbit/tracer_tool/tracez_format.h gpu-simulator/trace-parser/
-    make -j"$(nproc)" -C ./gpu-simulator || {
-        # 已知坑：-lzstd 在 .o 之前（GNU ld 左到右）→ 抓原链接行、末尾追加 -lzstd 补链
-        echo "[build] make 失败，尝试 -lzstd 补链"
-        LINK_LINE=$(make -C ./gpu-simulator 2>&1 | grep -m1 -E "g\+\+.*accel-sim\.out")
-        echo "[build] link line: ${LINK_LINE:0:200]}"
-        [ -n "$LINK_LINE" ] && sh -c "$LINK_LINE -lzstd"
-    }
+    sed -i 's#-o $(BIN_DIR)/accel-sim.out accel-sim.cc main.cc$#-o $(BIN_DIR)/accel-sim.out accel-sim.cc main.cc -lzstd#' gpu-simulator/Makefile
+    make -j"$(nproc)" -C ./gpu-simulator
     test -f gpu-simulator/bin/release/accel-sim.out || { echo "[build] accel-sim.out 缺失"; exit 1; }
     ACCEL_SIM_ROOT="$PWD"
     cd "$OLDPWD/$OUT"
