@@ -83,7 +83,7 @@ EOF
 
 # ---------- 4) 跑仿真：4 配置 × rodinia_2.0-ft（该套件含 8 个应用：backprop bfs hotspot lud nw srad streamcluster 等） ----------
 echo "[4/5] 运行仿真（4 配置 × 全套件）"
-source ./gpu-simulator/setup_environment.sh release   # 若本机自建路径；镜像内已 source 亦可
+set +u; source ./gpu-simulator/setup_environment.sh release; set -u   # set -u 与其未定义变量不兼容
 for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h; do
     ./util/job_launching/run_simulations.py -C "$C-SASS" -B rodinia_2.0-ft \
         -T ./hw_run/rodinia_2.0-ft/9.1 -N "smoke-$C"

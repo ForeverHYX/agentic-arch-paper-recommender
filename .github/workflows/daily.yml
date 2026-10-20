@@ -29,6 +29,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Job-level guard: the fetch step alone allows 40 min (arXiv rate limits);
+    # kill the whole job before it can hang for hours on a stalled run.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
