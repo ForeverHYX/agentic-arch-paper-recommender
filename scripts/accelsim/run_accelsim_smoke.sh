@@ -45,7 +45,7 @@ else
     export CUDA_INSTALL_PATH=/usr/lib/nvidia-cuda-toolkit/bin/..   # ubuntu 22.04: CUDA 11.5
     set +u; source ./gpu-simulator/setup_environment.sh release; set -u
     # 已知坑（2026-10-14 实测记录 RESULT.md §2）：tracez_format.h 不在 include 路径
-    cp -f util/tracer_nvbit/tracer_tool/tracez_format.h trace-parser/ 2>/dev/null || true
+    cp -f util/tracer_nvbit/tracer_tool/tracez_format.h gpu-simulator/trace-parser/
     make -j"$(nproc)" -C ./gpu-simulator || {
         # 已知坑：-lzstd 在 .o 之前（GNU ld 左到右）→ 抓原链接行、末尾追加 -lzstd 补链
         echo "[build] make 失败，尝试 -lzstd 补链"
