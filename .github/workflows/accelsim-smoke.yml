@@ -1,0 +1,37 @@
+name: Accel-Sim Smoke Matrix
+
+# 一次性实验分支（exp/accelsim-smoke，不并回 main）：4 架构配置 × rodinia 全套件
+# trace-driven 仿真，产物 matrix_cycles.json 以 artifact 回收。详见
+# paper-ideas/experiments/20261014-accelsim-smoke/（本地私有，gitignore）。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [exp/accelsim-smoke]
+    paths:
+      - "scripts/accelsim/**"
+      - ".github/workflows/accelsim-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run Accel-Sim smoke matrix
+        run: bash scripts/accelsim/run_accelsim_smoke.sh ci-run
+
+      - name: Upload matrix artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accelsim-smoke-matrix
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ci-run/matrix_cycles.json
+            ci-run/*.log
