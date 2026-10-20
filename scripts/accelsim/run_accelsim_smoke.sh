@@ -44,7 +44,16 @@ else
     DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y nvidia-cuda-toolkit
     export CUDA_INSTALL_PATH=/usr/lib/nvidia-cuda-toolkit/bin/..   # ubuntu 22.04: CUDA 11.5
     set +u; source ./gpu-simulator/setup_environment.sh release; set -u
-    make -j"$(nproc)" -C ./gpu-simulator
+    # 已知坑（2026-10-14 实测记录 RESULT.md §2）：tracez_format.h 不在 include 路径
+    cp -f util/tracer_nvbit/tracer_tool/tracez_format.h trace-parser/ 2>/dev/null || true
+    make -j"$(nproc)" -C ./gpu-simulator || {
+        # 已知坑：-lzstd 在 .o 之前（GNU ld 左到右）→ 抓原链接行、末尾追加 -lzstd 补链
+        echo "[build] make 失败，尝试 -lzstd 补链"
+        LINK_LINE=$(make -C ./gpu-simulator 2>&1 | grep -m1 -E "g\+\+.*accel-sim\.out")
+        echo "[build] link line: ${LINK_LINE:0:200]}"
+        [ -n "$LINK_LINE" ] && sh -c "$LINK_LINE -lzstd"
+    }
+    test -f trace-parser/bin/release/accel-sim.out || { echo "[build] accel-sim.out 缺失"; exit 1; }
     ACCEL_SIM_ROOT="$PWD"
     cd "$OLDPWD/$OUT"
 fi
