@@ -33,7 +33,7 @@ else
     echo "[1/5] 无可用预构建镜像：源码自建"
     $SUDO apt-get update && DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y \
         wget build-essential xutils-dev bison zlib1g-dev flex libglu1-mesa-dev \
-        git g++ libssl-dev libxml2-dev libboost-all-dev libgl-dev libzstd-dev python3
+        git g++ libssl-dev libxml2-dev libboost-all-dev libgl-dev libzstd-dev python3 python3-psutil python3-pip
     cd ..
     git clone --recursive https://github.com/accel-sim/accel-sim-framework.git
     cd accel-sim-framework
