@@ -105,10 +105,8 @@ for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h; do
 done
 
 # ---------- 5) 收集 cycles → matrix_cycles.json ----------
-echo "[diag] sim 输出目录结构："
-    ls -d sim_run_* 2>/dev/null || echo "no sim_run_* under $PWD"
-    find . -maxdepth 6 -name "*statistic*" 2>/dev/null | head -10
-    find . -maxdepth 6 -name "gpu_tot_sim*" 2>/dev/null | head -5
+echo "[diag] sim_run 目录树（文件级，深度不限）："
+    find sim_run_* -type f 2>/dev/null | head -30
     echo "[diag] cwd=$(pwd)"
 echo "[5/5] 收集结果"
 python3 - "$OUT" <<'PYEOF'
@@ -122,7 +120,14 @@ for f in glob.glob(os.path.join(sim_root, "sim_run_*", "*", "*", "*")):
 matrix = {}
 for cfg in ("QV100_80SM", "QV100_40SM", "QV100_20SM", "QV100_80SM_L2h"):
     row = {}
-    for st in glob.glob(f"sim_run_*/**/{cfg}-SASS/**/gpgpusim.statistics*", recursive=True):
+    pats = [f"sim_run_*/**/{cfg}-SASS/**/gpgpusim.statistics*",
+               f"sim_run_*/**/{cfg}-SASS/**/*.statistics*",
+               f"sim_run_*/**/{cfg}-SASS/**/*statistics*"]
+        files = []
+        for pat in pats:
+            files = glob.glob(pat, recursive=True)
+            if files: break
+        for st in files:
         app = os.path.normpath(st).split(os.sep)[1]   # sim_run_*/<benchmark>/... → benchmark 名
         tot = 0
         import gzip
