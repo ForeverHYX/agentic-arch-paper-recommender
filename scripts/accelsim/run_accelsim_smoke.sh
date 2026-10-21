@@ -105,6 +105,11 @@ for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h; do
 done
 
 # ---------- 5) 收集 cycles → matrix_cycles.json ----------
+echo "[diag] sim 输出目录结构："
+    ls -d sim_run_* 2>/dev/null || echo "no sim_run_* under $PWD"
+    find . -maxdepth 6 -name "*statistic*" 2>/dev/null | head -10
+    find . -maxdepth 6 -name "gpu_tot_sim*" 2>/dev/null | head -5
+    echo "[diag] cwd=$(pwd)"
 echo "[5/5] 收集结果"
 python3 - "$OUT" <<'PYEOF'
 import json, os, re, sys, glob
