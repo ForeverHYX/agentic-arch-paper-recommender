@@ -106,7 +106,7 @@ done
 
 # ---------- 5) 收集 cycles → matrix_cycles.json ----------
 echo "[diag] sim_run 目录树（文件级，深度不限）："
-    find sim_run_* -type f 2>/dev/null | head -30
+    find sim_run_* -type f 2>/dev/null | head -30 || true
     echo "[diag] cwd=$(pwd)"
 echo "[5/5] 收集结果"
 python3 - "$OUT" <<'PYEOF'
