@@ -121,15 +121,15 @@ matrix = {}
 for cfg in ("QV100_80SM", "QV100_40SM", "QV100_20SM", "QV100_80SM_L2h"):
     row = {}
     # trace-driven 模式：cycles 打印到 .o* 标准输出文件（非 statistics 文件）
-        outs = glob.glob(f"sim_run_*/**/{cfg}-SASS/**/*.o*", recursive=True)
-        for st in outs:
-            app = os.path.normpath(st).split(os.sep)[1]
-            tot = 0
-            with open(st, "rt", errors="ignore") as fh:
-                for line in fh:
-                    if line.startswith("gpu_tot_sim_cycle"):
-                        tot += int(line.split()[-1])
-            if tot: row[app] = tot
+    outs = glob.glob(f"sim_run_*/**/{cfg}-SASS/**/*.o*", recursive=True)
+    for st in outs:
+        app = os.path.normpath(st).split(os.sep)[1]
+        tot = 0
+        with open(st, "rt", errors="ignore") as fh:
+            for line in fh:
+                if line.startswith("gpu_tot_sim_cycle"):
+                    tot += int(line.split()[-1])
+        if tot: row[app] = tot
     matrix[cfg] = row
 apps = sorted(set().union(*[set(v) for v in matrix.values()]))
 matrix = {k: {a: v.get(a) for a in apps} for k, v in matrix.items()}
