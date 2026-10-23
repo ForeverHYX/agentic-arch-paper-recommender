@@ -34,4 +34,5 @@ jobs:
           if-no-files-found: warn
           path: |
             ci-run/matrix_cycles.json
+            ci-run/collect_diag.txt
             ci-run/*.log

@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Accel-Sim 冒烟验证 CI 脚本（Linux x86_64 / GitHub Actions ubuntu-24.04 直接可跑）
-# 目标：4 架构配置 × 8 workload（rodinia_2.0-ft 内 8 个应用），trace-driven 仿真，收集 cycles，
-#       输出 matrix_cycles.json（行=架构，列=workload，值=总 cycles，越小越好）。
+# 目标：4 架构配置 × 5 workload（llm-synth 合成 LLM 推理 kernel trace），trace-driven 仿真，
+#       收集 cycles，输出 matrix_cycles.json（行=架构，列=workload，值=总 cycles，越小越好）。
 #
-# 背景：本脚本由 2026-10-14 冒烟尝试降级产生——本机 Apple Silicon + 慢速国际链路下，
-#       镜像/依赖/trace 三处环境阻塞（详见 RESULT.md）。在正常网络与 Linux x86_64 环境预计 15-25 分钟跑完。
+# 背景：2026-10-21 CI 冒烟终裁 rodinia_2.0-ft 矩阵有效但无判别信号（5/10 零差距、L2h 完全无影响）。
+# 本轮换 LLM 推理特征负载：Purdue 公开 trace 无 LLM/DNN 套件（cutlass.tgz 404）、NVBIT 提取需要真 GPU
+# （CI runner 无）、accel-sim dev 分支的 ml-workloads trace 在 Purdue 内部 scratch——故用
+# gen_llm_traces.py 按 trace-parser 文本格式合成（字段对 trace_parser.cc 逐条核验；opcode 全部取自
+# rodinia_2.0-ft 实测可仿真集合）。详见 paper-ideas/experiments/20261022-accelsim-llm-trace/。
 #
 # 用法：bash run_accelsim_smoke.sh [输出目录（默认 ./ci-run）]
 # 依赖：docker（首选，用官方预构建镜像）；无 docker 则本机自建（需要 CUDA_INSTALL_PATH 或 stub，见下）。
@@ -59,13 +62,11 @@ else
 fi
 cd "$ACCEL_SIM_ROOT"
 
-# ---------- 2) traces：官方预收集 SASS traces（V100, rodinia_2.0-ft, 21MB 压缩/270MB 解压） ----------
-echo "[2/5] 下载 V100 rodinia_2.0-ft traces"
+# ---------- 2) traces：llm-synth 合成 LLM 推理 kernel SASS traces（V100/SM7, ~130MB 文本） ----------
+echo "[2/5] 生成 llm-synth traces（本地合成，无网络依赖）"
 mkdir -p hw_run
-if [ ! -d hw_run/rodinia_2.0-ft ]; then
-    wget -c https://engineering.purdue.edu/tgrogers/accel-sim/traces/tesla-v100/latest/rodinia_2.0-ft.tgz
-    tar -xzf rodinia_2.0-ft.tgz -C hw_run
-fi
+GEN="$(dirname "$SCRIPT_PATH")/gen_llm_traces.py"
+python3 "$GEN" hw_run
 
 # ---------- 3) 4 个架构配置：QV100 基线 + 3 个最小改动变体 ----------
 echo "[3/5] 构造 4 个配置（只改 SM 数 / L2 大小）"
@@ -94,13 +95,36 @@ QV100_20SM:
 QV100_80SM_L2h:
     base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_80SM_L2h/gpgpusim.config"
 EOF
+# 注册 llm-synth 套件（幂等：docker 再入时防重复追加）
+JOBYML=util/job_launching/apps/define-all-apps.yml
+grep -q "^llm-synth:" "$JOBYML" || cat >> "$JOBYML" <<'EOF'
+llm-synth:
+    exec_dir: "$ACCELSIM_ROOT"
+    data_dirs: ""
+    execs:
+        - llm-gemm-prefill:
+            - name: all
+              args: ""
+        - llm-attn-prefill:
+            - name: all
+              args: ""
+        - llm-attn-decode:
+            - name: all
+              args: ""
+        - llm-gemv-decode:
+            - name: all
+              args: ""
+        - llm-elem:
+            - name: all
+              args: ""
+EOF
 
-# ---------- 4) 跑仿真：4 配置 × rodinia_2.0-ft（该套件含 8 个应用：backprop bfs hotspot lud nw srad streamcluster 等） ----------
-echo "[4/5] 运行仿真（4 配置 × 全套件）"
+# ---------- 4) 跑仿真：4 配置 × llm-synth（5 个合成 LLM kernel app） ----------
+echo "[4/5] 运行仿真（4 配置 × llm-synth）"
 set +u; source ./gpu-simulator/setup_environment.sh release; set -u   # set -u 与其未定义变量不兼容
 for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h; do
-    ./util/job_launching/run_simulations.py -C "$C-SASS" -B rodinia_2.0-ft \
-        -T ./hw_run/rodinia_2.0-ft/9.1 -N "smoke-$C"
+    ./util/job_launching/run_simulations.py -C "$C-SASS" -B llm-synth \
+        -T ./hw_run -N "smoke-$C"
     ./util/job_launching/monitor_func_test.py -N "smoke-$C"    # 等待完成
 done
 
@@ -110,32 +134,39 @@ echo "[diag] sim_run 目录树（文件级，深度不限）："
     echo "[diag] cwd=$(pwd)"
 echo "[5/5] 收集结果"
 python3 - "$OUT" <<'PYEOF'
-import json, os, re, sys, glob
+import json, os, sys, glob
 out = sys.argv[1]
-sim_root = os.environ.get("ACCEL_SIM_ROOT", ".")
-# accel-sim 结果目录：sim_run_*/<config>/<app>/*.gpgpusim.statistics.gz
-stats = {}
-for f in glob.glob(os.path.join(sim_root, "sim_run_*", "*", "*", "*")):
-    pass  # 占位：实际路径由 run_simulations.py 生成，下面按更稳的定向 glob 收集
+# 修复（2026-10-23）：trace-driven 模式 GPGPU-Sim 逐 kernel 打印 gpu_tot_sim_cycle 且为跨 kernel
+# 累计值——旧收集器把每个累计块再求和（prefix-sum 重复计数）。改为取每个 .o 文件的最后一个值
+# （= 全 app 总 cycles）。app 名取路径中 llm- 开头的组件（对 sim_run_* 目录布局免疫）。
 matrix = {}
+diag = []
 for cfg in ("QV100_80SM", "QV100_40SM", "QV100_20SM", "QV100_80SM_L2h"):
     row = {}
-    # trace-driven 模式：cycles 打印到 .o* 标准输出文件（非 statistics 文件）
-    outs = glob.glob(f"sim_run_*/**/{cfg}-SASS/**/*.o*", recursive=True)
+    outs = sorted(glob.glob(f"sim_run_*/**/{cfg}-SASS/**/*.o*", recursive=True))
     for st in outs:
-        app = os.path.normpath(st).split(os.sep)[1]
-        tot = 0
+        parts = os.path.normpath(st).split(os.sep)
+        app = next((p for p in parts if p.startswith("llm-")), None)
+        if app is None:
+            continue
+        last = 0
         with open(st, "rt", errors="ignore") as fh:
             for line in fh:
                 if line.startswith("gpu_tot_sim_cycle"):
-                    tot += int(line.split()[-1])
-        if tot: row[app] = tot
+                    last = int(line.split()[-1])
+        if last:
+            row[app] = last
+            diag.append(f"{cfg}\t{app}\t{last}\t{st}")
     matrix[cfg] = row
-apps = sorted(set().union(*[set(v) for v in matrix.values()]))
+apps = sorted(set().union(*[set(v) for v in matrix.values()])) if matrix else []
 matrix = {k: {a: v.get(a) for a in apps} for k, v in matrix.items()}
 json.dump(matrix, open(os.path.join(out, "matrix_cycles.json"), "w"), indent=1)
+open(os.path.join(out, "collect_diag.txt"), "w").write("\n".join(diag) + "\n")
 print("apps:", apps)
 print("written:", os.path.join(out, "matrix_cycles.json"))
+if not apps:
+    print("WARNING: no cycles collected; see find dump above and job logs", file=sys.stderr)
+    sys.exit(1)
 PYEOF
 echo "完成。把 matrix_cycles.json 交给 analysis.py："
 echo "  python3 analysis.py <ci-run 目录>/matrix_cycles.json"
