@@ -135,15 +135,16 @@ def gen_gemm_prefill(appdir):
             addr_math(e)
             cta_base = BASE_W + cta * 32768 + wp * 4096
             for k in range(16):                       # load A/B tiles: 8KB
-                e.mem("LDG.E.128", [16 + 4 * k, 17 + 4 * k, 18 + 4 * k, 19 + 4 * k],
+                e.mem("LDG.E.128", [16 + k],
                       [4], cta_base + k * 512, 16, 16)
             for it in range(8):                       # long FFMA runs on regs
                 for j in range(512):
                     acc = j % 8
                     a = 16 + ((j // 8) % 32)
                     b = 48 + ((j // 8) % 32)
+                    # operand regs are scoreboard deps only (trace-driven timing); MAX_DST=1
                     e.op([acc], "FFMA", [acc, a, b])
-                e.mem("LDG.E.128", [16, 17, 18, 19], [4],
+                e.mem("LDG.E.128", [16], [4],
                       cta_base + 16384 + it * 512, 16, 16)
             for j in range(4):                        # reduce accs
                 e.op([8 + j], "FADD", [2 * j, 2 * j + 1])
@@ -172,13 +173,13 @@ def gen_attn_prefill(appdir):
             addr_math(e)
             q = BASE_ACT + cta * 1024 + wp * 256      # Q fragments (private)
             for k in range(4):
-                e.mem("LDG.E.128", [16 + 4 * k, 17 + 4 * k, 18 + 4 * k, 19 + 4 * k],
+                e.mem("LDG.E.128", [16 + k],
                       [4], q + k * 512, 16, 16)
             for it in range(32):
                 tile = (cta + it) % ntiles            # L2-shared K/V tiles
                 kv = BASE_KV + tile * tile_sz + wp * 8192 + (it % 64) * 512
-                e.mem("LDG.E.128", [32, 33, 34, 35], [4], kv, 16, 16)
-                e.mem("LDG.E.128", [36, 37, 38, 39], [4], kv + tile_sz // 2, 16, 16)
+                e.mem("LDG.E.128", [32], [4], kv, 16, 16)
+                e.mem("LDG.E.128", [36], [4], kv + tile_sz // 2, 16, 16)
                 for j in range(12):                   # QK^T partial dot
                     e.op([j % 8], "FFMA", [j % 8, 16 + (j % 16), 32 + (j % 4)])
                 e.op([10], "MUFU.RCP", [0])           # softmax: max/div
@@ -215,7 +216,7 @@ def gen_attn_decode(appdir):
             sl = BASE_KV + grp * slice_sz
             for it in range(72):                      # warp + its 7 siblings hit
                 off = ((it * 8 + lane) * 512) % (slice_sz - 512)
-                e.mem("LDG.E.128", [16, 17, 18, 19], [4], sl + off, 16, 16)
+                e.mem("LDG.E.128", [16], [4], sl + off, 16, 16)
                 e.op([0], "FFMA", [0, 16, 17])        # QK score accum
                 e.op([1], "FFMA", [1, 18, 19])        # V accum
             e.op([8], "FADD", [0, 255])               # softmax scale
@@ -244,7 +245,7 @@ def gen_gemv_decode(appdir):
             wid = cta * nwarps + wp                   # 256 warps x 256KB = 64MB
             base = BASE_W + wid * 262144
             for it in range(512):
-                e.mem("LDG.E.128", [16, 17, 18, 19], [4], base + it * 512, 16, 16)
+                e.mem("LDG.E.128", [16], [4], base + it * 512, 16, 16)
                 e.op([0], "FFMA", [0, 16, 17])        # 2 FLOP / 16B*32lane
                 if it % 64 == 63:
                     e.op([1], "FADD", [0, 1])
