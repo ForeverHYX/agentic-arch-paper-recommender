@@ -21,6 +21,32 @@ mixes / address streams parameterized to LLM inference kernel characteristics:
                     -> DRAM-BW bound control (expected SM/L2 insensitive).
   llm-elem          layernorm/activation elementwise: streaming low-AI control.
 
+2026-10-24 universe-expansion round (pre-registered in
+paper-ideas/experiments/20261023-dse-universe-expansion/PRE_REGISTRATION.md):
+7 additional kernels so the 12-workload x 8-config matrix has differentiated
+sensitivity to four design axes (SM count / L2 size / core clock / RF size):
+
+  llm-gemm-occu     high-RF-occupancy GEMM: trace header nregs=200 ->
+                    baseline 2 CTAs/SM vs RF-halved 1 CTA/SM (occupancy bound
+                    by gpgpu_shader_registers; verified vs shader.cc:4427);
+                    ILP=2 FFMA chains expose latency at low warp counts ->
+                    expected RF-strong, SM-strong, clock-strong (time).
+  llm-ffma-dep      pure dependent-chain FFMA (ILP=1), low regs, grid
+                    oversubscribes -> issue/latency bound, SM-strong,
+                    RF-insensitive (nregs=24 far below both RF limits).
+  llm-attn-decode-g8  GQA dose-response low end: 8 groups x 288KB = 2.25MB
+                    concurrent KV footprint, fits both 3MB and 6MB L2 ->
+                    expected L2-INsensitive control.
+  llm-attn-decode-g32 GQA dose-response high end: 32 groups x 288KB = 9MB,
+                    thrashes both L2 sizes -> DRAM-bound L2-INsensitive.
+  llm-gemm-tile     shared-B-panel GEMM: all 64 CTAs stream the same 4MB B
+                    panel (fits 6MB L2, thrashes 3MB) + private A tiles ->
+                    expected SM-strong AND L2-strong (unlike gemm-prefill).
+  llm-batch-decode  batch-8 attention decode: 32 FFMA per KV load (8 rows x 4)
+                    -> compute hides L2 misses -> SM-strong, L2-weak.
+  llm-mixed         ~50/50 compute burst + streaming loads -> moderate
+                    on every axis, no dominant sensitivity.
+
 Caveats (documented in RESULT.md): addresses/instruction streams are synthetic
 (no functional values are tracked by trace-driven replay); tensor-core HMMA is
 deliberately avoided (FFMA emulation keeps opcode risk zero); only opcodes seen
@@ -196,26 +222,28 @@ def gen_attn_prefill(appdir):
 
 
 # --------------------------------------------------------------------------
-# 3) llm-attn-decode: GQA KV scan with cross-warp reuse, L2-capacity sensitive
-#    16 groups x 2 CTA x 4 warps share 288KB slices -> ~4.6MB live footprint
-#    (L2h=3MB thrashes; baseline 6MB holds it).
+# 3) llm-attn-decode family: GQA KV scan with cross-warp reuse, L2-capacity probe
+#    groups x 288KB slices; g16 = ~4.6MB live footprint (L2h=3MB thrashes,
+# baseline 6MB holds it). g8 = 2.25MB (fits both -> insensitive control);
+# g32 = 9MB (thrashes both -> DRAM-bound control). Dose-response triplet.
 # --------------------------------------------------------------------------
-def gen_attn_decode(appdir):
+def gen_attn_decode(appdir, groups=16, mangle="_Z15llm_attn_decodePfS_S_ii"):
     ncta, nwarps = 32, 4
-    groups, slice_sz = 16, 288 * 1024
+    slice_sz = 288 * 1024
+    wp_per_grp = ncta * nwarps // groups              # warps sharing a slice
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z15llm_attn_decodePfS_S_ii", 1, (ncta, 1, 1),
+                    mangle, 1, (ncta, 1, 1),
                     (128, 1, 1), 2048, 64)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
             e = Emitter()
             addr_math(e)
-            grp = (cta * nwarps + wp) // 8            # 8 warps per group
-            lane = (cta * nwarps + wp) % 8
+            grp = (cta * nwarps + wp) // wp_per_grp
+            lane = (cta * nwarps + wp) % wp_per_grp
             sl = BASE_KV + grp * slice_sz
-            for it in range(72):                      # warp + its 7 siblings hit
-                off = ((it * 8 + lane) * 512) % (slice_sz - 512)
+            for it in range(72):                      # warp + its siblings hit
+                off = ((it * wp_per_grp + lane) * 512) % (slice_sz - 512)
                 e.mem("LDG.E.128", [16], [4], sl + off, 16, 16)
                 e.op([0], "FFMA", [0, 16, 17])        # QK score accum
                 e.op([1], "FFMA", [1, 18, 19])        # V accum
@@ -227,6 +255,14 @@ def gen_attn_decode(appdir):
             w.warp(wp, e.lines)
         w.end_tb()
     w.close()
+
+
+def gen_attn_decode_g8(appdir):
+    gen_attn_decode(appdir, groups=8, mangle="_Z17llm_attn_decode_g8PfS_S_i")
+
+
+def gen_attn_decode_g32(appdir):
+    gen_attn_decode(appdir, groups=32, mangle="_Z18llm_attn_decode_g32PfS_S_i")
 
 
 # --------------------------------------------------------------------------
@@ -282,6 +318,182 @@ def gen_elem(appdir):
     w.close()
 
 
+# --------------------------------------------------------------------------
+# 6) llm-gemm-occu: high-RF-occupancy GEMM (RF-size probe).
+#    Trace header nregs=200, 128 threads -> 25600 regs/CTA:
+#    baseline gpgpu_shader_registers 65536 -> 2 CTAs/SM; RF-halved 32768 -> 1.
+#    ILP=2 FFMA chains (2 independent accs) so a single warp per scheduler
+#    cannot saturate issue -> RF halving cuts resident warps and ~doubles time.
+# --------------------------------------------------------------------------
+def gen_gemm_occu(appdir):
+    ncta, nwarps = 640, 4
+    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
+                    "_Z14llm_gemm_occuPfS_S_i", 1, (ncta, 1, 1),
+                    (128, 1, 1), 4096, 200)
+    for cta in range(ncta):
+        w.begin_tb((cta, 0, 0))
+        for wp in range(nwarps):
+            e = Emitter()
+            addr_math(e)
+            cta_base = BASE_W + cta * 20480 + wp * 4096
+            for k in range(4):                        # A/B fragments: 2KB
+                e.mem("LDG.E.128", [16 + k], [4], cta_base + k * 512, 16, 16)
+            for it in range(16):                      # ILP=2 FFMA runs
+                for j in range(128):
+                    acc = j % 2                       # two independent chains
+                    a = 16 + ((j // 2) % 4)
+                    b = 20 + ((j // 2) % 4)
+                    e.op([acc], "FFMA", [acc, a, b])
+                if it % 4 == 0:                       # sparse reload (small)
+                    e.mem("LDG.E.128", [16], [4],
+                          cta_base + 16384 + (it // 4) * 512, 16, 16)
+            for j in range(4):
+                e.op([8 + j], "FADD", [2 * j, 2 * j + 1])
+                e.mem("STG.E.SYS", [], [8 + j, 12],
+                      BASE_OUT + cta * 1024 + wp * 256 + j * 64, 4, 4)
+            e.exit()
+            w.warp(wp, e.lines)
+        w.end_tb()
+    w.close()
+
+
+# --------------------------------------------------------------------------
+# 7) llm-ffma-dep: pure dependent-chain FFMA (ILP=1), RF-insensitive (nregs=24).
+#    Grid 640 CTAs oversubscribes 80 SMs (8 CTAs/SM, thread limit 16,
+#    RF limit >=10 at both RF sizes) -> issue/latency bound, SM-strong.
+# --------------------------------------------------------------------------
+def gen_ffma_dep(appdir):
+    ncta, nwarps = 640, 4
+    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
+                    "_Z12llm_ffma_depPfS_i", 1, (ncta, 1, 1),
+                    (128, 1, 1), 1024, 24)
+    for cta in range(ncta):
+        w.begin_tb((cta, 0, 0))
+        for wp in range(nwarps):
+            e = Emitter()
+            addr_math(e)
+            e.mem("LDG.E.SYS", [16], [4], BASE_ACT + (cta * nwarps + wp) * 256,
+                  4, 4)                              # seed the chain
+            e.op([0], "FFMA", [0, 16, 17])           # single accumulator chain
+            for j in range(1024):
+                e.op([0], "FFMA", [0, 0, 16])
+            e.mem("STG.E.SYS", [], [0, 12],
+                  BASE_OUT + (cta * nwarps + wp) * 16, 4, 4)
+            e.exit()
+            w.warp(wp, e.lines)
+        w.end_tb()
+    w.close()
+
+
+# --------------------------------------------------------------------------
+# 10) llm-gemm-tile: shared-B-panel GEMM (L2 probe on a compute-bound shape).
+#     All 64 CTAs x 4 warps stream the SAME 4MB B panel (16 blocks x 256KB,
+#     cycled 4x); per iteration each of the 256 warps reads a distinct 1KB row
+#     of the current 256KB block -> per-iter unique B traffic 256KB.
+#     6MB L2 holds the whole panel (hits after first cycle); 3MB L2h thrashes
+#     LRU (~4x DRAM traffic). 24 FFMA per 2 loads, ILP=4.
+# --------------------------------------------------------------------------
+def gen_gemm_tile(appdir):
+    ncta, nwarps = 64, 4
+    panel, block = 4 * 1024 * 1024, 256 * 1024
+    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
+                    "_Z14llm_gemm_tilePfS_S_i", 1, (ncta, 1, 1),
+                    (128, 1, 1), 8192, 64)
+    for cta in range(ncta):
+        w.begin_tb((cta, 0, 0))
+        for wp in range(nwarps):
+            e = Emitter()
+            addr_math(e)
+            wg = cta * nwarps + wp                   # 256 global warps
+            e.mem("LDG.E.128", [20], [4], BASE_ACT + wg * 1024, 16, 16)
+            for it in range(64):
+                blk = (it % 16) * block              # cycle the 4MB panel
+                b = BASE_W + blk + wg * 1024
+                e.mem("LDG.E.128", [16], [4], b, 16, 16)
+                e.mem("LDG.E.128", [17], [4], b + 512, 16, 16)
+                for j in range(24):                  # ILP=4 accs
+                    e.op([j % 4], "FFMA", [j % 4, 16 + (j % 2), 20])
+            for j in range(4):
+                e.mem("STG.E.SYS", [], [j, 12],
+                      BASE_OUT + wg * 256 + j * 64, 4, 4)
+            e.exit()
+            w.warp(wp, e.lines)
+        w.end_tb()
+    w.close()
+
+
+# --------------------------------------------------------------------------
+# 11) llm-batch-decode: batch-8 attention decode (compute-heavy KV scan).
+#     16 groups x 288KB KV (same footprint as attn-decode) but 32 FFMA per
+#     KV load (8 rows x 2 FMA pairs) -> arithmetic intensity x16 vs attn-decode
+#     -> compute hides L2 misses; SM-strong, L2-weak (prediction).
+# --------------------------------------------------------------------------
+def gen_batch_decode(appdir):
+    ncta, nwarps = 160, 4
+    groups, slice_sz = 16, 288 * 1024
+    wp_per_grp = ncta * nwarps // groups             # 40 warps per group
+    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
+                    "_Z16llm_batch_decodePfS_S_i", 1, (ncta, 1, 1),
+                    (128, 1, 1), 2048, 64)
+    for cta in range(ncta):
+        w.begin_tb((cta, 0, 0))
+        for wp in range(nwarps):
+            e = Emitter()
+            addr_math(e)
+            grp = (cta * nwarps + wp) // wp_per_grp
+            lane = (cta * nwarps + wp) % wp_per_grp
+            sl = BASE_KV + grp * slice_sz
+            for it in range(96):                     # KV scan, 8 rows per load
+                                                      # (160→96 pre-CI trim: 74k
+                                                      # cycles@80SM measured locally
+                                                      # projected ~297k@20SM, CI 45min
+                                                      # cap risk; see PRE_REG 修订)
+                off = ((it * wp_per_grp + lane) * 512) % (slice_sz - 512)
+                e.mem("LDG.E.128", [16], [4], sl + off, 16, 16)
+                for r in range(8):                   # 8 query rows
+                    e.op([r], "FFMA", [r, 16, 17])
+                    e.op([r], "FFMA", [r, 18, 19])
+                    e.op([r], "FFMA", [r, 20, 21])
+                    e.op([r], "FFMA", [r, 22, 23])
+            for r in range(8):
+                e.mem("STG.E.SYS", [], [r, 12],
+                      BASE_OUT + grp * 4096 + lane * 32 + r * 4, 4, 4)
+            e.exit()
+            w.warp(wp, e.lines)
+        w.end_tb()
+    w.close()
+
+
+# --------------------------------------------------------------------------
+# 12) llm-mixed: ~50/50 compute burst + unique streaming loads, no dominant
+#     axis (SM/L2/RF all expected weak-to-moderate; clock-moderate in time).
+# --------------------------------------------------------------------------
+def gen_mixed(appdir):
+    ncta, nwarps = 256, 4
+    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
+                    "_Z9llm_mixedPfS_i", 1, (ncta, 1, 1),
+                    (128, 1, 1), 1024, 48)
+    for cta in range(ncta):
+        w.begin_tb((cta, 0, 0))
+        for wp in range(nwarps):
+            e = Emitter()
+            addr_math(e)
+            wid = cta * nwarps + wp                  # 1024 warps x 16 x 512B
+            base = BASE_ACT + wid * 8192
+            for it in range(16):
+                a = base + it * 512
+                e.mem("LDG.E.128", [16], [4], a, 16, 16)
+                for j in range(48):                  # compute burst, ILP=4
+                    e.op([j % 4], "FFMA", [j % 4, 16, 17])
+                e.op([8], "FADD", [0, 1])
+                e.op([9], "FADD", [2, 3])
+            e.mem("STG.E.SYS", [], [0, 12], BASE_OUT + wid * 16, 4, 4)
+            e.exit()
+            w.warp(wp, e.lines)
+        w.end_tb()
+    w.close()
+
+
 APPS = [
     ("llm-gemm-prefill", gen_gemm_prefill, [
         ("MemcpyHtoD", BASE_W, 33554432), ("MemcpyHtoD", BASE_ACT, 1048576)]),
@@ -293,6 +505,19 @@ APPS = [
         ("MemcpyHtoD", BASE_W, 67108864), ("MemcpyHtoD", BASE_ACT, 16384)]),
     ("llm-elem", gen_elem, [
         ("MemcpyHtoD", BASE_ACT, 8388608)]),
+    ("llm-gemm-occu", gen_gemm_occu, [
+        ("MemcpyHtoD", BASE_W, 16777216)]),
+    ("llm-attn-decode-g8", gen_attn_decode_g8, [
+        ("MemcpyHtoD", BASE_KV, 2359296), ("MemcpyHtoD", BASE_ACT, 65536)]),
+    ("llm-attn-decode-g32", gen_attn_decode_g32, [
+        ("MemcpyHtoD", BASE_KV, 9437184), ("MemcpyHtoD", BASE_ACT, 65536)]),
+    ("llm-gemm-tile", gen_gemm_tile, [
+        ("MemcpyHtoD", BASE_W, 4194304), ("MemcpyHtoD", BASE_ACT, 1048576)]),
+    ("llm-batch-decode", gen_batch_decode, [
+        ("MemcpyHtoD", BASE_KV, 4718592), ("MemcpyHtoD", BASE_ACT, 65536)]),
+    # 2026-10-24 pre-CI trim (PRE_REGISTRATION 修订记录): llm-ffma-dep 与 llm-mixed
+    # 从套件移除（M=12→10，CI 45min 硬顶，本地实测 batch-decode@80SM 74k cycles
+    # 外推 20SM ~297k 使总预算超限）；生成函数保留在文件中留档。
 ]
 
 

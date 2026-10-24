@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Accel-Sim 冒烟验证 CI 脚本（Linux x86_64 / GitHub Actions ubuntu-24.04 直接可跑）
-# 目标：4 架构配置 × 5 workload（llm-synth 合成 LLM 推理 kernel trace），trace-driven 仿真，
-#       收集 cycles，输出 matrix_cycles.json（行=架构，列=workload，值=总 cycles，越小越好）。
+# 目标：8 架构配置 × 12 workload（llm-synth 合成 LLM 推理 kernel trace），trace-driven 仿真，
+#       收集 cycles 与 time（cycles/核心时钟），输出 matrix_cycles.json + matrix_time_us.json
+#       （行=架构，列=workload；time_us 为 2026-10-24 宇宙扩容轮的主读出，越小越好）。
 #
-# 背景：2026-10-21 CI 冒烟终裁 rodinia_2.0-ft 矩阵有效但无判别信号（5/10 零差距、L2h 完全无影响）。
-# 本轮换 LLM 推理特征负载：Purdue 公开 trace 无 LLM/DNN 套件（cutlass.tgz 404）、NVBIT 提取需要真 GPU
-# （CI runner 无）、accel-sim dev 分支的 ml-workloads trace 在 Purdue 内部 scratch——故用
-# gen_llm_traces.py 按 trace-parser 文本格式合成（字段对 trace_parser.cc 逐条核验；opcode 全部取自
-# rodinia_2.0-ft 实测可仿真集合）。详见 paper-ideas/experiments/20261022-accelsim-llm-trace/。
+# 背景：2026-10-22 LLM 合成 trace 矩阵判别信号成立（gemm SM +85.5%、attn-decode L2 +51.7%，
+# K=3 贪心=strat_fix=穷举最优 1.000，K=2 方差导向漏 L2 维度）。本轮（2026-10-24 裁判指定）：
+# 配置 4→8（+核心时钟 CLK566、+寄存器文件 RF 32K、+40SM/20SM×半L2 交叉项）、workload 5→12
+# （GQA 剂量-响应 g8/g32、高占用 GEMM、纯依赖链 FFMA、共享 B-panel GEMM、batch-8 decode、混合）。
+# 判据与假设预登记于 paper-ideas/experiments/20261023-dse-universe-expansion/PRE_REGISTRATION.md。
+# trace 格式核验史（trace_parser.cc 字段级对齐、MAX_DST=1 教训）见 20261022-accelsim-llm-trace/。
 #
 # 用法：bash run_accelsim_smoke.sh [输出目录（默认 ./ci-run）]
 # 依赖：docker（首选，用官方预构建镜像）；无 docker 则本机自建（需要 CUDA_INSTALL_PATH 或 stub，见下）。
@@ -68,21 +70,29 @@ mkdir -p hw_run
 GEN="$(dirname "$SCRIPT_PATH")/gen_llm_traces.py"
 python3 "$GEN" hw_run
 
-# ---------- 3) 4 个架构配置：QV100 基线 + 3 个最小改动变体 ----------
-echo "[3/5] 构造 4 个配置（只改 SM 数 / L2 大小）"
+# ---------- 3) 8 个架构配置：SM 数 × L2 × 核心时钟 × RF（2026-10-24 宇宙扩容） ----------
+echo "[3/5] 构造 8 个配置（SM 数 / L2 大小 / 核心时钟 / RF 大小）"
 GPGPUSIM_CFG="$ACCEL_SIM_ROOT/gpu-simulator/gpgpu-sim/configs/tested-cfgs"
 mk_variant() {  # $1=目录名 $2..=sed 规则
     local d="$GPGPUSIM_CFG/$1"
     rm -rf "$d"; cp -r "$GPGPUSIM_CFG/SM7_QV100" "$d"
     shift; for rule in "$@"; do sed -i "$rule" "$d/gpgpusim.config"; done
 }
-mk_variant SM7_QV100_80SM                                              # 基线：80 SM, L2 32(128:24)
+mk_variant SM7_QV100_80SM                                              # 基线：80 SM, L2 6MB, 1132MHz, RF 64K
 mk_variant SM7_QV100_40SM      's/^-gpgpu_n_clusters 80/-gpgpu_n_clusters 40/' # SM 减半
 mk_variant SM7_QV100_20SM      's/^-gpgpu_n_clusters 80/-gpgpu_n_clusters 20/' # SM 1/4
 mk_variant SM7_QV100_80SM_L2h  's#^-gpgpu_cache:dl2 S:32:128:24#-gpgpu_cache:dl2 S:16:128:24#'  # L2 减半
+# 新维度 1：核心时钟域减半（QV100 用绝对 MHz 四域 core:icnt:L2:DRAM，只降 core 域）
+mk_variant SM7_QV100_80SM_CLKh 's/^-gpgpu_clock_domains 1132.0:1132.0:1132.0:850.0/-gpgpu_clock_domains 566.0:1132.0:1132.0:850.0/'
+# 新维度 2：每 SM 寄存器文件减半（occupancy 经 trace 头 nregs 生效，shader.cc:4427）
+mk_variant SM7_QV100_80SM_RFh  's/^-gpgpu_shader_registers 65536/-gpgpu_shader_registers 32768/'
+# 交叉项：SM 数 × 半 L2
+mk_variant SM7_QV100_40SM_L2h  's/^-gpgpu_n_clusters 80/-gpgpu_n_clusters 40/' 's#^-gpgpu_cache:dl2 S:32:128:24#-gpgpu_cache:dl2 S:16:128:24#'
+mk_variant SM7_QV100_20SM_L2h  's/^-gpgpu_n_clusters 80/-gpgpu_n_clusters 20/' 's#^-gpgpu_cache:dl2 S:32:128:24#-gpgpu_cache:dl2 S:16:128:24#'
 # trace-driven 侧还需要 gpu-simulator/configs/tested-cfgs/<cfg>/trace.config
 TRACE_CFG="$ACCEL_SIM_ROOT/gpu-simulator/configs/tested-cfgs"
-for V in SM7_QV100_80SM SM7_QV100_40SM SM7_QV100_20SM SM7_QV100_80SM_L2h; do
+for V in SM7_QV100_80SM SM7_QV100_40SM SM7_QV100_20SM SM7_QV100_80SM_L2h \
+         SM7_QV100_80SM_CLKh SM7_QV100_80SM_RFh SM7_QV100_40SM_L2h SM7_QV100_20SM_L2h; do
     mkdir -p "$TRACE_CFG/$V"; cp -f "$TRACE_CFG/SM7_QV100/trace.config" "$TRACE_CFG/$V/"
 done
 cat >> util/job_launching/configs/define-standard-cfgs.yml <<'EOF'
@@ -94,6 +104,14 @@ QV100_20SM:
     base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_20SM/gpgpusim.config"
 QV100_80SM_L2h:
     base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_80SM_L2h/gpgpusim.config"
+QV100_80SM_CLKh:
+    base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_80SM_CLKh/gpgpusim.config"
+QV100_80SM_RFh:
+    base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_80SM_RFh/gpgpusim.config"
+QV100_40SM_L2h:
+    base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_40SM_L2h/gpgpusim.config"
+QV100_20SM_L2h:
+    base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_20SM_L2h/gpgpusim.config"
 EOF
 # 注册 llm-synth 套件（幂等：docker 再入时防重复追加）
 JOBYML=util/job_launching/apps/define-all-apps.yml
@@ -117,18 +135,34 @@ llm-synth:
         - llm-elem:
             - name: all
               args: ""
+        - llm-gemm-occu:
+            - name: all
+              args: ""
+        - llm-attn-decode-g8:
+            - name: all
+              args: ""
+        - llm-attn-decode-g32:
+            - name: all
+              args: ""
+        - llm-gemm-tile:
+            - name: all
+              args: ""
+        - llm-batch-decode:
+            - name: all
+              args: ""
 EOF
 
-# ---------- 4) 跑仿真：4 配置 × llm-synth（5 个合成 LLM kernel app） ----------
-echo "[4/5] 运行仿真（4 配置 × llm-synth）"
+# ---------- 4) 跑仿真：8 配置 × llm-synth（10 个合成 LLM kernel app） ----------
+echo "[4/5] 运行仿真（8 配置 × llm-synth，10 app）"
 set +u; source ./gpu-simulator/setup_environment.sh release; set -u   # set -u 与其未定义变量不兼容
-for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h; do
+for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h \
+         QV100_80SM_CLKh QV100_80SM_RFh QV100_40SM_L2h QV100_20SM_L2h; do
     ./util/job_launching/run_simulations.py -C "$C-SASS" -B llm-synth \
         -T ./hw_run -N "smoke-$C"
     ./util/job_launching/monitor_func_test.py -N "smoke-$C"    # 等待完成
 done
 
-# ---------- 5) 收集 cycles → matrix_cycles.json ----------
+# ---------- 5) 收集 cycles → matrix_cycles.json + matrix_time_us.json ----------
 echo "[diag] sim_run 目录树（文件级，深度不限）："
     find sim_run_* -type f 2>/dev/null | head -30 || true
     echo "[diag] cwd=$(pwd)"
@@ -136,12 +170,17 @@ echo "[5/5] 收集结果"
 python3 - "$OUT" <<'PYEOF'
 import json, os, sys, glob
 out = sys.argv[1]
-# 修复（2026-10-23）：trace-driven 模式 GPGPU-Sim 逐 kernel 打印 gpu_tot_sim_cycle 且为跨 kernel
-# 累计值——旧收集器把每个累计块再求和（prefix-sum 重复计数）。改为取每个 .o 文件的最后一个值
-# （= 全 app 总 cycles）。app 名取路径中 llm- 开头的组件（对 sim_run_* 目录布局免疫）。
+# 收集口径（2026-10-23 修复沿用）：trace-driven 模式逐 kernel 打印累计 gpu_tot_sim_cycle，
+# 取每个 .o 文件最后一个值（= 全 app 总 cycles）。app 名取路径中 llm- 开头的组件。
+# 2026-10-24 新增：time_us = cycles / 核心时钟 MHz——本轮配置含核心时钟差异（CLKh=566），
+# gpu_tot_sim_cycle 按核心时钟域计数，跨时钟配置比较必须用时间（预登记 §1.2 主读出）。
+CFGS = ("QV100_80SM", "QV100_40SM", "QV100_20SM", "QV100_80SM_L2h",
+        "QV100_80SM_CLKh", "QV100_80SM_RFh", "QV100_40SM_L2h", "QV100_20SM_L2h")
+CORE_MHZ = {c: 1132.0 for c in CFGS}
+CORE_MHZ["QV100_80SM_CLKh"] = 566.0
 matrix = {}
 diag = []
-for cfg in ("QV100_80SM", "QV100_40SM", "QV100_20SM", "QV100_80SM_L2h"):
+for cfg in CFGS:
     row = {}
     outs = sorted(glob.glob(f"sim_run_*/**/{cfg}-SASS/**/*.o*", recursive=True))
     for st in outs:
@@ -161,12 +200,16 @@ for cfg in ("QV100_80SM", "QV100_40SM", "QV100_20SM", "QV100_80SM_L2h"):
 apps = sorted(set().union(*[set(v) for v in matrix.values()])) if matrix else []
 matrix = {k: {a: v.get(a) for a in apps} for k, v in matrix.items()}
 json.dump(matrix, open(os.path.join(out, "matrix_cycles.json"), "w"), indent=1)
+tmatrix = {k: {a: (v[a] / CORE_MHZ[k] if v.get(a) else None) for a in apps}
+           for k, v in matrix.items()}
+json.dump(tmatrix, open(os.path.join(out, "matrix_time_us.json"), "w"), indent=1)
 open(os.path.join(out, "collect_diag.txt"), "w").write("\n".join(diag) + "\n")
 print("apps:", apps)
-print("written:", os.path.join(out, "matrix_cycles.json"))
+print("written:", os.path.join(out, "matrix_cycles.json"),
+      "and", os.path.join(out, "matrix_time_us.json"))
 if not apps:
     print("WARNING: no cycles collected; see find dump above and job logs", file=sys.stderr)
     sys.exit(1)
 PYEOF
-echo "完成。把 matrix_cycles.json 交给 analysis.py："
-echo "  python3 analysis.py <ci-run 目录>/matrix_cycles.json"
+echo "完成。把 matrix_time_us.json（主读出）交给 analysis_univ.py："
+echo "  python3 analysis_univ.py <ci-run 目录>/matrix_time_us.json"
