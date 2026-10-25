@@ -150,10 +150,39 @@ llm-synth:
         - llm-batch-decode:
             - name: all
               args: ""
+        # 2026-10-25 junk-injection round: 8 dependent-load-chain junk columns
+        # (pre-registered paper-ideas/experiments/20261024-dse-junk-injection/):
+        # per-warp MLP=1 latency chains, <=16 CTAs, unique streaming -> flat on
+        # SM/L2/RF (local probe: spread 0~0.66%); distinct chain lengths ->
+        # distinct cycle counts.
+        - llm-junk-g1:
+            - name: all
+              args: ""
+        - llm-junk-g2:
+            - name: all
+              args: ""
+        - llm-junk-g3:
+            - name: all
+              args: ""
+        - llm-junk-g4:
+            - name: all
+              args: ""
+        - llm-junk-g5:
+            - name: all
+              args: ""
+        - llm-junk-g6:
+            - name: all
+              args: ""
+        - llm-junk-g7:
+            - name: all
+              args: ""
+        - llm-junk-g8:
+            - name: all
+              args: ""
 EOF
 
-# ---------- 4) 跑仿真：8 配置 × llm-synth（10 个合成 LLM kernel app） ----------
-echo "[4/5] 运行仿真（8 配置 × llm-synth，10 app）"
+# ---------- 4) 跑仿真：8 配置 × llm-synth（10 信息 + 8 垃圾列 = 18 个合成 LLM kernel app） ----------
+echo "[4/5] 运行仿真（8 配置 × llm-synth，18 app：10 信息列 + 8 junk 注入列）"
 set +u; source ./gpu-simulator/setup_environment.sh release; set -u   # set -u 与其未定义变量不兼容
 for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h \
          QV100_80SM_CLKh QV100_80SM_RFh QV100_40SM_L2h QV100_20SM_L2h; do

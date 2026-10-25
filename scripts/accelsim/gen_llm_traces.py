@@ -494,6 +494,77 @@ def gen_mixed(appdir):
     w.close()
 
 
+# --------------------------------------------------------------------------
+# 13) llm-junk-g1..g8: junk columns for the 2026-10-25 dose-response injection
+#     round (pre-registered in
+#     paper-ideas/experiments/20261024-dse-junk-injection/PRE_REGISTRATION.md).
+#
+#     Mechanism choice (locked there, based on the PUBLISHED 10-23 matrix):
+#     copying the gemv/elem shape cannot produce a junk column in a universe
+#     that contains the half-core-clock config -- gemv time ratio under CLKh
+#     was 1.524x and elem 1.82x (issue/latency limited by the core clock
+#     domain), i.e. they are INFO columns for the CLK axis here. To be
+#     insensitive on all four axes the wall time must be set by a NON-core
+#     clock domain (icnt/L2=1132, DRAM=850 -- both unchanged under CLKh):
+#
+#       - dependent-load chain: every LDG.E.128 (512B/warp-inst) uses the
+#         destination register of the previous load as an address source
+#         (scoreboard RAW) -> per-warp MLP=1, all stalls are memory
+#         round-trips -> time ~ chain_len x mem_latency, core-clock free;
+#       - unique streaming footprint (no reuse) -> compulsory misses at any
+#         L2 size -> L2-insensitive;
+#       - <=32 CTAs (<=128 warps) all resident even on 20SM -> SM-count free
+#         (latency chains are per-warp serial; residency is all that matters);
+#       - nregs 24/32/40 << RFh limit -> RF free;
+#       - variants differ in chain length / CTA count / filler density ->
+#         distinct absolute cycle counts (no "zero-signal zero-cost" collapse).
+#
+#     Filler FFMAs use registers never written by the chain (R20/R21) so the
+#     dependency chain stays MLP=1.
+# --------------------------------------------------------------------------
+JUNK_SPECS = [          # (name, L, ncta, fill_ffma_per_step, nregs, seed_off)
+    ("llm-junk-g1", 32, 16, 0, 24, 0),
+    ("llm-junk-g2", 44,  8, 2, 32, 1),
+    ("llm-junk-g3", 20, 16, 0, 24, 2),
+    ("llm-junk-g4", 36, 16, 1, 40, 3),
+    ("llm-junk-g5", 16,  8, 2, 32, 4),
+    ("llm-junk-g6", 40,  8, 0, 24, 5),
+    ("llm-junk-g7", 24, 16, 1, 40, 6),
+    ("llm-junk-g8", 28, 16, 0, 24, 7),
+]
+# 2026-10-25 pre-CI revision (PRE_REGISTRATION §7 修订 1): J3/J5/J8 的 ncta 从 32
+# 降到 16/8/16——本地探针（64 run 全 EXIT=0）显示 32-CTA 变体在 20SM 上有
+# +5.8~8.6% 的系统性加速（CTA 共址效应），>5% 门不过；≤16 CTA 变体在 SM/L2/RF
+# 三维 spread 0~0.66%。链长 L 保持互异 → 绝对 cycles 互异。
+
+
+def gen_junk_chain(appdir, L, ncta, fill, nregs, seed_off):
+    nwarps = 4
+    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
+                    f"_Z11llm_junk_g{seed_off + 1}Pf_i", 1, (ncta, 1, 1),
+                    (128, 1, 1), 512, nregs)
+    for cta in range(ncta):
+        w.begin_tb((cta, 0, 0))
+        for wp in range(nwarps):
+            e = Emitter()
+            addr_math(e)
+            wid = cta * nwarps + wp
+            # warp-private 256KB-strided region (first ~L*0.5KB touched, unique)
+            base = BASE_W + (wid + seed_off * 128) * 262144
+            e.mem("LDG.E.128", [16], [4], base, 16, 16)      # seed chain into R16
+            for it in range(L):
+                # dependent step: address source R16 == previous load's dst
+                e.mem("LDG.E.128", [16], [16], base + (it + 1) * 512, 16, 16)
+                for f in range(fill):                        # independent regs only
+                    e.op([8 + f % 2], "FFMA", [8 + f % 2, 20, 21])
+            e.op([8], "FADD", [8, 16])                       # consume chain tail
+            e.mem("STG.E.SYS", [], [8, 12], BASE_OUT + wid * 16 + seed_off * 4, 4, 4)
+            e.exit()
+            w.warp(wp, e.lines)
+        w.end_tb()
+    w.close()
+
+
 APPS = [
     ("llm-gemm-prefill", gen_gemm_prefill, [
         ("MemcpyHtoD", BASE_W, 33554432), ("MemcpyHtoD", BASE_ACT, 1048576)]),
@@ -519,6 +590,18 @@ APPS = [
     # 从套件移除（M=12→10，CI 45min 硬顶，本地实测 batch-decode@80SM 74k cycles
     # 外推 20SM ~297k 使总预算超限）；生成函数保留在文件中留档。
 ]
+
+# 2026-10-25 junk-injection round: 8 junk columns appended AFTER the 10 info
+# columns in a FIXED order (nested-subset dose axis, PRE_REGISTRATION §1.4).
+# MemcpyHtoD 8MB covers the union of the junk stream regions (<=3MB unique
+# touched) at the BASE_W window used by the chains.
+JUNK_APPS = [
+    (name, lambda d, s=spec: gen_junk_chain(d, *s),
+     [("MemcpyHtoD", BASE_W, 8388608)])
+    for name, spec in [(n, (L, nc, fl, nr, so))
+                       for (n, L, nc, fl, nr, so) in JUNK_SPECS]
+]
+APPS = APPS + JUNK_APPS
 
 
 def main():
