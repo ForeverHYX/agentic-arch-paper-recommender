@@ -112,7 +112,7 @@ def enrich_payload_with_profile_review(
         if require_api:
             raise LLMProviderError(
                 format_llm_error(
-                    RuntimeError("DEEPSEEK_API_KEY is not configured"),
+                    RuntimeError("LLM_API_KEY is not configured"),
                     base_url=base_url,
                     model=model,
                 )

@@ -3,8 +3,9 @@ name: Daily Paper Recommender
 on:
   workflow_dispatch:
   schedule:
-    # DeepSeek off-peak window: 02:17 Asia/Shanghai (18:17 UTC), once per day.
-    # The minute offset avoids the top-of-hour Actions scheduling spike.
+    # 02:17 Asia/Shanghai (18:17 UTC), once per day. The GLM coding-plan
+    # subscription is not usage-priced, so this is purely a quiet-hour slot;
+    # the minute offset avoids the top-of-hour Actions scheduling spike.
     - cron: "17 18 * * *"
 
 permissions:
@@ -18,7 +19,7 @@ concurrency:
 
 env:
   SITE_BASE_URL: https://foreverhyx.github.io/agentic-arch-paper-recommender
-  HAS_LLM: ${{ secrets.DEEPSEEK_API_KEY != '' }}
+  HAS_LLM: ${{ secrets.LLM_API_KEY != '' }}
   HAS_SMTP: ${{ secrets.SMTP_HOST != '' && secrets.SMTP_PASSWORD != '' && secrets.EMAIL_SENDER != '' && secrets.EMAIL_RECEIVER != '' }}
   HAS_SUPABASE: ${{ vars.SUPABASE_URL != '' && secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}
   HAS_LOCAL_FEEDBACK: ${{ secrets.LOCAL_FEEDBACK_JSON != '' }}
@@ -121,9 +122,9 @@ jobs:
 
       - name: Judge recommendations with LLM
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}
-          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://open.bigmodel.cn/api/coding/paas/v4' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'glm-5.3' }}
         run: |
           REQUIRE_API=""
           if [ "$HAS_LLM" = "true" ]; then
@@ -145,9 +146,9 @@ jobs:
 
       - name: Enrich TLDR summaries
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}
-          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://open.bigmodel.cn/api/coding/paas/v4' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'glm-5.3' }}
         run: |
           REQUIRE_API=""
           if [ "$HAS_LLM" = "true" ]; then
@@ -161,9 +162,9 @@ jobs:
         # Best-effort enrichment: a flaky LLM response must not block the deploy.
         continue-on-error: true
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}
-          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://open.bigmodel.cn/api/coding/paas/v4' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'glm-5.3' }}
         run: |
           REQUIRE_API=""
           if [ "$HAS_LLM" = "true" ]; then
@@ -186,8 +187,8 @@ jobs:
 
       - name: Publish subsystem status
         env:
-          DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}
-          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://open.bigmodel.cn/api/coding/paas/v4' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'glm-5.3' }}
         run: python -m paper_recommender.status --output site/status.json
 
       - name: Send email digest

@@ -22,7 +22,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("paper_recommender.email_delivery", workflow)
         self.assertNotIn("paper_recommender.judge", workflow)
 
-    def test_daily_workflow_runs_once_in_deepseek_off_peak_window(self):
+    def test_daily_workflow_runs_once_per_day_at_fixed_minute_offset(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 
         self.assertIn('- cron: "17 18 * * *"', workflow)
@@ -79,7 +79,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--limit 15", workflow)
         self.assertIn("--exploration-limit 3", workflow)
         self.assertIn("--core-llm-limit 24", workflow)
-        self.assertIn("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}", workflow)
+        self.assertIn("LLM_API_KEY: ${{ secrets.LLM_API_KEY }}", workflow)
         self.assertLess(
             workflow.index("python -m paper_recommender.judge"),
             workflow.index("python -m paper_recommender.summarizer"),
@@ -102,7 +102,7 @@ class WorkflowContractTests(unittest.TestCase):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 
         self.assertIn("python -m paper_recommender.summarizer", workflow)
-        self.assertIn("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}", workflow)
+        self.assertIn("LLM_API_KEY: ${{ secrets.LLM_API_KEY }}", workflow)
         self.assertLess(
             workflow.index("python -m paper_recommender.summarizer"),
             workflow.index("python -m paper_recommender.email_delivery"),
@@ -111,8 +111,8 @@ class WorkflowContractTests(unittest.TestCase):
     def test_daily_workflow_allows_openai_compatible_base_url_and_model_overrides(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 
-        self.assertIn("DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}", workflow)
-        self.assertIn("DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}", workflow)
+        self.assertIn("LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://open.bigmodel.cn/api/coding/paas/v4' }}", workflow)
+        self.assertIn("LLM_MODEL: ${{ vars.LLM_MODEL || 'glm-5.3' }}", workflow)
 
     def test_daily_workflow_requires_api_when_llm_key_is_configured(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
@@ -143,7 +143,7 @@ class WorkflowContractTests(unittest.TestCase):
     def test_daily_workflow_publishes_subsystem_status_without_secret_values(self):
         workflow = Path(".github/workflows/daily.yml").read_text(encoding="utf-8")
 
-        self.assertIn("HAS_LLM: ${{ secrets.DEEPSEEK_API_KEY != '' }}", workflow)
+        self.assertIn("HAS_LLM: ${{ secrets.LLM_API_KEY != '' }}", workflow)
         self.assertIn("Publish subsystem status", workflow)
         self.assertIn("python -m paper_recommender.status --output site/status.json", workflow)
         self.assertLess(

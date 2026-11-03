@@ -86,7 +86,7 @@ python3 -m paper_recommender.pipeline \
 Rerank candidates with an OpenAI-compatible model and keep at most 15 final recommendations:
 
 ```bash
-DEEPSEEK_API_KEY=... python3 -m paper_recommender.judge \
+LLM_API_KEY=... python3 -m paper_recommender.judge \
   --input site/recommendations.json \
   --output site/recommendations.json \
   --limit 15
@@ -104,14 +104,14 @@ python3 -m paper_recommender.affiliations \
 Add TLDR summaries:
 
 ```bash
-DEEPSEEK_API_KEY=... python3 -m paper_recommender.summarizer \
+LLM_API_KEY=... python3 -m paper_recommender.summarizer \
   --input site/recommendations.json \
   --output site/recommendations.json
 ```
 
-The default provider is DeepSeek's OpenAI-compatible API at `https://api.deepseek.com/v1`, using `deepseek-chat`. The judge adds `ai_judgement` and `ai_score`, reranks candidates by AI relevance, and truncates the final digest to 15 items. It understands both arXiv papers and GitHub repository items. If no API key is configured, local/offline runs can still use rule-score and English fallback text. In GitHub Actions, once `DEEPSEEK_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback summaries as if the API worked.
+The default provider is Zhipu's GLM OpenAI-compatible coding-plan API at `https://open.bigmodel.cn/api/coding/paas/v4`, using `glm-5.3`; the coding-plan key only authenticates against this dedicated endpoint, not the general `paas/v4` one. The judge adds `ai_judgement` and `ai_score`, reranks candidates by AI relevance, and truncates the final digest to 15 items. It understands both arXiv papers and GitHub repository items. If no API key is configured, local/offline runs can still use rule-score and English fallback text. In GitHub Actions, once `LLM_API_KEY` exists, the LLM steps run with `--require-api`; provider failures stop the workflow with a sanitized error instead of publishing fallback summaries as if the API worked.
 
-The scheduled run fires once per day at 02:17 Asia/Shanghai (`17 18 * * *` UTC) to stay inside DeepSeek's off-peak pricing window (00:30–08:30 Asia/Shanghai). The judge only spends model calls on the strongest core candidates (`--core-llm-limit 24`); the rule-scored tail stays eligible for the core rescue path without extra LLM calls. Judge and summarizer requests retry transient network/429/5xx failures. arXiv rate-limits the shared `export.arxiv.org` API for hours at a time on CI egress IPs, so the fetcher (`--via auto`) falls back to the separate `rss.arxiv.org` per-category mirror, which carries the same recent records under an independent rate limiter; if both sources fail, the run stops before any LLM step, so no API spend is wasted.
+The scheduled run fires once per day at 02:17 Asia/Shanghai (`17 18 * * *` UTC), a quiet-hour slot chosen for schedule stability; the GLM coding-plan subscription is not usage-priced, so the exact time does not affect cost. The judge only spends model calls on the strongest core candidates (`--core-llm-limit 24`); the rule-scored tail stays eligible for the core rescue path without extra LLM calls. Judge and summarizer requests retry transient network/429/5xx failures. arXiv rate-limits the shared `export.arxiv.org` API for hours at a time on CI egress IPs, so the fetcher (`--via auto`) falls back to the separate `rss.arxiv.org` per-category mirror, which carries the same recent records under an independent rate limiter; if both sources fail, the run stops before any LLM step, so no API quota is wasted.
 
 Each recommendation carries a quick-read brief: a one-sentence `headline`, labeled `key_points` (Problem / Method / Evidence / Impact / Limitation), and the single most telling `key_figure`, plus the deep-reading `section_summaries` and `figure_explanations` and the raw abstract in the collapsible detail block. The `tldr` field is kept as a derived digest for the email and older readers.
 
@@ -127,11 +127,13 @@ The workflow also publishes `status.json`, a non-secret deployment status file. 
 
 ## LLM Provider Configuration
 
-GitHub Actions reads the DeepSeek provider configuration from:
+GitHub Actions reads the LLM provider configuration from:
 
-- GitHub Secret: `DEEPSEEK_API_KEY`
-- GitHub Variable: `DEEPSEEK_BASE_URL`, optional, defaults to `https://api.deepseek.com/v1`
-- GitHub Variable: `DEEPSEEK_MODEL`, optional, defaults to `deepseek-chat`
+- GitHub Secret: `LLM_API_KEY`
+- GitHub Variable: `LLM_BASE_URL`, optional, defaults to `https://open.bigmodel.cn/api/coding/paas/v4`
+- GitHub Variable: `LLM_MODEL`, optional, defaults to `glm-5.3`
+
+Local runs may also set the legacy `OPENAI_*` or `DEEPSEEK_*` equivalents; `LLM_*` takes precedence.
 
 Configure the repository with the base URL only, without the final `/chat/completions`, because the Python client appends that path. Keep the API key in a GitHub Secret only; do not put it in repository files, Pages config, workflow variables, or generated status files.
 
