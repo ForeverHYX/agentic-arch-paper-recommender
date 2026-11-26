@@ -33,8 +33,6 @@ Usage: python3 gen2_traces.py <hw_run_root> [--selfcheck]
 import os
 import sys
 
-import numpy as np
-
 MASK = "ffffffff"
 # shifted device-pointer windows (+64GB) vs first universe
 BASE_W = 0x00007F4000000000
@@ -42,6 +40,33 @@ BASE_ACT = 0x00007F5000000000
 BASE_KV = 0x00007F6000000000
 BASE_OUT = 0x00007F7000000000
 SEED_BASE = 26112601
+
+
+class RNG:
+    """Deterministic pure-python PRNG (splitmix64) -- the CI runner's system
+    python3 has no numpy (2026-11-26 run 45756840455 lesson); integer math
+    only, version-stable across python builds."""
+
+    def __init__(self, seed):
+        self.s = (int(seed) & 0xFFFFFFFFFFFFFFFF) or 1
+
+    def _next(self):
+        self.s = (self.s + 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF
+        z = self.s
+        z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+        z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+        return z ^ (z >> 31)
+
+    def integers(self, lo, hi):
+        """Uniform int in [lo, hi)."""
+        return lo + self._next() % (hi - lo)
+
+    def permutation(self, n):
+        p = list(range(n))
+        for i in range(n - 1, 0, -1):
+            j = self._next() % (i + 1)
+            p[i], p[j] = p[j], p[i]
+        return p
 
 
 class TraceWriter:
@@ -510,7 +535,7 @@ def main():
     for i, (name, fn, copies) in enumerate(APPS):
         appdir = os.path.join(suite, name, "all")
         os.makedirs(os.path.join(appdir, "traces"), exist_ok=True)
-        rng = np.random.default_rng(SEED_BASE + i)           # per-column seed
+        rng = RNG(SEED_BASE + i)                             # per-column seed
         fn(appdir, rng)
         with open(os.path.join(appdir, "traces", "kernelslist.g"), "w") as kl:
             for _, addr, sz in copies:
