@@ -115,7 +115,8 @@ QV100_20SM_L2h:
 EOF
 # 注册 llm-synth 套件（幂等：docker 再入时防重复追加）
 JOBYML=util/job_launching/apps/define-all-apps.yml
-grep -q "^llm-synth:
+grep -q "^llm-synth:" "$JOBYML" || cat >> "$JOBYML" <<'EOF'
+llm-synth:
     exec_dir: "$ACCELSIM_ROOT"
     data_dirs: ""
     execs:
