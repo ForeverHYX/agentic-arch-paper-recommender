@@ -1,72 +1,50 @@
 #!/usr/bin/env python3
-"""Synthesize Accel-Sim SASS-format traces for LLM inference kernels (V100/SM7).
+"""Second independent workload universe: synthetic Accel-Sim SASS traces (V100/SM7).
 
-Why: Purdue's public trace server has no LLM/DNN suite (cutlass.tgz et al. are
-404 as of 2026-10-23; only cudasdk/rodinia/ubench remain), NVBIT capture needs a
-real GPU (CI runners have none), and the accel-sim dev-branch "ml-workloads"
-traces live on an internal Purdue scratch depot. This generator emits traces in
-the exact text .traceg format the trace-parser consumes (verified against
-trace_parser.cc @ dev and the official rodinia_2.0-ft traces), with instruction
-mixes / address streams parameterized to LLM inference kernel characteristics:
+2026-11-26 second-universe round (pre-registered in
+paper-ideas/experiments/20261126-second-universe/PRE_REGISTRATION.md).
 
-  llm-gemm-prefill  register-tiled dense GEMM (prefill MLP/QKV): long FFMA runs
-                    between sparse L2-resident loads -> compute-issue bound,
-                    expected strongly SM-count sensitive, L2-size insensitive.
-  llm-attn-prefill  flash-attention-like tile loop: LDG+FFMA+MUFU(EX2/RCP) mix,
-                    L2 tile sharing across CTAs, moderate AI -> mixed bound.
-  llm-attn-decode   GQA decode KV scan: 16 groups x 8 warps share 288KB KV
-                    slices; aggregate concurrent footprint ~4.6MB (between
-                    L2h 3MB and baseline 6MB) -> L2-capacity sensitive.
-  llm-gemv-decode   decode GEMV over weights: 64MB unique streaming, no reuse
-                    -> DRAM-BW bound control (expected SM/L2 insensitive).
-  llm-elem          layernorm/activation elementwise: streaming low-AI control.
+Independence from the first universe (20261023/24 gen_llm_traces.py, archived in
+paper-ideas/experiments/2026102{3,4}-*/gen_llm_traces.py):
+  1. per-column RNG (seed base 26112601) drives address-phase jitter, tile
+     visit order permutations, stride alternation -- the first universe was
+     fully deterministic (no RNG);
+  2. behavioral parameter centers/dispersions shifted: arithmetic intensity
+     (448/12 and 320/24 FMA-per-load GEMMs vs 512/16; batch 64 vs 32 FMA/load),
+     memory locality (KV slices 320/384KB vs 288KB; tile panel 5MB vs 4MB;
+     stream 16MB vs 64MB), parallelism (112/80/36/320 CTAs vs 96/128/32/640;
+     occupancy probe nregs 176 ILP=3 vs 200 ILP=2);
+  3. pool size 12 info columns (vs 10), including latency-chain and mixed
+     profiles the first-universe matrix never contained;
+  4. junk columns H1-H8: same dependent-load-chain MECHANISM as J1-J8 (the
+     only mechanism that yields zero-information columns in a universe with
+     the half-core-clock config, see 20261024 RESULT §5.4) but new chain
+     lengths / CTA counts / address regions / seeds -> a different tier-0
+     junk set.
 
-2026-10-24 universe-expansion round (pre-registered in
-paper-ideas/experiments/20261023-dse-universe-expansion/PRE_REGISTRATION.md):
-7 additional kernels so the 12-workload x 8-config matrix has differentiated
-sensitivity to four design axes (SM count / L2 size / core clock / RF size):
+Trace-format rules inherited verbatim from the proven first-universe writer
+(field-level alignment with trace_parser.cc @ dev; 2026-10-22 lessons:
+MAX_DST=1, MAX_SRC=4; base_stride addressing mode; opcodes restricted to the
+set already simulated green on QV100: EXIT/IMAD/IADD3/FFMA/FADD/MUFU.RCP/
+MUFU.EX2/LDG.E.128/LDG.E.SYS/STG.E.SYS).
 
-  llm-gemm-occu     high-RF-occupancy GEMM: trace header nregs=200 ->
-                    baseline 2 CTAs/SM vs RF-halved 1 CTA/SM (occupancy bound
-                    by gpgpu_shader_registers; verified vs shader.cc:4427);
-                    ILP=2 FFMA chains expose latency at low warp counts ->
-                    expected RF-strong, SM-strong, clock-strong (time).
-  llm-ffma-dep      pure dependent-chain FFMA (ILP=1), low regs, grid
-                    oversubscribes -> issue/latency bound, SM-strong,
-                    RF-insensitive (nregs=24 far below both RF limits).
-  llm-attn-decode-g8  GQA dose-response low end: 8 groups x 288KB = 2.25MB
-                    concurrent KV footprint, fits both 3MB and 6MB L2 ->
-                    expected L2-INsensitive control.
-  llm-attn-decode-g32 GQA dose-response high end: 32 groups x 288KB = 9MB,
-                    thrashes both L2 sizes -> DRAM-bound L2-INsensitive.
-  llm-gemm-tile     shared-B-panel GEMM: all 64 CTAs stream the same 4MB B
-                    panel (fits 6MB L2, thrashes 3MB) + private A tiles ->
-                    expected SM-strong AND L2-strong (unlike gemm-prefill).
-  llm-batch-decode  batch-8 attention decode: 32 FFMA per KV load (8 rows x 4)
-                    -> compute hides L2 misses -> SM-strong, L2-weak.
-  llm-mixed         ~50/50 compute burst + streaming loads -> moderate
-                    on every axis, no dominant sensitivity.
-
-Caveats (documented in RESULT.md): addresses/instruction streams are synthetic
-(no functional values are tracked by trace-driven replay); tensor-core HMMA is
-deliberately avoided (FFMA emulation keeps opcode risk zero); only opcodes seen
-in rodinia_2.0-ft traces (simulated successfully on QV100 2026-10-21) are used.
-
-Usage: python3 gen_llm_traces.py <hw_run_root>   (writes <root>/llm-synth/9.1/...)
+Usage: python3 gen2_traces.py <hw_run_root> [--selfcheck]
 """
 import os
 import sys
 
+import numpy as np
+
 MASK = "ffffffff"
-BASE_W = 0x00007F0000000000      # weights / KV / activations regions (device ptrs)
-BASE_ACT = 0x00007F1000000000
-BASE_KV = 0x00007F2000000000
-BASE_OUT = 0x00007F3000000000
+# shifted device-pointer windows (+64GB) vs first universe
+BASE_W = 0x00007F4000000000
+BASE_ACT = 0x00007F5000000000
+BASE_KV = 0x00007F6000000000
+BASE_OUT = 0x00007F7000000000
+SEED_BASE = 26112601
 
 
 class TraceWriter:
-    """Emits one kernel .traceg file in the accel-sim text format."""
-
     def __init__(self, path, name, kid, grid, block, shmem, nregs):
         self.f = open(path, "w", buffering=1 << 22)
         self.f.write(f"-kernel name = {name}\n")
@@ -76,8 +54,7 @@ class TraceWriter:
         self.f.write(f"-shmem = {shmem}\n")
         self.f.write(f"-nregs = {nregs}\n")
         self.f.write("-binary version = 70\n")
-        self.f.write("-cuda stream id = 0\n")
-        self.f.write("\n")
+        self.f.write("-cuda stream id = 0\n\n")
         self.f.write("#traces format = threadblock_x threadblock_y threadblock_z"
                      " warpid_tb PC mask dest_num reg_dests opcode src_num"
                      " reg_srcs mem_width mem_addresses\n\n")
@@ -100,8 +77,6 @@ class TraceWriter:
 
 
 class Emitter:
-    """Per-warp instruction line builder."""
-
     def __init__(self):
         self.lines = []
         self.pc = 0
@@ -138,43 +113,43 @@ class Emitter:
 
 
 def addr_math(e, out=4, n=6):
-    """Address-computation prologue (IMAD/IADD3), like real compiled kernels."""
     for i in range(n):
         if i % 2 == 0:
             e.op([out + (i % 3)], "IMAD", [255, 255, 255])
         else:
-            e.op([out + (i % 3)], "IADD3", [out + ((i - 1) % 3), 255, 255])
+            e.op([out + ((i - 1) % 3)], "IADD3", [out + ((i - 1) % 3), 255, 255])
 
 
-# --------------------------------------------------------------------------
-# 1) llm-gemm-prefill: register-tiled GEMM, compute-issue bound
-# --------------------------------------------------------------------------
-def gen_gemm_prefill(appdir):
-    ncta, nwarps = 96, 4
+# ---------------------------------------------------------------- info columns
+def gen_gemm_prefill(appdir, rng):
+    """SM probe, AI shifted up ~16%: 12 loads per 448-FFMA run (was 16/512)."""
+    ncta, nwarps = 112, 4
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z17llm_gemm_prefillPfS_S_ii", 1, (ncta, 1, 1),
+                    "_Z18u2_gemm_prefillPfS_S_ii", 1, (ncta, 1, 1),
                     (128, 1, 1), 8192, 96)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
             e = Emitter()
             addr_math(e)
-            cta_base = BASE_W + cta * 32768 + wp * 4096
-            for k in range(16):                       # load A/B tiles: 8KB
-                e.mem("LDG.E.128", [16 + k],
-                      [4], cta_base + k * 512, 16, 16)
-            for it in range(8):                       # long FFMA runs on regs
-                for j in range(512):
+            order = rng.permutation(12)                       # RNG: load order
+            phase = int(rng.integers(0, 4)) * 128             # RNG: phase jitter
+            cta_base = BASE_W + cta * 32768 + wp * 4096 + phase
+            for k in range(12):
+                e.mem("LDG.E.128", [16 + k], [4],
+                      cta_base + int(order[k]) * 512, 16, 16)
+            rot = int(rng.integers(0, 32))                    # RNG: operand rotation
+            for it in range(8):
+                for j in range(448):
                     acc = j % 8
-                    a = 16 + ((j // 8) % 32)
-                    b = 48 + ((j // 8) % 32)
-                    # operand regs are scoreboard deps only (trace-driven timing); MAX_DST=1
+                    a = 16 + ((j // 8 + rot) % 12)
+                    b = 44 + ((j // 8 + rot) % 24)
                     e.op([acc], "FFMA", [acc, a, b])
                 e.mem("LDG.E.128", [16], [4],
                       cta_base + 16384 + it * 512, 16, 16)
-            for j in range(4):                        # reduce accs
+            for j in range(4):
                 e.op([8 + j], "FADD", [2 * j, 2 * j + 1])
-            for j in range(4):                        # store C tile
+            for j in range(4):
                 e.mem("STG.E.SYS", [], [8 + j // 2, 12],
                       BASE_OUT + cta * 4096 + wp * 1024 + j * 256, 4, 4)
             e.exit()
@@ -183,35 +158,67 @@ def gen_gemm_prefill(appdir):
     w.close()
 
 
-# --------------------------------------------------------------------------
-# 2) llm-attn-prefill: flash-attention-like tile loop, mixed compute/memory
-# --------------------------------------------------------------------------
-def gen_attn_prefill(appdir):
-    ncta, nwarps = 128, 4
-    ntiles, tile_sz = 16, 262144       # 16 x 256KB shared K/V tiles = 4MB window
+def gen_gemm_wide(appdir, rng):
+    """SM probe, AI shifted down: 24 loads per 320-FFMA run (latency exposure)."""
+    ncta, nwarps = 96, 4
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z16llm_attn_prefillPfS_S_iii", 1, (ncta, 1, 1),
+                    "_Z13u2_gemm_widePfS_S_i", 1, (ncta, 1, 1),
+                    (128, 1, 1), 8192, 80)
+    for cta in range(ncta):
+        w.begin_tb((cta, 0, 0))
+        for wp in range(nwarps):
+            e = Emitter()
+            addr_math(e)
+            cta_base = BASE_W + cta * 36864 + wp * 4096 \
+                + 256 * int(rng.integers(0, 3))
+            for k in range(24):
+                e.mem("LDG.E.128", [16 + k % 20], [4], cta_base + k * 512, 16, 16)
+            for it in range(8):
+                for j in range(320):
+                    acc = j % 8
+                    a = 16 + ((j // 8) % 20)
+                    b = 48 + ((j // 8) % 16)
+                    e.op([acc], "FFMA", [acc, a, b])
+                if it % 2 == 0:
+                    e.mem("LDG.E.128", [16], [4],
+                          cta_base + 20480 + (it // 2) * 512, 16, 16)
+            for j in range(4):
+                e.op([8 + j], "FADD", [2 * j, 2 * j + 1])
+                e.mem("STG.E.SYS", [], [8 + j, 12],
+                      BASE_OUT + cta * 4096 + wp * 1024 + j * 256, 4, 4)
+            e.exit()
+            w.warp(wp, e.lines)
+        w.end_tb()
+    w.close()
+
+
+def gen_attn_prefill(appdir, rng):
+    """Mixed bound: 12 x 320KB = 3.84MB K/V window (was 16 x 256KB = 4MB)."""
+    ncta, nwarps = 128, 4
+    ntiles, tile_sz = 12, 327680
+    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
+                    "_Z17u2_attn_prefillPfS_S_ii", 1, (ncta, 1, 1),
                     (128, 1, 1), 4096, 80)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
             e = Emitter()
             addr_math(e)
-            q = BASE_ACT + cta * 1024 + wp * 256      # Q fragments (private)
+            q = BASE_ACT + cta * 1024 + wp * 256 + int(rng.integers(0, 2)) * 128
             for k in range(4):
-                e.mem("LDG.E.128", [16 + k],
-                      [4], q + k * 512, 16, 16)
-            for it in range(32):
-                tile = (cta + it) % ntiles            # L2-shared K/V tiles
+                e.mem("LDG.E.128", [16 + k], [4], q + k * 512, 16, 16)
+            perm = rng.permutation(ntiles)                    # RNG: tile order
+            for it in range(36):
+                tile = int(perm[it % ntiles])
                 kv = BASE_KV + tile * tile_sz + wp * 8192 + (it % 64) * 512
                 e.mem("LDG.E.128", [32], [4], kv, 16, 16)
                 e.mem("LDG.E.128", [36], [4], kv + tile_sz // 2, 16, 16)
-                for j in range(12):                   # QK^T partial dot
+                for j in range(12):
                     e.op([j % 8], "FFMA", [j % 8, 16 + (j % 16), 32 + (j % 4)])
-                e.op([10], "MUFU.RCP", [0])           # softmax: max/div
-                e.op([11], "MUFU.EX2", [10])          # exp
+                e.op([10], "MUFU.RCP", [0])
+                e.op([11], "MUFU.EX2", [10])
                 e.op([12], "FADD", [11, 255])
-                for j in range(8):                    # PV accumulation
+                for j in range(8):
                     e.op([j], "FFMA", [j, 36 + (j % 4), 11])
             e.mem("STG.E.SYS", [], [0, 12], BASE_OUT + cta * 512 + wp * 128, 4, 4)
             e.mem("STG.E.SYS", [], [1, 12], BASE_OUT + cta * 512 + wp * 128 + 4, 4, 4)
@@ -221,19 +228,12 @@ def gen_attn_prefill(appdir):
     w.close()
 
 
-# --------------------------------------------------------------------------
-# 3) llm-attn-decode family: GQA KV scan with cross-warp reuse, L2-capacity probe
-#    groups x 288KB slices; g16 = ~4.6MB live footprint (L2h=3MB thrashes,
-# baseline 6MB holds it). g8 = 2.25MB (fits both -> insensitive control);
-# g32 = 9MB (thrashes both -> DRAM-bound control). Dose-response triplet.
-# --------------------------------------------------------------------------
-def gen_attn_decode(appdir, groups=16, mangle="_Z15llm_attn_decodePfS_S_ii"):
-    ncta, nwarps = 32, 4
-    slice_sz = 288 * 1024
-    wp_per_grp = ncta * nwarps // groups              # warps sharing a slice
+def _kv_scan(appdir, rng, groups, slice_sz, ncta, iters, mangle, nregs,
+             fma_per_load=2, rows=1):
+    nwarps = 4
+    wp_per_grp = ncta * nwarps // groups
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    mangle, 1, (ncta, 1, 1),
-                    (128, 1, 1), 2048, 64)
+                    mangle, 1, (ncta, 1, 1), (128, 1, 1), 2048, nregs)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
@@ -241,13 +241,21 @@ def gen_attn_decode(appdir, groups=16, mangle="_Z15llm_attn_decodePfS_S_ii"):
             addr_math(e)
             grp = (cta * nwarps + wp) // wp_per_grp
             lane = (cta * nwarps + wp) % wp_per_grp
+            phase = int(rng.integers(0, 8))                   # RNG: scan phase
             sl = BASE_KV + grp * slice_sz
-            for it in range(72):                      # warp + its siblings hit
-                off = ((it * wp_per_grp + lane) * 512) % (slice_sz - 512)
+            for it in range(iters):
+                off = ((it * wp_per_grp + lane + phase) * 512) % (slice_sz - 512)
                 e.mem("LDG.E.128", [16], [4], sl + off, 16, 16)
-                e.op([0], "FFMA", [0, 16, 17])        # QK score accum
-                e.op([1], "FFMA", [1, 18, 19])        # V accum
-            e.op([8], "FADD", [0, 255])               # softmax scale
+                if rows == 1:
+                    for f in range(fma_per_load):
+                        e.op([0], "FFMA", [0, 16 + 2 * f, 17 + 2 * f])
+                else:
+                    for r in range(rows):
+                        for f in range(fma_per_load // rows):
+                            e.op([r], "FFMA", [r, 16 + (f % 8), 17])
+            for r in range(max(2, rows)):
+                if r < 2:
+                    e.op([8 + r], "FADD", [0 if r == 0 else 1, 255])
             e.op([9], "MUFU.EX2", [8])
             e.op([2], "FFMA", [1, 9, 8])
             e.mem("STG.E.SYS", [], [2, 12], BASE_OUT + grp * 512 + lane * 64, 4, 4)
@@ -257,32 +265,45 @@ def gen_attn_decode(appdir, groups=16, mangle="_Z15llm_attn_decodePfS_S_ii"):
     w.close()
 
 
-def gen_attn_decode_g8(appdir):
-    gen_attn_decode(appdir, groups=8, mangle="_Z17llm_attn_decode_g8PfS_S_i")
+def gen_kv_mid(appdir, rng):
+    """L2-capacity probe: 12 x 320KB = 3.84MB live (3MB thrashes, 6MB holds)."""
+    _kv_scan(appdir, rng, 12, 320 * 1024, 36, 72,
+             "_Z11u2_kv_midPfS_S_i", 64)
 
 
-def gen_attn_decode_g32(appdir):
-    gen_attn_decode(appdir, groups=32, mangle="_Z18llm_attn_decode_g32PfS_S_i")
+def gen_kv_small(appdir, rng):
+    """Weak control: 6 x 320KB = 1.92MB (fits both L2 sizes)."""
+    _kv_scan(appdir, rng, 6, 320 * 1024, 24, 64,
+             "_Z13u2_kv_smallPfS_S_i", 64)
 
 
-# --------------------------------------------------------------------------
-# 4) llm-gemv-decode: streaming GEMV over weights, DRAM-BW bound control
-# --------------------------------------------------------------------------
-def gen_gemv_decode(appdir):
-    ncta, nwarps = 64, 4
+def gen_kv_big(appdir, rng):
+    """Weak control: 28 x 384KB = 10.75MB (thrashes both L2 sizes)."""
+    _kv_scan(appdir, rng, 28, 384 * 1024, 28, 64,
+             "_Z12u2_kv_bigPfS_S_i", 64)
+
+
+def gen_batch_dec(appdir, rng):
+    """Compute-hiding batch-16 decode: 64 FMA per KV load (was 32)."""
+    _kv_scan(appdir, rng, 12, 320 * 1024, 120, 48,
+             "_Z13u2_batch_decPfS_S_i", 64, fma_per_load=64, rows=8)
+
+
+def gen_stream(appdir, rng):
+    """Streaming control: 16MB unique (was 64MB); latency/issue bound."""
+    ncta, nwarps = 16, 4
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z14llm_gemv_decodePfS_S_i", 1, (ncta, 1, 1),
-                    (128, 1, 1), 1024, 64)
+                    "_Z12u2_streamPfS_i", 1, (ncta, 1, 1), (128, 1, 1), 1024, 64)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
             e = Emitter()
             addr_math(e)
-            wid = cta * nwarps + wp                   # 256 warps x 256KB = 64MB
-            base = BASE_W + wid * 262144
+            wid = cta * nwarps + wp                          # 64 warps x 256KB
+            base = BASE_W + int(rng.integers(0, 2)) * 512 + wid * 262144
             for it in range(512):
                 e.mem("LDG.E.128", [16], [4], base + it * 512, 16, 16)
-                e.op([0], "FFMA", [0, 16, 17])        # 2 FLOP / 16B*32lane
+                e.op([0], "FFMA", [0, 16, 17])
                 if it % 64 == 63:
                     e.op([1], "FADD", [0, 1])
             e.mem("STG.E.SYS", [], [0, 12], BASE_OUT + wid * 16, 4, 4)
@@ -292,90 +313,80 @@ def gen_gemv_decode(appdir):
     w.close()
 
 
-# --------------------------------------------------------------------------
-# 5) llm-elem: layernorm/activation elementwise, streaming control
-# --------------------------------------------------------------------------
-def gen_elem(appdir):
-    ncta, nwarps = 128, 4
+def gen_elem(appdir, rng):
+    """Elementwise control: streaming, low AI."""
+    ncta, nwarps = 96, 4
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z8llm_elemPfS_i", 1, (ncta, 1, 1), (128, 1, 1), 512, 48)
+                    "_Z10u2_elemPfS_i", 1, (ncta, 1, 1), (128, 1, 1), 512, 48)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
             e = Emitter()
             addr_math(e)
-            base = BASE_ACT + (cta * nwarps + wp) * 16384
-            for it in range(64):
-                a = base + it * 256
+            base = BASE_ACT + (cta * nwarps + wp) * 16384 \
+                + int(rng.integers(0, 4)) * 256
+            for it in range(48):
+                a = base + it * 256 + (256 if rng.integers(0, 3) == 0 else 0)
                 e.mem("LDG.E.SYS", [16], [4], a, 4, 4)
-                e.op([0], "FADD", [16, 16])           # residual add
-                e.op([1], "MUFU.EX2", [0])            # activation
+                e.op([0], "FADD", [16, 16])
+                e.op([1], "MUFU.EX2", [0])
                 e.op([2], "FADD", [1, 255])
-                e.mem("STG.E.SYS", [], [2, 12], a + 8388608, 4, 4)
+                e.mem("STG.E.SYS", [], [2, 12], a + 4194304, 4, 4)
             e.exit()
             w.warp(wp, e.lines)
         w.end_tb()
     w.close()
 
 
-# --------------------------------------------------------------------------
-# 6) llm-gemm-occu: high-RF-occupancy GEMM (RF-size probe).
-#    Trace header nregs=200, 128 threads -> 25600 regs/CTA:
-#    baseline gpgpu_shader_registers 65536 -> 2 CTAs/SM; RF-halved 32768 -> 1.
-#    ILP=2 FFMA chains (2 independent accs) so a single warp per scheduler
-#    cannot saturate issue -> RF halving cuts resident warps and ~doubles time.
-# --------------------------------------------------------------------------
-def gen_gemm_occu(appdir):
-    ncta, nwarps = 640, 4
+def gen_occu(appdir, rng):
+    """RF-occupancy probe: nregs=176 -> 65536/22528=2 CTAs/SM, RFh -> 1."""
+    ncta, nwarps = 512, 4
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z14llm_gemm_occuPfS_S_i", 1, (ncta, 1, 1),
-                    (128, 1, 1), 4096, 200)
+                    "_Z11u2_occuPfS_S_i", 1, (ncta, 1, 1),
+                    (128, 1, 1), 4096, 176)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
             e = Emitter()
             addr_math(e)
-            cta_base = BASE_W + cta * 20480 + wp * 4096
-            for k in range(4):                        # A/B fragments: 2KB
+            cta_base = BASE_W + cta * 20480 + wp * 4096 \
+                + int(rng.integers(0, 4)) * 512
+            for k in range(6):                                # 3KB fragments
                 e.mem("LDG.E.128", [16 + k], [4], cta_base + k * 512, 16, 16)
-            for it in range(16):                      # ILP=2 FFMA runs
+            for it in range(12):                              # ILP=3 chains
                 for j in range(128):
-                    acc = j % 2                       # two independent chains
-                    a = 16 + ((j // 2) % 4)
-                    b = 20 + ((j // 2) % 4)
+                    acc = j % 3
+                    a = 16 + ((j // 3) % 6)
+                    b = 24 + ((j // 3) % 4)
                     e.op([acc], "FFMA", [acc, a, b])
-                if it % 4 == 0:                       # sparse reload (small)
+                if it % 3 == 0:
                     e.mem("LDG.E.128", [16], [4],
-                          cta_base + 16384 + (it // 4) * 512, 16, 16)
-            for j in range(4):
-                e.op([8 + j], "FADD", [2 * j, 2 * j + 1])
+                          cta_base + 16384 + (it // 3) * 512, 16, 16)
+            for j in range(3):
+                e.op([8 + j], "FADD", [j, 255])
                 e.mem("STG.E.SYS", [], [8 + j, 12],
-                      BASE_OUT + cta * 1024 + wp * 256 + j * 64, 4, 4)
+                      BASE_OUT + cta * 768 + wp * 192 + j * 64, 4, 4)
             e.exit()
             w.warp(wp, e.lines)
         w.end_tb()
     w.close()
 
 
-# --------------------------------------------------------------------------
-# 7) llm-ffma-dep: pure dependent-chain FFMA (ILP=1), RF-insensitive (nregs=24).
-#    Grid 640 CTAs oversubscribes 80 SMs (8 CTAs/SM, thread limit 16,
-#    RF limit >=10 at both RF sizes) -> issue/latency bound, SM-strong.
-# --------------------------------------------------------------------------
-def gen_ffma_dep(appdir):
-    ncta, nwarps = 640, 4
+def gen_lat_chain(appdir, rng):
+    """Issue/latency column (ILP=1), RF-free (nregs=32); new to the matrix."""
+    ncta, nwarps = 320, 4
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z12llm_ffma_depPfS_i", 1, (ncta, 1, 1),
-                    (128, 1, 1), 1024, 24)
+                    "_Z14u2_lat_chainPf_i", 1, (ncta, 1, 1), (128, 1, 1), 1024, 32)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
             e = Emitter()
             addr_math(e)
-            e.mem("LDG.E.SYS", [16], [4], BASE_ACT + (cta * nwarps + wp) * 256,
-                  4, 4)                              # seed the chain
-            e.op([0], "FFMA", [0, 16, 17])           # single accumulator chain
-            for j in range(1024):
+            e.mem("LDG.E.SYS", [16], [4],
+                  BASE_ACT + (cta * nwarps + wp) * 256
+                  + int(rng.integers(0, 2)) * 128, 4, 4)
+            e.op([0], "FFMA", [0, 16, 17])
+            for j in range(768):
                 e.op([0], "FFMA", [0, 0, 16])
             e.mem("STG.E.SYS", [], [0, 12],
                   BASE_OUT + (cta * nwarps + wp) * 16, 4, 4)
@@ -385,33 +396,26 @@ def gen_ffma_dep(appdir):
     w.close()
 
 
-# --------------------------------------------------------------------------
-# 10) llm-gemm-tile: shared-B-panel GEMM (L2 probe on a compute-bound shape).
-#     All 64 CTAs x 4 warps stream the SAME 4MB B panel (16 blocks x 256KB,
-#     cycled 4x); per iteration each of the 256 warps reads a distinct 1KB row
-#     of the current 256KB block -> per-iter unique B traffic 256KB.
-#     6MB L2 holds the whole panel (hits after first cycle); 3MB L2h thrashes
-#     LRU (~4x DRAM traffic). 24 FFMA per 2 loads, ILP=4.
-# --------------------------------------------------------------------------
-def gen_gemm_tile(appdir):
-    ncta, nwarps = 64, 4
-    panel, block = 4 * 1024 * 1024, 256 * 1024
+def gen_tile(appdir, rng):
+    """SM+L2: shared 5MB B-panel (20 x 256KB, cycled 3x; 6MB holds, 3MB thrashes)."""
+    ncta, nwarps = 80, 4
+    panel, block = 5 * 1024 * 1024, 256 * 1024
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z14llm_gemm_tilePfS_S_i", 1, (ncta, 1, 1),
-                    (128, 1, 1), 8192, 64)
+                    "_Z11u2_tilePfS_S_i", 1, (ncta, 1, 1), (128, 1, 1), 8192, 64)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
         for wp in range(nwarps):
             e = Emitter()
             addr_math(e)
-            wg = cta * nwarps + wp                   # 256 global warps
+            wg = cta * nwarps + wp                            # 320 global warps
             e.mem("LDG.E.128", [20], [4], BASE_ACT + wg * 1024, 16, 16)
-            for it in range(64):
-                blk = (it % 16) * block              # cycle the 4MB panel
-                b = BASE_W + blk + wg * 1024
+            perm = rng.permutation(panel // block)            # RNG: block order
+            for it in range(60):
+                blk = int(perm[it % (panel // block)]) * block
+                b = BASE_W + blk + (wg % (block // 1024)) * 1024
                 e.mem("LDG.E.128", [16], [4], b, 16, 16)
                 e.mem("LDG.E.128", [17], [4], b + 512, 16, 16)
-                for j in range(24):                  # ILP=4 accs
+                for j in range(24):
                     e.op([j % 4], "FFMA", [j % 4, 16 + (j % 2), 20])
             for j in range(4):
                 e.mem("STG.E.SYS", [], [j, 12],
@@ -422,126 +426,26 @@ def gen_gemm_tile(appdir):
     w.close()
 
 
-# --------------------------------------------------------------------------
-# 11) llm-batch-decode: batch-8 attention decode (compute-heavy KV scan).
-#     16 groups x 288KB KV (same footprint as attn-decode) but 32 FFMA per
-#     KV load (8 rows x 2 FMA pairs) -> arithmetic intensity x16 vs attn-decode
-#     -> compute hides L2 misses; SM-strong, L2-weak (prediction).
-# --------------------------------------------------------------------------
-def gen_batch_decode(appdir):
-    ncta, nwarps = 160, 4
-    groups, slice_sz = 16, 288 * 1024
-    wp_per_grp = ncta * nwarps // groups             # 40 warps per group
-    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z16llm_batch_decodePfS_S_i", 1, (ncta, 1, 1),
-                    (128, 1, 1), 2048, 64)
-    for cta in range(ncta):
-        w.begin_tb((cta, 0, 0))
-        for wp in range(nwarps):
-            e = Emitter()
-            addr_math(e)
-            grp = (cta * nwarps + wp) // wp_per_grp
-            lane = (cta * nwarps + wp) % wp_per_grp
-            sl = BASE_KV + grp * slice_sz
-            for it in range(96):                     # KV scan, 8 rows per load
-                                                      # (160→96 pre-CI trim: 74k
-                                                      # cycles@80SM measured locally
-                                                      # projected ~297k@20SM, CI 45min
-                                                      # cap risk; see PRE_REG 修订)
-                off = ((it * wp_per_grp + lane) * 512) % (slice_sz - 512)
-                e.mem("LDG.E.128", [16], [4], sl + off, 16, 16)
-                for r in range(8):                   # 8 query rows
-                    e.op([r], "FFMA", [r, 16, 17])
-                    e.op([r], "FFMA", [r, 18, 19])
-                    e.op([r], "FFMA", [r, 20, 21])
-                    e.op([r], "FFMA", [r, 22, 23])
-            for r in range(8):
-                e.mem("STG.E.SYS", [], [r, 12],
-                      BASE_OUT + grp * 4096 + lane * 32 + r * 4, 4, 4)
-            e.exit()
-            w.warp(wp, e.lines)
-        w.end_tb()
-    w.close()
-
-
-# --------------------------------------------------------------------------
-# 12) llm-mixed: ~50/50 compute burst + unique streaming loads, no dominant
-#     axis (SM/L2/RF all expected weak-to-moderate; clock-moderate in time).
-# --------------------------------------------------------------------------
-def gen_mixed(appdir):
-    ncta, nwarps = 256, 4
-    w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    "_Z9llm_mixedPfS_i", 1, (ncta, 1, 1),
-                    (128, 1, 1), 1024, 48)
-    for cta in range(ncta):
-        w.begin_tb((cta, 0, 0))
-        for wp in range(nwarps):
-            e = Emitter()
-            addr_math(e)
-            wid = cta * nwarps + wp                  # 1024 warps x 16 x 512B
-            base = BASE_ACT + wid * 8192
-            for it in range(16):
-                a = base + it * 512
-                e.mem("LDG.E.128", [16], [4], a, 16, 16)
-                for j in range(48):                  # compute burst, ILP=4
-                    e.op([j % 4], "FFMA", [j % 4, 16, 17])
-                e.op([8], "FADD", [0, 1])
-                e.op([9], "FADD", [2, 3])
-            e.mem("STG.E.SYS", [], [0, 12], BASE_OUT + wid * 16, 4, 4)
-            e.exit()
-            w.warp(wp, e.lines)
-        w.end_tb()
-    w.close()
-
-
-# --------------------------------------------------------------------------
-# 13) llm-junk-g1..g8: junk columns for the 2026-10-25 dose-response injection
-#     round (pre-registered in
-#     paper-ideas/experiments/20261024-dse-junk-injection/PRE_REGISTRATION.md).
-#
-#     Mechanism choice (locked there, based on the PUBLISHED 10-23 matrix):
-#     copying the gemv/elem shape cannot produce a junk column in a universe
-#     that contains the half-core-clock config -- gemv time ratio under CLKh
-#     was 1.524x and elem 1.82x (issue/latency limited by the core clock
-#     domain), i.e. they are INFO columns for the CLK axis here. To be
-#     insensitive on all four axes the wall time must be set by a NON-core
-#     clock domain (icnt/L2=1132, DRAM=850 -- both unchanged under CLKh):
-#
-#       - dependent-load chain: every LDG.E.128 (512B/warp-inst) uses the
-#         destination register of the previous load as an address source
-#         (scoreboard RAW) -> per-warp MLP=1, all stalls are memory
-#         round-trips -> time ~ chain_len x mem_latency, core-clock free;
-#       - unique streaming footprint (no reuse) -> compulsory misses at any
-#         L2 size -> L2-insensitive;
-#       - <=32 CTAs (<=128 warps) all resident even on 20SM -> SM-count free
-#         (latency chains are per-warp serial; residency is all that matters);
-#       - nregs 24/32/40 << RFh limit -> RF free;
-#       - variants differ in chain length / CTA count / filler density ->
-#         distinct absolute cycle counts (no "zero-signal zero-cost" collapse).
-#
-#     Filler FFMAs use registers never written by the chain (R20/R21) so the
-#     dependency chain stays MLP=1.
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------- junk columns
+# Same MECHANISM as first-universe J1-J8 (dependent-load chains, MLP=1, unique
+# streaming, <=16 CTAs, low nregs -> flat on SM/L2/RF; time set by non-core
+# clock domains) with NEW chain lengths / address regions / seeds.
 JUNK_SPECS = [          # (name, L, ncta, fill_ffma_per_step, nregs, seed_off)
-    ("llm-junk-g1", 32, 16, 0, 24, 0),
-    ("llm-junk-g2", 44,  8, 2, 32, 1),
-    ("llm-junk-g3", 20, 16, 0, 24, 2),
-    ("llm-junk-g4", 36, 16, 1, 40, 3),
-    ("llm-junk-g5", 16,  8, 2, 32, 4),
-    ("llm-junk-g6", 40,  8, 0, 24, 5),
-    ("llm-junk-g7", 24, 16, 1, 40, 6),
-    ("llm-junk-g8", 28, 16, 0, 24, 7),
+    ("u2-junk-h1", 46, 16, 0, 24, 0),
+    ("u2-junk-h2", 22,  8, 2, 32, 1),
+    ("u2-junk-h3", 34, 16, 0, 24, 2),
+    ("u2-junk-h4", 18, 16, 1, 40, 3),
+    ("u2-junk-h5", 42,  8, 2, 32, 4),
+    ("u2-junk-h6", 26,  8, 0, 24, 5),
+    ("u2-junk-h7", 38, 16, 1, 40, 6),
+    ("u2-junk-h8", 30, 16, 0, 24, 7),
 ]
-# 2026-10-25 pre-CI revision (PRE_REGISTRATION §7 修订 1): J3/J5/J8 的 ncta 从 32
-# 降到 16/8/16——本地探针（64 run 全 EXIT=0）显示 32-CTA 变体在 20SM 上有
-# +5.8~8.6% 的系统性加速（CTA 共址效应），>5% 门不过；≤16 CTA 变体在 SM/L2/RF
-# 三维 spread 0~0.66%。链长 L 保持互异 → 绝对 cycles 互异。
 
 
-def gen_junk_chain(appdir, L, ncta, fill, nregs, seed_off):
+def gen_junk_chain(appdir, rng, L, ncta, fill, nregs, seed_off):
     nwarps = 4
     w = TraceWriter(os.path.join(appdir, "traces", "kernel-1.traceg"),
-                    f"_Z11llm_junk_g{seed_off + 1}Pf_i", 1, (ncta, 1, 1),
+                    f"_Z11u2_junk_h{seed_off + 1}Pf_i", 1, (ncta, 1, 1),
                     (128, 1, 1), 512, nregs)
     for cta in range(ncta):
         w.begin_tb((cta, 0, 0))
@@ -549,15 +453,14 @@ def gen_junk_chain(appdir, L, ncta, fill, nregs, seed_off):
             e = Emitter()
             addr_math(e)
             wid = cta * nwarps + wp
-            # warp-private 256KB-strided region (first ~L*0.5KB touched, unique)
-            base = BASE_W + (wid + seed_off * 128) * 262144
-            e.mem("LDG.E.128", [16], [4], base, 16, 16)      # seed chain into R16
+            base = BASE_W + (wid + seed_off * 64) * 262144 \
+                + int(rng.integers(0, 8)) * 512
+            e.mem("LDG.E.128", [16], [4], base, 16, 16)
             for it in range(L):
-                # dependent step: address source R16 == previous load's dst
                 e.mem("LDG.E.128", [16], [16], base + (it + 1) * 512, 16, 16)
-                for f in range(fill):                        # independent regs only
+                for f in range(fill):
                     e.op([8 + f % 2], "FFMA", [8 + f % 2, 20, 21])
-            e.op([8], "FADD", [8, 16])                       # consume chain tail
+            e.op([8], "FADD", [8, 16])
             e.mem("STG.E.SYS", [], [8, 12], BASE_OUT + wid * 16 + seed_off * 4, 4, 4)
             e.exit()
             w.warp(wp, e.lines)
@@ -566,66 +469,96 @@ def gen_junk_chain(appdir, L, ncta, fill, nregs, seed_off):
 
 
 APPS = [
-    ("llm-gemm-prefill", gen_gemm_prefill, [
+    ("u2-gemm-prefill", gen_gemm_prefill, [
         ("MemcpyHtoD", BASE_W, 33554432), ("MemcpyHtoD", BASE_ACT, 1048576)]),
-    ("llm-attn-prefill", gen_attn_prefill, [
+    ("u2-gemm-wide", gen_gemm_wide, [
+        ("MemcpyHtoD", BASE_W, 33554432), ("MemcpyHtoD", BASE_ACT, 1048576)]),
+    ("u2-attn-prefill", gen_attn_prefill, [
         ("MemcpyHtoD", BASE_KV, 4194304), ("MemcpyHtoD", BASE_ACT, 1048576)]),
-    ("llm-attn-decode", gen_attn_decode, [
-        ("MemcpyHtoD", BASE_KV, 4718592), ("MemcpyHtoD", BASE_ACT, 65536)]),
-    ("llm-gemv-decode", gen_gemv_decode, [
-        ("MemcpyHtoD", BASE_W, 67108864), ("MemcpyHtoD", BASE_ACT, 16384)]),
-    ("llm-elem", gen_elem, [
+    ("u2-kv-mid", gen_kv_mid, [
+        ("MemcpyHtoD", BASE_KV, 3932160), ("MemcpyHtoD", BASE_ACT, 65536)]),
+    ("u2-kv-small", gen_kv_small, [
+        ("MemcpyHtoD", BASE_KV, 1966080), ("MemcpyHtoD", BASE_ACT, 65536)]),
+    ("u2-kv-big", gen_kv_big, [
+        ("MemcpyHtoD", BASE_KV, 11010048), ("MemcpyHtoD", BASE_ACT, 65536)]),
+    ("u2-batch-dec", gen_batch_dec, [
+        ("MemcpyHtoD", BASE_KV, 3932160), ("MemcpyHtoD", BASE_ACT, 65536)]),
+    ("u2-stream", gen_stream, [
+        ("MemcpyHtoD", BASE_W, 16777216), ("MemcpyHtoD", BASE_ACT, 16384)]),
+    ("u2-elem", gen_elem, [
         ("MemcpyHtoD", BASE_ACT, 8388608)]),
-    ("llm-gemm-occu", gen_gemm_occu, [
+    ("u2-occu", gen_occu, [
         ("MemcpyHtoD", BASE_W, 16777216)]),
-    ("llm-attn-decode-g8", gen_attn_decode_g8, [
-        ("MemcpyHtoD", BASE_KV, 2359296), ("MemcpyHtoD", BASE_ACT, 65536)]),
-    ("llm-attn-decode-g32", gen_attn_decode_g32, [
-        ("MemcpyHtoD", BASE_KV, 9437184), ("MemcpyHtoD", BASE_ACT, 65536)]),
-    ("llm-gemm-tile", gen_gemm_tile, [
-        ("MemcpyHtoD", BASE_W, 4194304), ("MemcpyHtoD", BASE_ACT, 1048576)]),
-    ("llm-batch-decode", gen_batch_decode, [
-        ("MemcpyHtoD", BASE_KV, 4718592), ("MemcpyHtoD", BASE_ACT, 65536)]),
-    # 2026-10-24 pre-CI trim (PRE_REGISTRATION 修订记录): llm-ffma-dep 与 llm-mixed
-    # 从套件移除（M=12→10，CI 45min 硬顶，本地实测 batch-decode@80SM 74k cycles
-    # 外推 20SM ~297k 使总预算超限）；生成函数保留在文件中留档。
+    ("u2-lat-chain", gen_lat_chain, [
+        ("MemcpyHtoD", BASE_ACT, 1048576)]),
+    ("u2-tile", gen_tile, [
+        ("MemcpyHtoD", BASE_W, 5242880), ("MemcpyHtoD", BASE_ACT, 1048576)]),
 ]
-
-# 2026-10-25 junk-injection round: 8 junk columns appended AFTER the 10 info
-# columns in a FIXED order (nested-subset dose axis, PRE_REGISTRATION §1.4).
-# MemcpyHtoD 8MB covers the union of the junk stream regions (<=3MB unique
-# touched) at the BASE_W window used by the chains.
 JUNK_APPS = [
-    (name, lambda d, s=spec: gen_junk_chain(d, *s),
+    (name, (lambda d, r, s=spec: gen_junk_chain(d, r, *s)),
      [("MemcpyHtoD", BASE_W, 8388608)])
-    for name, spec in [(n, (L, nc, fl, nr, so))
-                       for (n, L, nc, fl, nr, so) in JUNK_SPECS]
+    for (name, *spec) in JUNK_SPECS
 ]
 APPS = APPS + JUNK_APPS
 
 
 def main():
-    root = sys.argv[1] if len(sys.argv) > 1 else "hw_run"
+    selfcheck = "--selfcheck" in sys.argv
+    root = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") \
+        else "hw_run"
     suite = os.path.join(root, "llm-synth", "9.1")
-    for name, fn, copies in APPS:
+    for i, (name, fn, copies) in enumerate(APPS):
         appdir = os.path.join(suite, name, "all")
         os.makedirs(os.path.join(appdir, "traces"), exist_ok=True)
-        fn(appdir)
+        rng = np.random.default_rng(SEED_BASE + i)           # per-column seed
+        fn(appdir, rng)
         with open(os.path.join(appdir, "traces", "kernelslist.g"), "w") as kl:
             for _, addr, sz in copies:
                 kl.write(f"MemcpyHtoD,0x{addr:016x},{sz}\n")
             kl.write("kernel-1.traceg\n")
-        # minimal run.sh / stats.csv for completeness (unused by trace-driven)
         with open(os.path.join(appdir, "run.sh"), "w") as rs:
-            rs.write("# synthesized LLM kernel trace (see gen_llm_traces.py)\n")
+            rs.write("# second-universe synthesized LLM kernel trace\n")
         with open(os.path.join(appdir, "traces", "stats.csv"), "w") as st:
             st.write("kernel id, kernel mangled name, grid_dimX, grid_dimY,"
                      " grid_dimZ, #blocks, block_dimX, block_dimY, block_dimZ,"
                      " #threads, total_insts, total_reported_insts\n")
             st.write(f"kernel-1.trace, _Z{name}, 1,1,1, 1, 1,1,1, 1, 0, 0\n")
-        tot = sum(1 for _ in open(os.path.join(appdir, "traces", "kernel-1.traceg")))
+        path = os.path.join(appdir, "traces", "kernel-1.traceg")
+        tot = sum(1 for _ in open(path))
         print(f"[gen] {name}: kernel-1.traceg {tot} lines")
+        if selfcheck:
+            selfcheck_file(path)
     print(f"[gen] suite root: {suite}")
+
+
+WHITE = {"EXIT", "IMAD", "IADD3", "FFMA", "FADD", "MUFU.RCP", "MUFU.EX2",
+         "LDG.E.128", "LDG.E.SYS", "STG.E.SYS"}
+
+
+def selfcheck_file(path):
+    """Field-level invariants: MAX_DST=1, MAX_SRC=4, opcode whitelist, format."""
+    n = 0
+    with open(path) as fh:
+        for line in fh:
+            s = line.strip()
+            if not s or s.startswith(("#", "thread block", "warp =", "insts =")):
+                continue
+            parts = s.split()
+            if len(parts) < 9 or not parts[0].isdigit():
+                continue
+            dn = int(parts[6])
+            dests = parts[7:7 + dn]
+            opcode = parts[7 + dn]
+            sn = int(parts[8 + dn])
+            srcs = parts[9 + dn:9 + dn + sn]
+            assert opcode in WHITE, f"{path}: opcode {opcode} not whitelisted"
+            assert dn <= 1, f"{path}: dest_num {dn} > MAX_DST=1"
+            assert sn <= 4, f"{path}: src_num {sn} > MAX_SRC=4"
+            for r in dests + srcs:
+                assert r.startswith("R") and 0 <= int(r[1:]) < 256, f"{path}: {r}"
+            n += 1
+    print(f"[chk] {os.path.basename(os.path.dirname(os.path.dirname(path)))}:"
+          f" {n} inst lines OK (dst<=1, src<=4, opcode whitelist)", flush=True)
 
 
 if __name__ == "__main__":

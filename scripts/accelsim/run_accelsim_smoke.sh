@@ -115,74 +115,74 @@ QV100_20SM_L2h:
 EOF
 # 注册 llm-synth 套件（幂等：docker 再入时防重复追加）
 JOBYML=util/job_launching/apps/define-all-apps.yml
-grep -q "^llm-synth:" "$JOBYML" || cat >> "$JOBYML" <<'EOF'
-llm-synth:
+grep -q "^llm-synth:
     exec_dir: "$ACCELSIM_ROOT"
     data_dirs: ""
     execs:
-        - llm-gemm-prefill:
+        - u2-gemm-prefill:
             - name: all
               args: ""
-        - llm-attn-prefill:
+        - u2-gemm-wide:
             - name: all
               args: ""
-        - llm-attn-decode:
+        - u2-attn-prefill:
             - name: all
               args: ""
-        - llm-gemv-decode:
+        - u2-kv-mid:
             - name: all
               args: ""
-        - llm-elem:
+        - u2-kv-small:
             - name: all
               args: ""
-        - llm-gemm-occu:
+        - u2-kv-big:
             - name: all
               args: ""
-        - llm-attn-decode-g8:
+        - u2-batch-dec:
             - name: all
               args: ""
-        - llm-attn-decode-g32:
+        - u2-stream:
             - name: all
               args: ""
-        - llm-gemm-tile:
+        - u2-elem:
             - name: all
               args: ""
-        - llm-batch-decode:
+        - u2-occu:
             - name: all
               args: ""
-        # 2026-10-25 junk-injection round: 8 dependent-load-chain junk columns
-        # (pre-registered paper-ideas/experiments/20261024-dse-junk-injection/):
-        # per-warp MLP=1 latency chains, <=16 CTAs, unique streaming -> flat on
-        # SM/L2/RF (local probe: spread 0~0.66%); distinct chain lengths ->
-        # distinct cycle counts.
-        - llm-junk-g1:
+        - u2-lat-chain:
             - name: all
               args: ""
-        - llm-junk-g2:
+        - u2-tile:
             - name: all
               args: ""
-        - llm-junk-g3:
+        - u2-junk-h1:
             - name: all
               args: ""
-        - llm-junk-g4:
+        - u2-junk-h2:
             - name: all
               args: ""
-        - llm-junk-g5:
+        - u2-junk-h3:
             - name: all
               args: ""
-        - llm-junk-g6:
+        - u2-junk-h4:
             - name: all
               args: ""
-        - llm-junk-g7:
+        - u2-junk-h5:
             - name: all
               args: ""
-        - llm-junk-g8:
+        - u2-junk-h6:
+            - name: all
+              args: ""
+        - u2-junk-h7:
+            - name: all
+              args: ""
+        - u2-junk-h8:
             - name: all
               args: ""
 EOF
 
 # ---------- 4) 跑仿真：8 配置 × llm-synth（10 信息 + 8 垃圾列 = 18 个合成 LLM kernel app） ----------
-echo "[4/5] 运行仿真（8 配置 × llm-synth，18 app：10 信息列 + 8 junk 注入列）"
+echo "[4/5] 运行仿真（8 配置 × llm-synth 第二宇宙，20 app：12 信息列 + 8 junk 注入列）"
 set +u; source ./gpu-simulator/setup_environment.sh release; set -u   # set -u 与其未定义变量不兼容
 for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h \
          QV100_80SM_CLKh QV100_80SM_RFh QV100_40SM_L2h QV100_20SM_L2h; do
