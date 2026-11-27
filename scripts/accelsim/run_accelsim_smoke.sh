@@ -26,8 +26,8 @@ mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"; cd "$OUT"
 # 2026-11-27 冒烟门固化（裁判前置条件②）：diag = 诊断门（单配置 QV100_80SM ×
 # 单 app u2-gemm-prefill，cat .o 全文核对 gpu_tot_sim_cycle，收集器口径自证）；
 # full = 全量矩阵（8 配置 × 20 app）。脚本默认 diag（冒烟门固化）；门过后由
-# 显式提交翻 full（提交序列即门检验记录，可审计）。
-MODE="${SMOKE_MODE:-diag}"
+# 显式提交翻 full（提交序列即门检验记录，可审计）。本轮：诊断门 run 45938354935 PASS 后翻 full。
+MODE="${SMOKE_MODE:-full}"
 if [ "$MODE" = "diag" ]; then
     CFGS_RUN="QV100_80SM"
 else
