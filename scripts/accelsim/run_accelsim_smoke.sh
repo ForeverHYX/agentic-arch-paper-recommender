@@ -23,6 +23,18 @@ OUT="${1:-ci-run}"
 REPO_ROOT="$(pwd)"          # 调用目录（CI=仓库根）；输出目录转绝对路径，防 cwd 漂移
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"; cd "$OUT"
 
+# 2026-11-27 冒烟门固化（裁判前置条件②）：diag = 诊断门（单配置 QV100_80SM ×
+# 单 app u2-gemm-prefill，cat .o 全文核对 gpu_tot_sim_cycle，收集器口径自证）；
+# full = 全量矩阵（8 配置 × 20 app）。脚本默认 diag（冒烟门固化）；门过后由
+# 显式提交翻 full（提交序列即门检验记录，可审计）。
+MODE="${SMOKE_MODE:-diag}"
+if [ "$MODE" = "diag" ]; then
+    CFGS_RUN="QV100_80SM"
+else
+    CFGS_RUN="QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h QV100_80SM_CLKh \
+QV100_80SM_RFh QV100_40SM_L2h QV100_20SM_L2h"
+fi
+
 # ---------- 1) 仿真器 ----------
 # 首选官方预构建镜像（github.com/accel-sim/Dockerfile，nvidia/cuda:12.8-devel-ubuntu24.04 基座）
 # 优先官方镜像；拉不动（manifest unknown 等）则回退源码自建。2026-10-20 实测
@@ -113,80 +125,28 @@ QV100_40SM_L2h:
 QV100_20SM_L2h:
     base_file: "$GPGPUSIM_ROOT/configs/tested-cfgs/SM7_QV100_20SM_L2h/gpgpusim.config"
 EOF
-# 注册 llm-synth 套件（幂等：docker 再入时防重复追加）
+# 注册 llm-synth 套件（幂等：docker 再入时防重复追加）。
+# 2026-11-27：app 清单按 MODE 生成（diag 只注册 1 个诊断 app）；
+# 逐条 printf 生成，避免 heredoc 与补丁正则的历史坑（ci2 教训）。
+if [ "$MODE" = "diag" ]; then
+    APPS_U2="u2-gemm-prefill"
+else
+    APPS_U2="u2-gemm-prefill u2-gemm-wide u2-attn-prefill u2-kv-mid u2-kv-small \
+u2-kv-big u2-batch-dec u2-stream u2-elem u2-occu u2-lat-chain u2-tile \
+u2-junk-h1 u2-junk-h2 u2-junk-h3 u2-junk-h4 u2-junk-h5 u2-junk-h6 u2-junk-h7 u2-junk-h8"
+fi
 JOBYML=util/job_launching/apps/define-all-apps.yml
-grep -q "^llm-synth:" "$JOBYML" || cat >> "$JOBYML" <<'EOF'
-llm-synth:
-    exec_dir: "$ACCELSIM_ROOT"
-    data_dirs: ""
-    execs:
-        - u2-gemm-prefill:
-            - name: all
-              args: ""
-        - u2-gemm-wide:
-            - name: all
-              args: ""
-        - u2-attn-prefill:
-            - name: all
-              args: ""
-        - u2-kv-mid:
-            - name: all
-              args: ""
-        - u2-kv-small:
-            - name: all
-              args: ""
-        - u2-kv-big:
-            - name: all
-              args: ""
-        - u2-batch-dec:
-            - name: all
-              args: ""
-        - u2-stream:
-            - name: all
-              args: ""
-        - u2-elem:
-            - name: all
-              args: ""
-        - u2-occu:
-            - name: all
-              args: ""
-        - u2-lat-chain:
-            - name: all
-              args: ""
-        - u2-tile:
-            - name: all
-              args: ""
-        - u2-junk-h1:
-            - name: all
-              args: ""
-        - u2-junk-h2:
-            - name: all
-              args: ""
-        - u2-junk-h3:
-            - name: all
-              args: ""
-        - u2-junk-h4:
-            - name: all
-              args: ""
-        - u2-junk-h5:
-            - name: all
-              args: ""
-        - u2-junk-h6:
-            - name: all
-              args: ""
-        - u2-junk-h7:
-            - name: all
-              args: ""
-        - u2-junk-h8:
-            - name: all
-              args: ""
-EOF
+grep -q "^llm-synth:" "$JOBYML" || {
+    printf 'llm-synth:\n    exec_dir: "$ACCELSIM_ROOT"\n    data_dirs: ""\n    execs:\n' >> "$JOBYML"
+    for a in $APPS_U2; do
+        printf '        - %s:\n            - name: all\n              args: ""\n' "$a" >> "$JOBYML"
+    done
+}
 
-# ---------- 4) 跑仿真：8 配置 × llm-synth（10 信息 + 8 垃圾列 = 18 个合成 LLM kernel app） ----------
-echo "[4/5] 运行仿真（8 配置 × llm-synth 第二宇宙，20 app：12 信息列 + 8 junk 注入列）"
+# ---------- 4) 跑仿真：8 配置 × llm-synth（12 信息 + 8 垃圾列 = 20 app；diag 时 1×1） ----------
+echo "[4/5] 运行仿真（MODE=$MODE：配置 [$CFGS_RUN] × app 数 $(echo $APPS_U2 | wc -w | tr -d ' ')）"
 set +u; source ./gpu-simulator/setup_environment.sh release; set -u   # set -u 与其未定义变量不兼容
-for C in QV100_80SM QV100_40SM QV100_20SM QV100_80SM_L2h \
-         QV100_80SM_CLKh QV100_80SM_RFh QV100_40SM_L2h QV100_20SM_L2h; do
+for C in $CFGS_RUN; do
     ./util/job_launching/run_simulations.py -C "$C-SASS" -B llm-synth \
         -T ./hw_run -N "smoke-$C"
     ./util/job_launching/monitor_func_test.py -N "smoke-$C"    # 等待完成
@@ -196,18 +156,32 @@ done
 echo "[diag] sim_run 目录树（文件级，深度不限）："
     find sim_run_* -type f 2>/dev/null | head -30 || true
     echo "[diag] cwd=$(pwd)"
+# 诊断门（裁判前置条件①）：cat .o 全文核对 gpu_tot_sim_cycle（放在收集器之前，
+# 收集器失败时证据仍在日志里）。
+if [ "$MODE" = "diag" ]; then
+    echo "[diag-gate] ---- .o 全文证据 ----"
+    for O in $(find sim_run_* -type f -name '*.o*' 2>/dev/null); do
+        echo "[diag-gate] .o 文件：$O（$(wc -l < "$O") 行）"
+        echo "[diag-gate] gpu_tot_sim_cycle 出现行数：$(grep -c 'gpu_tot_sim_cycle' "$O" || true)"
+        echo "[diag-gate] 最后 3 条 gpu_tot_sim_cycle："
+        grep 'gpu_tot_sim_cycle' "$O" | tail -3 || true
+        echo "[diag-gate] .o 尾部 40 行："
+        tail -40 "$O" || true
+    done
+fi
 echo "[5/5] 收集结果"
-python3 - "$OUT" <<'PYEOF'
+python3 - "$OUT" "$MODE" "$CFGS_RUN" <<'PYEOF'
 import json, os, sys, glob
-out = sys.argv[1]
+out, mode, cfgs_arg = sys.argv[1], sys.argv[2], sys.argv[3]
 # 收集口径（2026-10-23 修复沿用）：trace-driven 模式逐 kernel 打印累计 gpu_tot_sim_cycle，
-# 取每个 .o 文件最后一个值（= 全 app 总 cycles）。app 名取路径中 llm- 开头的组件。
-# 2026-10-24 新增：time_us = cycles / 核心时钟 MHz——本轮配置含核心时钟差异（CLKh=566），
-# gpu_tot_sim_cycle 按核心时钟域计数，跨时钟配置比较必须用时间（预登记 §1.2 主读出）。
-CFGS = ("QV100_80SM", "QV100_40SM", "QV100_20SM", "QV100_80SM_L2h",
-        "QV100_80SM_CLKh", "QV100_80SM_RFh", "QV100_40SM_L2h", "QV100_20SM_L2h")
+# 取每个 .o 文件最后一个值（= 全 app 总 cycles）。
+# 【2026-11-27 第三因修复】app 名提取原来是 p.startswith("llm-")——第二宇宙 app
+# 改名 u2-* 后全部 .o 在解析前被跳过（app=None→continue），apps=[] 退出 1。
+# 修复：前缀元组 ("llm-", "u2-")；CFG 列表与实际运行集同步（diag=单配置）。
+CFGS = tuple(cfgs_arg.split())
 CORE_MHZ = {c: 1132.0 for c in CFGS}
-CORE_MHZ["QV100_80SM_CLKh"] = 566.0
+if "QV100_80SM_CLKh" in CORE_MHZ:
+    CORE_MHZ["QV100_80SM_CLKh"] = 566.0
 matrix = {}
 diag = []
 for cfg in CFGS:
@@ -215,13 +189,13 @@ for cfg in CFGS:
     outs = sorted(glob.glob(f"sim_run_*/**/{cfg}-SASS/**/*.o*", recursive=True))
     for st in outs:
         parts = os.path.normpath(st).split(os.sep)
-        app = next((p for p in parts if p.startswith("llm-")), None)
+        app = next((p for p in parts if p.startswith(("llm-", "u2-"))), None)
         if app is None:
             continue
         last = 0
         with open(st, "rt", errors="ignore") as fh:
             for line in fh:
-                if line.startswith("gpu_tot_sim_cycle"):
+                if line.lstrip().startswith("gpu_tot_sim_cycle"):
                     last = int(line.split()[-1])
         if last:
             row[app] = last
@@ -237,6 +211,12 @@ open(os.path.join(out, "collect_diag.txt"), "w").write("\n".join(diag) + "\n")
 print("apps:", apps)
 print("written:", os.path.join(out, "matrix_cycles.json"),
       "and", os.path.join(out, "matrix_time_us.json"))
+if mode == "diag":
+    vals = [v for row in matrix.values() for v in row.values()]
+    ok = bool(apps) and all(isinstance(v, int) and 0 < v < 10**12 for v in vals)
+    print(f"[diag-gate] {'PASS' if ok else 'FAIL'}: matrix={matrix}")
+    if not ok:
+        sys.exit(1)
 if not apps:
     print("WARNING: no cycles collected; see find dump above and job logs", file=sys.stderr)
     sys.exit(1)
